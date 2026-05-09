@@ -1,0 +1,46 @@
+inquiry_id: INQ-SYN-006
+schema_version: '0.2'
+source_type: synthetic_inquiry
+synthetic: true
+workflow_stage: finalized
+raw_intake:
+  intake_source: qre_general_question_form
+  submitter_role: frontline_pharmacist
+  submission_purpose: frontline_pharmacist_question
+  concern_narrative: Customer asked whether this oral liquid contains xylitol. Can
+    we confirm if that ingredient is present?
+  star_rating: null
+  review_text_present: null
+  submitter_selected_classification: general_question
+product_context:
+  species: unknown
+  dosage_form: oral_liquid
+  product_placeholder: null
+  flavor_or_attribute: null
+  bud_present: null
+  batch_lot_present: null
+review_summary:
+  record_review_result: not_applicable
+  lot_batch_pattern_summary: not_applicable
+  inventory_inspection_result: not_applicable
+  customer_context_summary: Frontline pharmacist asked whether a specific ingredient
+    may be confirmed for a customer question.
+  api_reference_review_result: not_needed
+  missing_information: []
+  evidence_limitations:
+  - Synthetic corpus does not contain real formula or inactive ingredient lists.
+derived_assessment:
+  reviewer_assigned_classification: general_question
+  reviewer_assigned_category: null
+  reviewer_assigned_subcategory: null
+  concern_type: ingredient_presence_question
+  risk_lane: expected_self_limiting
+  review_scope: guidance_only
+  escalation_triggers: []
+  handling_path: respond_to_frontline_pharmacist
+  resolution_review_required: false
+  resolution_options: []
+  rationale: This is a frontline pharmacist question submitted through the general-question
+    form. It is guidance-only and does not require record review, lot/batch review,
+    inventory inspection, trend scan, or customer outreach unless additional product-quality
+    facts are introduced.

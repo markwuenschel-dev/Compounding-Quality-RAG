@@ -1,0 +1,25 @@
+[project]
+name="compounding-quality-rag"
+version="0.1.0"
+description="retrieval augmented generation prototype for compounding quality review workflows"
+readme="README.md"
+requires-python = ">3.12, <3.13"
+dependencies= [
+    "pydantic>=2.13.3"
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"

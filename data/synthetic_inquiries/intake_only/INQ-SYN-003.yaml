@@ -1,0 +1,23 @@
+inquiry_id: INQ-SYN-003
+schema_version: '0.2'
+source_type: synthetic_inquiry
+synthetic: true
+workflow_stage: intake_only
+raw_intake:
+  intake_source: qre_general_question_form
+  submitter_role: frontline_pharmacist
+  submission_purpose: frontline_pharmacist_question
+  concern_narrative: Customer says oral liquid ran out early. They are asking if they
+    should get more medication. No leak or damage was reported in the note.
+  star_rating: null
+  review_text_present: null
+  submitter_selected_classification: general_question
+product_context:
+  species: unknown
+  dosage_form: oral_liquid
+  product_placeholder: null
+  flavor_or_attribute: null
+  bud_present: null
+  batch_lot_present: null
+review_summary: null
+derived_assessment: null

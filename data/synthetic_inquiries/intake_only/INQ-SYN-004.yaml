@@ -1,0 +1,23 @@
+inquiry_id: INQ-SYN-004
+schema_version: '0.2'
+source_type: synthetic_inquiry
+synthetic: true
+workflow_stage: intake_only
+raw_intake:
+  intake_source: qre_general_question_form
+  submitter_role: frontline_pharmacist
+  submission_purpose: customer_reported_concern
+  concern_narrative: Customer reports pet vomited shortly after receiving the flavored
+    compounded medication. They are not sure if it was the taste or the medication.
+  star_rating: null
+  review_text_present: null
+  submitter_selected_classification: qre
+product_context:
+  species: unknown
+  dosage_form: unknown
+  product_placeholder: null
+  flavor_or_attribute: null
+  bud_present: null
+  batch_lot_present: null
+review_summary: null
+derived_assessment: null

@@ -1,0 +1,23 @@
+inquiry_id: INQ-SYN-002
+schema_version: '0.2'
+source_type: synthetic_inquiry
+synthetic: true
+workflow_stage: intake_only
+raw_intake:
+  intake_source: customer_review
+  submitter_role: customer_review_system
+  submission_purpose: customer_review_followup
+  concern_narrative: 'One-star review: "Bottle looked fine but my pet would not take
+    this at all. We tried twice and it was a waste."'
+  star_rating: 1
+  review_text_present: true
+  submitter_selected_classification: null
+product_context:
+  species: unknown
+  dosage_form: unknown
+  product_placeholder: null
+  flavor_or_attribute: null
+  bud_present: null
+  batch_lot_present: null
+review_summary: null
+derived_assessment: null
