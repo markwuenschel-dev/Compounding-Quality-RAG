@@ -1,0 +1,65 @@
+{
+  "raw_intake": {
+    "intake_source": "customer_review",
+    "submitter_role": "customer",
+    "submission_purpose": "customer_reported_concern",
+    "concern_narrative": "Customer review states that the pet vomited after receiving a flavored oral liquid compounded medication and the customer believes the flavor or formulation may have caused the reaction.",
+    "star_rating": 1,
+    "review_text_present": true,
+    "submitter_selected_classification": null
+  },
+  "product_context": {
+    "species": "unknown",
+    "dosage_form": "oral_liquid",
+    "product_placeholder": "synthetic flavored oral liquid compound",
+    "flavor_or_attribute": "flavor",
+    "bud_present": null,
+    "batch_lot_present": null
+  },
+  "investigation_requirements": {
+    "record_review_required": true,
+    "lot_batch_review_required": true,
+    "inventory_inspection_required": null,
+    "trend_scan_required": null,
+    "customer_outreach_required": null,
+    "frontline_guidance_lookup_required": null,
+    "technical_services_response_required": null
+  },
+  "review_summary": {
+    "record_review_result": "no_discrepancy_found",
+    "lot_batch_pattern_summary": "unavailable",
+    "inventory_inspection_result": "not_checked",
+    "customer_context_summary": "The available review text reports vomiting after administration and attributes the event to flavor or formulation.",
+    "api_reference_review_result": "external_reference_needed",
+    "missing_information": [
+      "Medication name",
+      "Species",
+      "Dose administered",
+      "Timing of vomiting relative to administration",
+      "Whether the veterinarian was contacted",
+      "Whether symptoms resolved",
+      "Lot or batch information"
+    ],
+    "evidence_limitations": [
+      "The customer report alone does not establish causality.",
+      "Clinical severity cannot be fully assessed without follow-up details.",
+      "The public synthetic corpus cannot verify product-specific adverse-effect references unless synthetic API reference evidence is supplied."
+    ]
+  },
+  "derived_assessment": {
+    "reviewer_assigned_classification": "qre",
+    "reviewer_assigned_category": "suspected_ade",
+    "reviewer_assigned_subcategory": "flavor_related_ade",
+    "concern_type": "flavor_related_vomiting",
+    "risk_lane": "unexpected_non_life_threatening",
+    "review_scope": "full_quality_review",
+    "escalation_triggers": [],
+    "handling_path": "technical_services_customer_outreach",
+    "resolution_review_required": true,
+    "resolution_options": [
+      "counseling_or_follow_up",
+      "alternate_dosage_form_discussion"
+    ],
+    "rationale": "Vomiting after administration is treated as a potential adverse event and warrants quality review and follow-up. The synthetic case does not include hospitalization, death, threatened legal action, contamination, wrong medication, or veterinarian-alleged harm, so it is routed as unexpected non-life-threatening rather than automatic leadership escalation."
+  }
+}

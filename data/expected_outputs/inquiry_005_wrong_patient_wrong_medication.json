@@ -1,0 +1,67 @@
+{
+  "raw_intake": {
+    "intake_source": "qre_general_question_form",
+    "submitter_role": "frontline_pharmacist",
+    "submission_purpose": "escalation_request",
+    "concern_narrative": "A frontline pharmacist reports a possible wrong patient or wrong medication concern discovered during review. The medication may have been associated with a different patient or prescription than intended.",
+    "star_rating": null,
+    "review_text_present": null,
+    "submitter_selected_classification": "qre"
+  },
+  "product_context": {
+    "species": "unknown",
+    "dosage_form": "unknown",
+    "product_placeholder": null,
+    "flavor_or_attribute": null,
+    "bud_present": null,
+    "batch_lot_present": null
+  },
+  "investigation_requirements": {
+    "record_review_required": true,
+    "lot_batch_review_required": true,
+    "inventory_inspection_required": null,
+    "trend_scan_required": null,
+    "customer_outreach_required": null,
+    "frontline_guidance_lookup_required": null,
+    "technical_services_response_required": null
+  },
+  "review_summary": {
+    "record_review_result": "documentation_discrepancy_found",
+    "lot_batch_pattern_summary": "unavailable",
+    "inventory_inspection_result": "not_checked",
+    "customer_context_summary": "The concern involves a possible wrong patient or wrong medication scenario.",
+    "api_reference_review_result": "not_needed",
+    "missing_information": [
+      "Affected prescription number",
+      "Medication dispensed",
+      "Medication intended",
+      "Patient or pet identifiers",
+      "Whether medication left the pharmacy",
+      "Whether medication was administered",
+      "Whether veterinarian or customer was contacted"
+    ],
+    "evidence_limitations": [
+      "The severity depends on whether the medication was dispensed, delivered, or administered.",
+      "This is a rare scenario in the synthetic corpus and should be treated conservatively."
+    ]
+  },
+  "derived_assessment": {
+    "reviewer_assigned_classification": "qre",
+    "reviewer_assigned_category": "dispensing_error",
+    "reviewer_assigned_subcategory": "wrong_medication",
+    "concern_type": "wrong_patient_or_wrong_medication",
+    "risk_lane": "life_threatening_or_legal",
+    "review_scope": "escalation_review",
+    "escalation_triggers": [
+      "wrong_patient_or_wrong_medication"
+    ],
+    "handling_path": "leadership_escalation_before_resolution",
+    "resolution_review_required": true,
+    "resolution_options": [
+      "leadership_directed_resolution",
+      "counseling_or_follow_up",
+      "replacement_or_reship_review"
+    ],
+    "rationale": "A possible wrong patient or wrong medication event is a high-risk dispensing-error concern. It requires conservative escalation before routine resolution because severity depends on whether the medication was dispensed, delivered, or administered and whether patient harm may result."
+  }
+}

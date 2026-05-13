@@ -1,0 +1,62 @@
+{
+  "raw_intake": {
+    "intake_source": "customer_review",
+    "submitter_role": "customer",
+    "submission_purpose": "customer_reported_concern",
+    "concern_narrative": "Customer reports that a transdermal pen appears not to dispense correctly after clicking. The review mentions possible air bubbles or leaking from the top or bottom of the device. No adverse event, hospitalization, death, contamination, wrong medication, or threatened legal action is reported.",
+    "star_rating": 2,
+    "review_text_present": true,
+    "submitter_selected_classification": null
+  },
+  "product_context": {
+    "species": "unknown",
+    "dosage_form": "transdermal",
+    "product_placeholder": "synthetic transdermal pen compound",
+    "flavor_or_attribute": null,
+    "bud_present": null,
+    "batch_lot_present": null
+  },
+  "investigation_requirements": {
+    "record_review_required": true,
+    "lot_batch_review_required": true,
+    "inventory_inspection_required": null,
+    "trend_scan_required": null,
+    "customer_outreach_required": null,
+    "frontline_guidance_lookup_required": null,
+    "technical_services_response_required": null
+  },
+  "review_summary": {
+    "record_review_result": "no_discrepancy_found",
+    "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+    "inventory_inspection_result": "not_checked",
+    "customer_context_summary": "The report concerns possible transdermal pen malfunction, air bubbles, or leakage affecting dose administration.",
+    "api_reference_review_result": "not_needed",
+    "missing_information": [
+      "Whether the pen is leaking from the top or bottom",
+      "Whether the customer observed air bubbles",
+      "Whether the pen dispenses after the expected clicks",
+      "Whether the customer has enough usable medication remaining",
+      "Whether replacement equipment or product review is needed"
+    ],
+    "evidence_limitations": [
+      "The report does not establish whether the device defect is isolated, technique-related, or product-related.",
+      "Inventory inspection and trend scan require operational data not available to the public RAG corpus."
+    ]
+  },
+  "derived_assessment": {
+    "reviewer_assigned_classification": "qre",
+    "reviewer_assigned_category": "equipment_device_related",
+    "reviewer_assigned_subcategory": "defective_device",
+    "concern_type": "syringe_or_device_issue",
+    "risk_lane": "expected_self_limiting",
+    "review_scope": "full_quality_review",
+    "escalation_triggers": [],
+    "handling_path": "technical_services_customer_outreach",
+    "resolution_review_required": true,
+    "resolution_options": [
+      "replacement_or_reship_review",
+      "counseling_or_follow_up"
+    ],
+    "rationale": "A transdermal pen that may not dispense correctly is a more plausible device-quality concern than syringe malfunction. With no reported harm, hospitalization, death, contamination, wrong medication, or legal threat, the case supports equipment/device-related quality review with customer follow-up, counseling, and possible replacement or reship review."
+  }
+}

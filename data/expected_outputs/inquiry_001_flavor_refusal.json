@@ -1,0 +1,60 @@
+{
+  "raw_intake": {
+    "intake_source": "qre_general_question_form",
+    "submitter_role": "frontline_pharmacist",
+    "submission_purpose": "frontline_pharmacist_question",
+    "concern_narrative": "A frontline pharmacist submits a QRE/general question form stating that a customer reports their pet refuses a flavored oral liquid compound. No vomiting, injury, hospitalization, death, contamination, dispensing error, wrong medication, or veterinarian allegation of harm is reported.",
+    "star_rating": null,
+    "review_text_present": null,
+    "submitter_selected_classification": "qre"
+  },
+  "product_context": {
+    "species": "unknown",
+    "dosage_form": "oral_liquid",
+    "product_placeholder": "synthetic flavored oral liquid compound",
+    "flavor_or_attribute": "flavor",
+    "bud_present": null,
+    "batch_lot_present": null
+  },
+  "investigation_requirements": {
+    "record_review_required": true,
+    "lot_batch_review_required": true,
+    "inventory_inspection_required": null,
+    "trend_scan_required": null,
+    "customer_outreach_required": null,
+    "frontline_guidance_lookup_required": null,
+    "technical_services_response_required": null
+  },
+  "review_summary": {
+    "record_review_result": "no_discrepancy_found",
+    "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+    "inventory_inspection_result": "not_checked",
+    "customer_context_summary": "The available case context describes routine palatability or flavor refusal without reported harm or product defect.",
+    "api_reference_review_result": "not_needed",
+    "missing_information": [
+      "Whether the pet has previously accepted this flavor",
+      "Whether administration technique or food mixing was attempted",
+      "Whether the customer wants counseling or alternate dosage form discussion"
+    ],
+    "evidence_limitations": [
+      "Inventory inspection and trend scan depend on operational data not available to the public RAG corpus.",
+      "The synthetic case does not establish whether customer outreach has already occurred."
+    ]
+  },
+  "derived_assessment": {
+    "reviewer_assigned_classification": "qre",
+    "reviewer_assigned_category": "medication_related",
+    "reviewer_assigned_subcategory": "flavor",
+    "concern_type": "pet_refused_flavor",
+    "risk_lane": "expected_self_limiting",
+    "review_scope": "full_quality_review",
+    "escalation_triggers": [],
+    "handling_path": "technical_services_customer_outreach",
+    "resolution_review_required": true,
+    "resolution_options": [
+      "counseling_or_follow_up",
+      "alternate_dosage_form_discussion"
+    ],
+    "rationale": "The review describes flavor refusal without vomiting, injury, hospitalization, death, contamination, dispensing error, wrong medication, or veterinarian allegation of harm. After standard record, lot/batch, inventory-if-available, and trend review show no concerning finding, the supported path is guidance or counseling and possible alternate dosage form discussion rather than leadership escalation, refund, reship, or frontline delegation."
+  }
+}
