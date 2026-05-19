@@ -311,3 +311,29 @@ class ExpectedStructuredOutput(StrictBaseModel):
     investigation_requirements: InvestigationRequirements
     review_summary: ReviewSummary
     derived_assessment: DerivedAssessment
+
+class EvidenceCitation(StrictBaseModel):
+    chunk_id: str
+    source_title: str
+    section_heading: str
+    score: float | None = None
+    matched_terms: list[str] = Field(default_factory=list)
+    supporting_text: str
+
+
+class ChecklistItem(StrictBaseModel):
+    check_name: str
+    required: bool
+    rationale: str
+    evidence: list[EvidenceCitation] = Field(default_factory=list)
+
+
+class IntakeChecklist(StrictBaseModel):
+    concern_text: str
+    likely_concern_type: ConcernType | None = None
+    likely_risk_lane: RiskLane | None = None
+    review_checks: list[ChecklistItem]
+    missing_information: list[str] = Field(default_factory=list)
+    escalation_triggers_to_rule_out: list[EscalationTrigger] = Field(default_factory=list)
+    evidence: list[EvidenceCitation] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)

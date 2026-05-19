@@ -6,9 +6,6 @@ from typing import TypedDict
 from app.retrieval import DEFAULT_CHUNKS_PATH, SearchResult, retrieve
 from app.schemas import ExpectedStructuredOutput, SourceType
 
-# run_stubbed_pipeline(...)
-# run_stubbed_pipeline_for_file_name(...)
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_EXPECTED_OUTPUTS_DIR = PROJECT_ROOT / "data" / "expected_outputs"
 

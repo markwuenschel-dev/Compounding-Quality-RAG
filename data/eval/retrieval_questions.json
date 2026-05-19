@@ -1,0 +1,62 @@
+[
+  {
+    "question_id": "RET-001",
+    "query": "pet refuses flavored oral liquid palatability flavor concern",
+    "expected_source_ids": ["SOP-001", "SOP-004", "SOP-006"]
+  },
+  {
+    "question_id": "RET-002",
+    "query": "customer reports vomiting after administration suspected adverse event",
+    "expected_source_ids": ["SOP-004", "SOP-005", "SOP-007"]
+  },
+  {
+    "question_id": "RET-003",
+    "query": "frontline pharmacist asks whether product is within beyond use date BUD",
+    "expected_source_ids": ["SOP-002", "SOP-005"]
+  },
+  {
+    "question_id": "RET-004",
+    "query": "transdermal pen leaking air bubbles does not dispense after clicks",
+    "expected_source_ids": ["SOP-001", "SOP-003", "SOP-005", "SOP-006"]
+  },
+  {
+    "question_id": "RET-005",
+    "query": "possible wrong patient wrong medication dispensing error",
+    "expected_source_ids": ["SOP-001", "SOP-005", "SOP-007"]
+  },
+  {
+    "question_id": "RET-006",
+    "query": "two star customer review with review text requires customer outreach",
+    "expected_source_ids": ["SOP-004", "SOP-006"]
+  },
+  {
+    "question_id": "RET-007",
+    "query": "two star customer review with no review text should be documented",
+    "expected_source_ids": ["SOP-006"]
+  },
+  {
+    "question_id": "RET-008",
+    "query": "oral liquid shortage delegate back frontline pharmacist unless leakage or quality concern",
+    "expected_source_ids": ["SOP-004", "SOP-006"]
+  },
+  {
+    "question_id": "RET-009",
+    "query": "temperature excursion outside limited guidance window unsupported product specific stability",
+    "expected_source_ids": ["SOP-005", "SOP-006"]
+  },
+  {
+    "question_id": "RET-010",
+    "query": "leadership escalation triggers death hospitalization legal threat veterinarian alleges harm contamination",
+    "expected_source_ids": ["SOP-007"]
+  },
+  {
+    "question_id": "RET-011",
+    "query": "lot batch trend review similar concerns threshold same medication dosage form",
+    "expected_source_ids": ["SOP-003"]
+  },
+  {
+    "question_id": "RET-012",
+    "query": "standard investigation checklist record review lot batch inventory inspection customer context",
+    "expected_source_ids": ["SOP-002", "SOP-003", "SOP-004"]
+  }
+]
