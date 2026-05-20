@@ -49,16 +49,17 @@ def test_format_intake_checklist_includes_manager_readable_sections() -> None:
     report = format_intake_checklist(checklist)
 
     assert "COMPOUNDING QUALITY INTAKE CHECKLIST" in report
-    assert "Likely concern type:" in report
-    assert "Likely risk lane:" in report
-    assert "Review checks:" in report
-    assert "Missing information:" in report
-    assert "Evidence:" in report
+    assert "SYNTHETIC PROOF OF CONCEPT" in report
+    assert "NO REAL RECORD ACCESS" in report
+    assert "Bottom line:" in report
+    assert "What should be checked:" in report
+    assert "Missing information to resolve before final disposition:" in report
+    assert "Evidence used for checklist:" in report
     assert "Limitations:" in report
-    assert "does not access real compounding records" in report
+    assert "score=" not in report
 
 
-def test_format_final_assessment_includes_structured_summary() -> None:
+def test_format_final_assessment_includes_manager_readable_sections() -> None:
     checklist = make_checklist()
     output = build_final_assessment(
         checklist=checklist,
@@ -68,12 +69,27 @@ def test_format_final_assessment_includes_structured_summary() -> None:
     report = format_final_assessment(output, checklist.evidence)
 
     assert "COMPOUNDING QUALITY FINAL CONSISTENCY SUMMARY" in report
-    assert "Reviewer findings:" in report
-    assert "Final structured assessment:" in report
-    assert "Resolution options:" in report
-    assert "Rationale:" in report
-    assert "Evidence used:" in report
+    assert "SYNTHETIC PROOF OF CONCEPT" in report
+    assert "Bottom line:" in report
+    assert "What was checked:" in report
+    assert "What was not available / still limited:" in report
+    assert "Recommended review disposition:" in report
+    assert "None identified from supplied review findings" in report
     assert "Human pharmacist review remains the final decision point." in report
+    assert "score=" not in report
+
+
+def test_format_final_assessment_debug_mode_shows_scores_and_matched_terms() -> None:
+    checklist = make_checklist()
+    output = build_final_assessment(
+        checklist=checklist,
+        review_summary=make_review_summary(),
+    )
+
+    report = format_final_assessment(output, checklist.evidence, debug=True)
+
+    assert "score=" in report
+    assert "matched_terms=" in report
 
 
 def test_format_evidence_respects_max_items() -> None:
@@ -82,6 +98,15 @@ def test_format_evidence_respects_max_items() -> None:
     lines = format_evidence(checklist.evidence, max_items=1)
 
     assert len(lines) == 1
+
+
+def test_format_evidence_hides_scores_by_default() -> None:
+    checklist = make_checklist()
+
+    lines = format_evidence(checklist.evidence, max_items=1)
+
+    assert lines
+    assert "score=" not in lines[0]
 
 
 def test_format_evidence_handles_empty_evidence() -> None:

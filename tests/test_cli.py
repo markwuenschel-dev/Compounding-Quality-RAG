@@ -118,4 +118,4 @@ def test_main_runs_phase_two_with_controlled_findings(
 
     assert "COMPOUNDING QUALITY INTAKE CHECKLIST" in captured.out
     assert "COMPOUNDING QUALITY FINAL CONSISTENCY SUMMARY" in captured.out
-    assert "Final structured assessment:" in captured.out
+    assert "Recommended review disposition:" in captured.out
