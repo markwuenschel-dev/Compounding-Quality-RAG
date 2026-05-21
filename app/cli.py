@@ -12,6 +12,7 @@ from app.schemas import (
     LotBatchPatternSummary,
     RecordReviewResult,
     ReviewSummary,
+    EscalationTrigger
 )
 
 EnumType = TypeVar("EnumType", bound=Enum)
@@ -29,7 +30,7 @@ def main() -> None:
     print(format_intake_checklist(checklist))
     print()
 
-    proceed = input("Enter reviewer findings now? [y/N]: ").strip().lower()
+    proceed = input("Enter investigation findings for final review summary? [y/N]: ").strip().lower()
 
     if proceed != "y":
         print("Stopping after Phase 1 checklist.")
@@ -41,14 +42,32 @@ def main() -> None:
     print()
     print(format_final_assessment(final_output, checklist.evidence))
 
-
 def collect_review_summary() -> ReviewSummary:
-    record_review_result = choose_enum("Record review result", RecordReviewResult)
-    lot_batch_pattern_summary = choose_enum("Lot/batch pattern summary", LotBatchPatternSummary)
-    inventory_inspection_result = choose_enum("Inventory inspection result", InventoryInspectionResult)
-    api_reference_review_result = choose_enum("API/reference review result", ApiReferenceReviewResult)
+    record_review_result = choose_enum(
+        "Record review result",
+        RecordReviewResult,
+    )
+    lot_batch_pattern_summary = choose_enum(
+        "Lot/batch pattern summary",
+        LotBatchPatternSummary,
+    )
+    inventory_inspection_result = choose_enum(
+        "Inventory inspection result",
+        InventoryInspectionResult,
+    )
+    api_reference_review_result = choose_enum(
+        "API/reference review result",
+        ApiReferenceReviewResult,
+    )
+    severe_triggers_observed = choose_multiple_enum(
+        "Severe escalation triggers observed",
+        EscalationTrigger,
+    )
 
-    customer_context_summary = input("Customer context summary, if available: ").strip() or None
+    customer_context_summary = input(
+        "Customer context summary, if available: "
+    ).strip() or None
+
     missing_information = collect_list("Missing information item")
     evidence_limitations = collect_list("Evidence limitation")
 
@@ -58,6 +77,7 @@ def collect_review_summary() -> ReviewSummary:
         inventory_inspection_result=inventory_inspection_result,
         customer_context_summary=customer_context_summary,
         api_reference_review_result=api_reference_review_result,
+        severe_triggers_observed=severe_triggers_observed,
         missing_information=missing_information,
         evidence_limitations=evidence_limitations,
     )
@@ -85,6 +105,44 @@ def choose_enum(prompt: str, enum_type: type[EnumType]) -> EnumType:
 
         print("Choice out of range.")
 
+def choose_multiple_enum(prompt: str, enum_type):
+    values = list(enum_type)
+
+    while True:
+        print()
+        print(f"{prompt}:")
+        print("0. none")
+
+        for index, value in enumerate(values, start=1):
+            print(f"{index}. {value.value}")
+
+        raw_choices = input("Select comma-separated numbers: ").strip()
+
+        if raw_choices in {"", "0"}:
+            return []
+
+        selected_values = []
+        valid = True
+
+        for raw_choice in raw_choices.split(","):
+            raw_choice = raw_choice.strip()
+
+            if not raw_choice.isdigit():
+                valid = False
+                break
+
+            choice = int(raw_choice)
+
+            if not 1 <= choice <= len(values):
+                valid = False
+                break
+
+            selected_values.append(values[choice - 1])
+
+        if valid:
+            return selected_values
+
+        print("Please enter valid comma-separated numbers, or 0 for none.")
 
 def collect_list(prompt: str) -> list[str]:
     print()

@@ -201,3 +201,20 @@ This avoids overloading `handling_path`, but it requires answer rules to clearly
 
 ### Revisit when
 Synthetic inquiries and evaluation questions reveal duplicate or confusing resolution values.
+
+## 2026-05-18 — Structured severe escalation triggers
+
+### Decision
+Use `review_summary.severe_triggers_observed` as the structured source of truth for severe escalation routing.
+
+### Reason
+Free-text reviewer summaries can contain negated severe terms such as “no hospitalization,” “no death,” “no legal threat,” or “no wrong medication concern.” Keyword scanning can misread those phrases as positive escalation evidence.
+
+### Consequence
+Final risk-lane logic escalates to `life_threatening_or_legal` when `severe_triggers_observed` is non-empty. Negated free-text statements do not independently trigger escalation. The reviewer or future extraction layer must explicitly populate the structured trigger list.
+
+### Tradeoff
+This requires one additional structured reviewer field, but it is safer and easier to validate than brittle free-text parsing.
+
+### Revisit when
+The LLM review-summary extraction layer is added and must map normal English reviewer notes into `ReviewSummary`.

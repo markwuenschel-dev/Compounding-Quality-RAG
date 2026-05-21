@@ -51,7 +51,7 @@ def test_format_intake_checklist_includes_manager_readable_sections() -> None:
     assert "COMPOUNDING QUALITY INTAKE CHECKLIST" in report
     assert "SYNTHETIC PROOF OF CONCEPT" in report
     assert "NO REAL RECORD ACCESS" in report
-    assert "Bottom line:" in report
+    assert "Initial review takeaway:" in report
     assert "What should be checked:" in report
     assert "Missing information to resolve before final disposition:" in report
     assert "Evidence used for checklist:" in report
@@ -70,7 +70,7 @@ def test_format_final_assessment_includes_manager_readable_sections() -> None:
 
     assert "COMPOUNDING QUALITY FINAL CONSISTENCY SUMMARY" in report
     assert "SYNTHETIC PROOF OF CONCEPT" in report
-    assert "Bottom line:" in report
+    assert "Final review takeaway:" in report
     assert "What was checked:" in report
     assert "What was not available / still limited:" in report
     assert "Recommended review disposition:" in report

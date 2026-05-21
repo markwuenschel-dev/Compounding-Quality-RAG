@@ -29,6 +29,7 @@ CHUNKS_PATH = PROJECT_ROOT / "data" / "index" / "chunks.jsonl"
 def make_review_summary(
     *,
     customer_context_summary: str | None = "Vomited once, recovered, no hospitalization reported.",
+    severe_triggers_observed: list[EscalationTrigger] | None = None,
 ) -> ReviewSummary:
     return ReviewSummary(
         record_review_result=RecordReviewResult.NO_DISCREPANCY_FOUND,
@@ -36,10 +37,10 @@ def make_review_summary(
         inventory_inspection_result=InventoryInspectionResult.NOT_CHECKED,
         customer_context_summary=customer_context_summary,
         api_reference_review_result=ApiReferenceReviewResult.NOT_NEEDED,
+        severe_triggers_observed=severe_triggers_observed or [],
         missing_information=[],
         evidence_limitations=[],
     )
-
 
 def test_build_final_assessment_routes_flavor_related_vomiting_as_suspected_ade() -> None:
     checklist = build_intake_checklist(
@@ -75,7 +76,8 @@ def test_build_final_assessment_escalates_hospitalization() -> None:
     output = build_final_assessment(
         checklist=checklist,
         review_summary=make_review_summary(
-            customer_context_summary="The dog was hospitalized after administration."
+            customer_context_summary="The dog was hospitalized after administration.",
+            severe_triggers_observed=[EscalationTrigger.PET_HOSPITALIZATION],
         ),
     )
 
@@ -85,7 +87,6 @@ def test_build_final_assessment_escalates_hospitalization() -> None:
     assert assessment.review_scope == ReviewScope.ESCALATION_REVIEW
     assert assessment.handling_path == HandlingPath.LEADERSHIP_ESCALATION_BEFORE_RESOLUTION
     assert EscalationTrigger.PET_HOSPITALIZATION in assessment.escalation_triggers
-
 
 def test_build_final_assessment_handles_bud_question_as_general_question() -> None:
     checklist = build_intake_checklist(

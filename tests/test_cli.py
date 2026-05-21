@@ -5,6 +5,7 @@ import pytest
 from app import cli
 from app.schemas import (
     ApiReferenceReviewResult,
+    EscalationTrigger,
     InventoryInspectionResult,
     LotBatchPatternSummary,
     RecordReviewResult,
@@ -49,6 +50,7 @@ def test_collect_review_summary_builds_review_summary(monkeypatch: pytest.Monkey
             "1",
             "4",
             "1",
+            "0",  # severe_triggers_observed: none
             "Dog vomited once and recovered.",
             "Timing from dose to vomiting",
             "",
@@ -101,10 +103,11 @@ def test_main_runs_phase_two_with_controlled_findings(
         [
             "Dog vomited after chicken flavored oral liquid.",
             "y",
-            "1",
-            "1",
-            "4",
-            "1",
+            "1",  # record_review_result
+            "1",  # lot_batch_pattern_summary
+            "4",  # inventory_inspection_result
+            "1",  # api_reference_review_result
+            "0",  # severe_triggers_observed: none
             "Vomited once and recovered. No hospitalization.",
             "",
             "",
@@ -119,3 +122,17 @@ def test_main_runs_phase_two_with_controlled_findings(
     assert "COMPOUNDING QUALITY INTAKE CHECKLIST" in captured.out
     assert "COMPOUNDING QUALITY FINAL CONSISTENCY SUMMARY" in captured.out
     assert "Recommended review disposition:" in captured.out
+
+
+def test_choose_multiple_enum_returns_empty_list_for_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inputs = input_iterator(["0"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+
+    result = cli.choose_multiple_enum(
+        "Severe escalation triggers observed",
+        EscalationTrigger,
+    )
+
+    assert result == []

@@ -268,6 +268,7 @@ class ReviewSummary(StrictBaseModel):
     api_reference_review_result: ApiReferenceReviewResult
     missing_information: list[str] = Field(default_factory=list)
     evidence_limitations: list[str] = Field(default_factory=list)
+    severe_triggers_observed: list[EscalationTrigger] = Field(default_factory=list)
 
 
 class DerivedAssessment(StrictBaseModel):

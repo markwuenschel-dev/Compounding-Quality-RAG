@@ -25,6 +25,7 @@ The project uses a carry-forward schema: a record can begin as `workflow_stage: 
 - Synthetic inquiry records can support examples, pattern recognition, and test cases only.
 - Synthetic inquiry examples must not override SOP guidance.
 - If authoritative SOP evidence is missing, the system should refuse process guidance or state that the corpus does not support the answer.
+- Severe escalation routing should use reviewer-confirmed structured fields, not raw free-text keyword matching.
 
 ## 3. Source Types and Authority Rules
 
@@ -164,6 +165,7 @@ For intake-only YAML records, these may be absent or null unless the file is bei
 | `inventory_inspection_result` | `no_inventory_available`, `no_visual_concern_found`, `visual_concern_found`, `not_checked`, `not_applicable` | Does not imply the RAG system inspected inventory. |
 | `customer_context_summary` | string | Information provided in synthetic submission or outreach summary only. |
 | `api_reference_review_result` | `not_needed`, `synthetic_reference_consulted`, `external_reference_needed`, `not_supported_by_public_corpus` | Public project cannot use licensed external drug-information content. |
+| `severe_triggers_observed` | list of escalation-trigger enums | Structured reviewer-confirmed severe triggers observed during review. Empty list if none were observed. This field drives final escalation routing and prevents brittle free-text parsing of phrases like “no hospitalization.” |
 | `missing_information` | list | Fields still needed. |
 | `evidence_limitations` | list | Limits of the available evidence. |
 
@@ -177,7 +179,7 @@ For intake-only YAML records, these may be absent or null unless the file is bei
 | `concern_type` | enum | Controlled concern type. |
 | `risk_lane` | enum | Risk severity/workflow lane. |
 | `review_scope` | enum | Investigation depth. |
-| `escalation_triggers` | list | Empty if none. |
+| `escalation_triggers` | list of escalation-trigger enums | Derived from `review_summary.severe_triggers_observed`. Empty if none were confirmed. |
 | `handling_path` | enum | What happens operationally. |
 | `resolution_review_required` | boolean | Whether customer-facing resolution review is needed. |
 | `resolution_options` | list | Empty if none. |

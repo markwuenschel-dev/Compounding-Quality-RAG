@@ -90,6 +90,16 @@ This log captures implementation failures found while building the synthetic Com
 
 **Prevention:** Keep refusal tests for external references, internal record access, and clinical/legal conclusions. Avoid compact matching helpers unless their behavior is covered by tests.
 
+### 8. Severe escalation routing originally depended on free-text keyword scanning
+
+**Symptom:** Negated reviewer statements like “no hospitalization” or “no wrong medication concern” could be misread as positive severe triggers.
+
+**Root cause:** Final risk-lane logic scanned free-text reviewer summaries for severe terms instead of using structured reviewer findings.
+
+**Fix:** Added `severe_triggers_observed` to `ReviewSummary` and updated final assessment logic to escalate only when a structured severe trigger is supplied.
+
+**Prevention:** Keep tests proving that negated severe-trigger language does not escalate, while explicit structured triggers still do.
+
 ## Follow-up lessons
 
 - Tests are most valuable when they protect workflow behavior, not incidental implementation wording.

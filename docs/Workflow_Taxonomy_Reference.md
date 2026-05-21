@@ -164,6 +164,7 @@ These flags describe what should be checked. They do not mean the RAG system dir
 - `api_reference_review_result`
 - `missing_information`
 - `evidence_limitations`
+- `severe_triggers_observed`
 
 Review-summary fields are human-entered or synthetic review findings. The public project should not claim direct access to compounding records, inventory systems, lot-tracing systems, Snowflake, or external drug-information resources.
 
@@ -233,6 +234,8 @@ Resolution options are separate from handling path. They describe possible custo
 - `wrong_patient_or_wrong_medication`
 - `repeat_issue_same_lot_or_batch_with_conditions`
 - `rare_regulatory_or_compliance_concern`
+
+Escalation triggers should be treated as structured reviewer-confirmed findings in `review_summary.severe_triggers_observed`. Final escalation routing should not rely on bare keyword matching in free-text summaries, because negated phrases such as “no hospitalization” or “no wrong medication concern” can otherwise be misread.
 
 ## Delegate-Back Reasons
 
