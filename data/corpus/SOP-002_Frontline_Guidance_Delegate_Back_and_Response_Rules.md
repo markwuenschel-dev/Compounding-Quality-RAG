@@ -26,7 +26,9 @@ If a quality review is required, do not label the case as simple delegation mere
 
 A frontline pharmacist may answer a narrow ingredient-presence question when accessible formula or inactive-ingredient information supports the answer.
 
-The response should confirm or deny the specific ingredient being asked about. It should not provide a full blanket ingredient list unless the synthetic corpus explicitly supports that.
+All formulas are available to frontline pharmacists.
+
+The response should confirm or deny the specific ingredient being asked about. It should not provide a full blanket ingredient list.
 
 ## Oral Liquid Shortage
 
@@ -56,7 +58,9 @@ The assistant must not invent a product-specific BUD. It may list the needed fie
 
 Use `respond_to_frontline_pharmacist` when the primary output is guidance back to the submitter.
 
-Use `delegate_to_frontline_pharmacist` when the task should be handled by frontline workflow without Technical Services review.
+Use `delegate_to_frontline_pharmacist` when the task should be handled by frontline workflow without Technical Services review. Customer-facing follow-up is needed, but it should be handled by frontline pharmacist/customer-facing workflow, not TS.
+
+Use `technical_services_customer_outreach`	TS should directly outreach or review outreach.
 
 Use `insufficient_information` when the current facts do not support safe routing.
 
