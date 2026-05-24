@@ -9,7 +9,9 @@ from app.schemas import (
     InventoryInspectionResult,
     LotBatchPatternSummary,
     RecordReviewResult,
+    ReviewSummary,
 )
+
 
 
 def input_iterator(values: list[str]) -> Iterator[str]:
@@ -100,19 +102,20 @@ def test_main_runs_phase_two_with_controlled_findings(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     inputs = input_iterator(
-        [
-            "Dog vomited after chicken flavored oral liquid.",
-            "y",
-            "1",  # record_review_result
-            "1",  # lot_batch_pattern_summary
-            "4",  # inventory_inspection_result
-            "1",  # api_reference_review_result
-            "0",  # severe_triggers_observed: none
-            "Vomited once and recovered. No hospitalization.",
-            "",
-            "",
-        ]
-    )
+    [
+        "Dog vomited after chicken flavored oral liquid.",
+        "y",
+        "1",  # phase two input mode: controlled menu fields
+        "1",  # record_review_result
+        "1",  # lot_batch_pattern_summary
+        "4",  # inventory_inspection_result
+        "1",  # api_reference_review_result
+        "0",  # severe_triggers_observed: none
+        "Vomited once and recovered. No hospitalization.",
+        "",
+        "",
+    ]
+)
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
 
     cli.main()
@@ -136,3 +139,45 @@ def test_choose_multiple_enum_returns_empty_list_for_zero(
     )
 
     assert result == []
+
+def test_main_runs_phase_two_with_llm_findings(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    inputs = input_iterator(
+        [
+            "Dog vomited after chicken flavored oral liquid.",
+            "y",
+            "2",
+            "I reviewed the record and found no discrepancy.",
+            "No similar batch complaints were found.",
+            "Inventory was not available.",
+            "Dog vomited once and recovered.",
+            "No hospitalization, death, legal threat, contamination, wrong medication concern, or vet allegation was reported.",
+            "",
+        ]
+    )
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+
+    def fake_extract_review_summary(reviewer_note, client):
+        return ReviewSummary(
+            record_review_result=RecordReviewResult.NO_DISCREPANCY_FOUND,
+            lot_batch_pattern_summary=LotBatchPatternSummary.NO_SIMILAR_BATCH_CONCERNS_FOUND,
+            inventory_inspection_result=InventoryInspectionResult.NO_INVENTORY_AVAILABLE,
+            api_reference_review_result=ApiReferenceReviewResult.NOT_NEEDED,
+            customer_context_summary="Dog vomited once and recovered.",
+            severe_triggers_observed=[],
+            missing_information=[],
+            evidence_limitations=["Inventory was not available to inspect."],
+        )
+
+    monkeypatch.setattr(cli, "openai_json_client_from_env", lambda: object())
+    monkeypatch.setattr(cli, "extract_review_summary", fake_extract_review_summary)
+
+    cli.main()
+
+    captured = capsys.readouterr()
+
+    assert "COMPOUNDING QUALITY INTAKE CHECKLIST" in captured.out
+    assert "COMPOUNDING QUALITY FINAL CONSISTENCY SUMMARY" in captured.out
+    assert "Recommended review disposition:" in captured.out

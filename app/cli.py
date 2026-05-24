@@ -14,6 +14,11 @@ from app.schemas import (
     ReviewSummary,
     EscalationTrigger
 )
+from app.llm_client import LLMClientError, openai_json_client_from_env
+from app.review_summary_extraction import (
+    ReviewSummaryExtractionError,
+    extract_review_summary,
+)
 
 EnumType = TypeVar("EnumType", bound=Enum)
 
@@ -23,7 +28,7 @@ def main() -> None:
     print("Synthetic proof of concept only. Do not enter real customer, patient, or proprietary data.")
     print()
 
-    concern_text = input("Enter synthetic concern text: ").strip()
+    concern_text = input("Enter concern text: ").strip()
     checklist = build_intake_checklist(concern_text)
 
     print()
@@ -36,7 +41,13 @@ def main() -> None:
         print("Stopping after Phase 1 checklist.")
         return
 
-    review_summary = collect_review_summary()
+    mode = choose_phase_two_input_mode()
+
+    if mode == "manual":
+        review_summary = collect_review_summary()
+    else:
+        review_summary = collect_review_summary_with_llm()
+
     final_output = build_final_assessment(checklist=checklist, review_summary=review_summary)
 
     print()
@@ -82,6 +93,56 @@ def collect_review_summary() -> ReviewSummary:
         evidence_limitations=evidence_limitations,
     )
 
+def choose_phase_two_input_mode() -> str:
+    while True:
+        print()
+        print("How do you want to enter Phase 2 findings?")
+        print("1. Controlled menu fields")
+        print("2. Free-text reviewer note through OpenAI extraction")
+
+        choice = input("Select number: ").strip()
+
+        if choice == "1":
+            return "manual"
+
+        if choice == "2":
+            return "llm"
+
+        print("Please enter 1 or 2.")
+
+
+def collect_review_summary_with_llm() -> ReviewSummary:
+    reviewer_note = collect_multiline_reviewer_note()
+    client = openai_json_client_from_env()
+
+    try:
+        return extract_review_summary(reviewer_note, client)
+    except (LLMClientError, ReviewSummaryExtractionError) as exc:
+        raise RuntimeError(
+            "Unable to extract a valid review summary from the reviewer note."
+        ) from exc
+
+
+def collect_multiline_reviewer_note() -> str:
+    print()
+    print("Paste synthetic reviewer note. Leave a blank line when done.")
+
+    lines: list[str] = []
+
+    while True:
+        line = input("> ").rstrip()
+
+        if not line:
+            break
+
+        lines.append(line)
+
+    note = "\n".join(lines).strip()
+
+    if not note:
+        raise ValueError("reviewer_note must not be empty")
+
+    return note
 
 def choose_enum(prompt: str, enum_type: type[EnumType]) -> EnumType:
     values = list(enum_type)

@@ -5,7 +5,7 @@ This log captures implementation failures found while building the synthetic Com
 ## Current status
 
 - Test suite is passing.
-- The project now has schemas, expected outputs, synthetic SOP corpus, ingestion, retrieval, retrieval evaluation, a stubbed pipeline, structured evaluation, checklist generation, final assessment generation, reporting, and a two-phase CLI workflow.
+- The project now has schemas, expected outputs, synthetic SOP corpus, ingestion, retrieval, retrieval evaluation, a stubbed pipeline, structured evaluation, checklist generation, final assessment generation, reporting, a two-phase CLI workflow, and OpenAI-backed review-summary extraction.
 - The current demo boundary remains synthetic only: no real customer data, patient data, pharmacy records, inventory, customer history, or external drug references.
 
 ## Failures
@@ -107,3 +107,40 @@ This log captures implementation failures found while building the synthetic Com
 - Safety-critical routing should avoid bare substring matching when negation is likely.
 - Demo quality now depends more on the printed report than on additional architecture.
 - The project should keep repeating the synthetic-data boundary in CLI output, reports, and demo scripts.
+
+---
+
+### 9. Coordinated negation scope caused false severe-trigger extraction
+
+**Symptom:** Review-summary extraction could incorrectly preserve or infer `wrong_patient_or_wrong_medication` when a reviewer note used a negated list such as “No hospitalization, death, legal threat, contamination, wrong medication concern, or veterinarian allegation was reported.”
+
+**Root cause:** The severe-trigger grounding logic checked only a short local prefix near the trigger term. In a coordinated list, the negation word appeared earlier in the sentence and fell outside that local window. A wrong-medication special case then made the false positive easier to preserve.
+
+**Fix:** Expanded negation handling to recognize coordinated negation scope across severe-trigger lists, including patterns such as “No A, B, C, or D was reported” and “Reviewer has not confirmed A, B, C, or D.” Added an overcorrection test to confirm that a later affirmative sentence such as “Reviewer confirmed possible wrong medication” still creates the structured severe trigger.
+
+**Prevention:** Keep explicit tests for negated severe-trigger lists and separate tests for confirmed severe triggers after unrelated negated triggers. Escalation-critical extraction should prefer structured, affirmative findings over bare keyword presence.
+
+---
+
+### 10. Retrieval misses for blank review and temperature-excursion boundary
+
+**Symptom:** Retrieval evaluation returned `hit_rate@5 = 0.833` and `MRR = 0.750`, with misses on `RET-007` and `RET-009`.
+
+**RET-007 query:** `two star customer review with no review text should be documented`
+
+**RET-007 expected source:** `SOP-006`
+
+**RET-007 root cause:** `SOP-006` contained the general concept that low-star reviews with no text do not automatically require outreach, but it did not contain enough explicit wording for one-star, two-star, three-star-with-no-text, document-only, or no-Technical-Services-outreach cases. Keyword retrieval therefore lacked direct lexical hooks.
+
+**RET-007 fix:** Added explicit `SOP-006` language for low-star reviews with no review text. The updated SOP states that one-star and two-star reviews, and three-star reviews with no review text, may be documented without Technical Services outreach when no quality concern, safety concern, suspected ADE, product defect, dispensing error, contamination, or escalation trigger is identified.
+
+**RET-009 query:** `temperature excursion outside limited guidance window unsupported product specific stability`
+
+**RET-009 expected source:** `SOP-005` for unsupported product-specific stability. `SOP-006` may also be expected only when the query or test is explicitly checking frontline guidance, document-only handling, or no Technical Services outreach.
+
+**RET-009 root cause:** Temperature-excursion guidance was under-specified in the corpus. The intended rule was that the synthetic corpus supports only a limited 72-hour room-temperature excursion; product-specific stability outside that limited window is unsupported and should not be inferred.
+
+**RET-009 fix:** Added explicit `SOP-005` language for the temperature-excursion boundary. The updated SOP states that the assistant must not infer product-specific stability outside the limited 72-hour room-temperature window or differentiate by dosage form, storage condition, refrigeration requirement, formulation, medication, API, or product-specific stability profile unless supported synthetic source text is present. Added `SOP-006` language for document-only and frontline guidance handling when Technical Services outreach is not supported.
+
+**Prevention:** Retrieval eval questions should only expect sources that actually contain the supporting policy concept. When a query combines unsupported-evidence boundaries with routing behavior, either split the query or include all expected source concepts in the query text. Fix corpus/source-truth gaps before using embeddings to compensate for poor source coverage.
+

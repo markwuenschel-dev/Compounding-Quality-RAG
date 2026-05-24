@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import StrEnum
 from typing import Literal, Self
 
@@ -5,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class StrictBaseModel(BaseModel):
+    """Project base model: reject unknown fields so schema drift fails loudly."""
+
     model_config = ConfigDict(extra="forbid")
 
 
@@ -23,6 +27,8 @@ class IntakeSource(StrEnum):
 class SubmitterRole(StrEnum):
     FRONTLINE_PHARMACIST = "frontline_pharmacist"
     CUSTOMER = "customer"
+    CUSTOMER_CARE = "customer_care"
+    CUSTOMER_REVIEW_SYSTEM = "customer_review_system"
     TECHNICAL_SERVICES = "technical_services"
     OPERATIONS_LEADERSHIP = "operations_leadership"
     OTHER = "other"
@@ -34,6 +40,7 @@ class SubmissionPurpose(StrEnum):
     FRONTLINE_PHARMACIST_QUESTION = "frontline_pharmacist_question"
     DOCUMENTATION_UPDATE = "documentation_update"
     ESCALATION_REQUEST = "escalation_request"
+    CUSTOMER_REVIEW_FOLLOWUP = "customer_review_followup"
     OTHER = "other"
 
 
@@ -91,6 +98,7 @@ class ConcernType(StrEnum):
     INGREDIENT_PRESENCE_QUESTION = "ingredient_presence_question"
     ORAL_LIQUID_SHORTAGE = "oral_liquid_shortage"
     DAYS_SUPPLY_QUESTION = "days_supply_question"
+    BUD_QUESTION = "bud_question"
     TEMPERATURE_EXCURSION_QUESTION = "temperature_excursion_question"
     LIMITED_GUIDANCE_SPECIALTY_COMPOUND_QUESTION = "limited_guidance_specialty_compound_question"
     SYRINGE_OR_DEVICE_ISSUE = "syringe_or_device_issue"
@@ -104,7 +112,6 @@ class ConcernType(StrEnum):
     PET_HOSPITALIZED = "pet_hospitalized"
     PET_DEATH = "pet_death"
     THREATENED_LEGAL_ACTION = "threatened_legal_action"
-    BUD_QUESTION = "bud_question"
 
 
 class RiskLane(StrEnum):
@@ -306,6 +313,7 @@ class DerivedAssessment(StrictBaseModel):
             raise ValueError("resolution_options should be empty when resolution_review_required is false")
         return self
 
+
 class ExpectedStructuredOutput(StrictBaseModel):
     raw_intake: RawIntake
     product_context: ProductContext
@@ -313,27 +321,31 @@ class ExpectedStructuredOutput(StrictBaseModel):
     review_summary: ReviewSummary
     derived_assessment: DerivedAssessment
 
+
+# Backward-compatible checklist classes. Runtime checklist code may also use app.checklist_models.
 class EvidenceCitation(StrictBaseModel):
-    chunk_id: str
-    source_title: str
-    section_heading: str
+    chunk_id: str = Field(min_length=1)
+    source_id: str = Field(min_length=1)
+    source_title: str = Field(min_length=1)
+    source_type: str = Field(min_length=1)
+    section_heading: str = Field(min_length=1)
     score: float | None = None
     matched_terms: list[str] = Field(default_factory=list)
-    supporting_text: str
+    supporting_text: str = Field(min_length=1)
 
 
 class ChecklistItem(StrictBaseModel):
-    check_name: str
+    check_name: str = Field(min_length=1)
     required: bool
-    rationale: str
+    rationale: str = Field(min_length=1)
     evidence: list[EvidenceCitation] = Field(default_factory=list)
 
 
 class IntakeChecklist(StrictBaseModel):
-    concern_text: str
+    concern_text: str = Field(min_length=1)
     likely_concern_type: ConcernType | None = None
     likely_risk_lane: RiskLane | None = None
-    review_checks: list[ChecklistItem]
+    review_checks: list[ChecklistItem] = Field(default_factory=list)
     missing_information: list[str] = Field(default_factory=list)
     escalation_triggers_to_rule_out: list[EscalationTrigger] = Field(default_factory=list)
     evidence: list[EvidenceCitation] = Field(default_factory=list)

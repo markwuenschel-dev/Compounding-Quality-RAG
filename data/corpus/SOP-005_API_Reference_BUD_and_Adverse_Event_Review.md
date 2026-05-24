@@ -1,18 +1,18 @@
 ---
 document_id: SOP-005
-title: API Reference, BUD, and Adverse Event Review
-version: "1.0"
+title: API Reference, BUD, Temperature Excursion, and Adverse Event Review
+version: "1.1"
 effective_date: "2025-01-01"
 process_area: api_reference_bud_ade
 source_type: sop
 synthetic: true
 ---
 
-# API Reference, BUD, and Adverse Event Review
+# API Reference, BUD, Temperature Excursion, and Adverse Event Review
 
 ## Purpose
 
-This synthetic SOP defines the boundary for adverse event, API reference, interaction, and beyond-use-date questions.
+This synthetic SOP defines the boundary for adverse event, API reference, interaction, beyond-use-date, and limited temperature-excursion questions.
 
 This document does not contain real external drug-reference content and does not provide clinical decision support.
 
@@ -40,6 +40,18 @@ Needed synthetic fields may include preparation date, assigned beyond-use date, 
 
 The assistant must not invent a real product-specific BUD.
 
+## Temperature Excursion Boundary
+
+The synthetic corpus supports only limited temperature-excursion guidance: compounded products may be treated as supported through a 72-hour room-temperature excursion when that is the only synthetic guidance supplied.
+
+The assistant must not infer product-specific stability outside that limited 72-hour room-temperature window.
+
+The assistant must not differentiate stability by dosage form, storage condition, formulation, medication, API, refrigeration requirement, or product-specific stability profile unless supported synthetic source text is present.
+
+When a temperature-excursion question asks for product-specific stability outside the supported 72-hour room-temperature window, use `not_supported_by_public_corpus` and route the question back to the frontline pharmacist or appropriate human review rather than inventing a stability conclusion.
+
+When the supplied facts do not include the excursion duration, storage condition, product context, or whether the excursion falls within the limited 72-hour room-temperature guidance, identify the missing information rather than making a product-specific stability determination.
+
 ## Risk Lane Guidance
 
 Routine BUD clarification without harm or defect is usually expected self-limiting.
@@ -54,10 +66,10 @@ Use `not_needed` when API/reference review is not relevant.
 
 Use `external_reference_needed` when the case would require external drug-reference review in a real workflow but no synthetic reference exists.
 
-Use `not_supported_by_public_corpus` when the question asks for a claim that the public corpus cannot support.
+Use `not_supported_by_public_corpus` when the question asks for a claim that the public corpus cannot support, including unsupported product-specific stability outside the limited temperature-excursion guidance.
 
 ## Refusal and Limitation Rules
 
-Allowed responses include that the public corpus does not include a supported synthetic API reference for exact adverse-effect claims, that the case should be treated as a suspected adverse event based on reported vomiting, or that BUD status cannot be determined without assigned BUD and review date.
+Allowed responses include that the public corpus does not include a supported synthetic API reference for exact adverse-effect claims, that the case should be treated as a suspected adverse event based on reported vomiting, that BUD status cannot be determined without assigned BUD and review date, or that product-specific stability cannot be determined outside the limited 72-hour room-temperature excursion guidance.
 
-Do not claim exact Plumb's content, real compound BUD status, or medication causality.
+Do not claim exact Plumb's content, real compound BUD status, medication causality, or unsupported product-specific stability.
