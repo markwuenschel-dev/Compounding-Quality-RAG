@@ -24,7 +24,7 @@ class OpenAIJsonClient:
     def complete_json(self, prompt: str) -> str:
         clean_prompt = prompt.strip()
         if not clean_prompt:
-            raise ValueError("prompt must not be empty")
+            raise ValueError("System prompt must not be empty")
 
         client = self._build_client()
 

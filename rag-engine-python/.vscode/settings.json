@@ -1,0 +1,9 @@
+{
+  "python-envs.defaultEnvManager": "ms-python.python:system",
+  "python.analysis.extraPaths": [
+    "./rag-engine-python"
+  ],
+  "python.testing.pytestArgs": [
+    "rag-engine-python/tests"
+  ]
+}

@@ -1,14 +1,14 @@
 # Compounding Quality RAG Data Dictionary
 
 
-Version: 0.3 — v8 schema-synced  
+Version: 0.4 — intake-understanding schema update  
 Project: Compounding Quality Inquiry Evidence Assistant  
 Data boundary: synthetic public learning artifact only
 
 
 ## 1. Purpose
 
-This data dictionary is synchronized with `app/schemas.py` v8. It defines controlled values, model contracts, authority rules, and evidence metadata for the two-phase synthetic Compounding Quality RAG workflow.
+This data dictionary is synchronized with the current `app/schemas.py` contracts. It defines controlled values, model contracts, authority rules, and evidence metadata for the two-phase synthetic Compounding Quality RAG workflow.
 
 
 ## 2. Current Schema Boundaries
@@ -18,6 +18,8 @@ This data dictionary is synchronized with `app/schemas.py` v8. It defines contro
 - Expected-output JSON files are hand-written gold labels, not generated answers.
 - Synthetic inquiry examples are inputs/test cases and must not override SOP guidance.
 - Final escalation routing uses reviewer-confirmed `review_summary.severe_triggers_observed`, not raw free-text keyword matching.
+- Phase 1 can use `IntakeUnderstanding` to structure facts already present in the concern before checklist generation.
+- `RefusalReason` and `RefusalResult` are schema-level contracts; `app/refusal.py` owns the detection logic.
 - The current `ExpectedStructuredOutput` does not use `workflow_stage`; workflow stage is represented operationally by Phase 1 checklist output and Phase 2 reviewer findings.
 
 
@@ -246,6 +248,14 @@ This data dictionary is synchronized with `app/schemas.py` v8. It defines contro
 | `rare_regulatory_or_compliance_concern` |  |
 
 
+## 17A. Boundary / Refusal Reason Values
+
+| Value | Notes |
+|---|---|
+| `internal_record_access` | The request asks for real order status, inventory, customer history, compounding records, patient records, order pages, or internal-system data not available in the public demo. |
+| `external_drug_reference` | The request asks for medication-specific claims requiring Plumb's, package inserts, drug handbooks, dose ranges, contraindications, interactions, toxicity, or published adverse-effect references. |
+| `clinical_or_legal_conclusion` | The request asks the system to determine causality, safety, diagnosis, liability, death causation, legal advice, or another final clinical/legal conclusion. |
+
 ## 17. Species and Dosage Form Values
 
 ### Species
@@ -312,6 +322,27 @@ This data dictionary is synchronized with `app/schemas.py` v8. It defines contro
 | `flavor_or_attribute` | string or null | Flavor or product attribute when known. |
 | `bud_present` | boolean or null | Null when not accessed/known. |
 | `batch_lot_present` | boolean or null | Null when not accessed/known. |
+
+### `RefusalResult`
+
+| Field | Type | Notes |
+|---|---|---|
+| `refused` | boolean | Whether the request should stop before checklist/final assessment. |
+| `reason` | `RefusalReason` or null | Structured boundary reason when refused. |
+| `message` | string or null | User-facing refusal message. |
+| `matched_terms` | list of strings | Deterministic terms that matched, when applicable. |
+
+### `IntakeUnderstanding`
+
+| Field | Type | Notes |
+|---|---|---|
+| `raw_intake` | `RawIntake` | Original intake facts with `concern_narrative` copied verbatim. |
+| `product_context` | `ProductContext` | Species, dosage form, flavor/attribute, BUD presence, and batch/lot presence stated in the concern. |
+| `possible_boundary_issue` | `RefusalReason` or null | Semantic boundary issue extracted from the concern. This is not final refusal by itself until application logic handles it. |
+| `boundary_supporting_phrase` | string or null | Shortest supporting phrase from the concern when a boundary issue is present. |
+| `extracted_customer_context` | string or null | Neutral factual summary of customer-provided context, without clinical/legal conclusions. |
+| `facts_present` | list of strings | Atomic facts explicitly stated in the concern. Used to avoid asking for facts already supplied. |
+| `facts_missing` | list of strings | Relevant missing facts for review support; should not be a generic exhaustive checklist. |
 
 ### `InvestigationRequirements`
 
@@ -399,6 +430,7 @@ Keep these in sync whenever either file changes:
 
 - `data_dictionary.md` enum tables and `app/schemas.py` enum classes.
 - `EvidenceCitation` fields in `app/checklist_models.py` and any backward-compatible copy in `app/schemas.py`.
+- `IntakeUnderstanding`, `RefusalReason`, and `RefusalResult` fields in `app/schemas.py`, `app/extract_intake_understanding.py`, and `app/refusal.py`.
 - Expected-output JSON keys and `ExpectedStructuredOutput` fields.
 - Retrieval citation metadata and README citation language.
 - Failure log prevention rules and actual tests.

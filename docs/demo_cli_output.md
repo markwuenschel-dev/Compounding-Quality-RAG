@@ -16,7 +16,29 @@ My dog received a chicken-flavored compounded oral liquid. About 10 minutes late
 
 ---
 
-## Phase 1: Intake Checklist
+## Phase 1: Intake Understanding + Checklist
+
+### Intake Understanding
+
+Before the checklist is built, the optional structured extraction layer captures facts that are already present in the concern.
+
+| Field | Output |
+|---|---|
+| Species | `dog` |
+| Dosage form | `oral_liquid` |
+| Flavor / attribute | `chicken-flavored` |
+| Boundary issue | `null` |
+| Customer context | Dog received chicken-flavored compounded oral liquid, ran around frantically, vomited once about 10 minutes later, and seems okay now. |
+
+### Facts Already Captured
+
+- Species is dog.
+- Dosage form is oral liquid.
+- Flavor is chicken-flavored.
+- Vomiting occurred about 10 minutes after administration.
+- Dog vomited once.
+- Dog ran around frantically.
+- Customer reports dog seems okay now.
 
 ### Initial Review Takeaway
 
@@ -40,13 +62,9 @@ Initial screen suggests **flavor-related vomiting** with an **unexpected non-lif
 ### Missing Information to Resolve Before Final Disposition
 
 - Medication or product placeholder
-- Species
-- Dosage form
 - Lot or batch information, if available
 - Whether any severe escalation trigger is present
 - Dose administered
-- Timing of vomiting relative to administration
-- Whether symptoms resolved
 - Whether veterinarian was contacted
 - Whether the pet was hospitalized
 
@@ -170,6 +188,26 @@ Unsupported in this proof of concept: this project does not access real compound
 ### Why This Refuses
 
 This question asks the tool to access real operational records and determine whether a real batch had similar complaints. The public demo does not have that access, so the correct behavior is to refuse the record-access request rather than imply that records were checked.
+
+---
+
+## Demo Case 3: Unsupported Inventory / Ordering Access
+
+### Input Question
+
+```text
+A customer wants to know when this medication will be back in stock so they can order it again.
+```
+
+### Refusal Output
+
+```text
+I can’t verify that from the information available in this proof of concept. This system does not have access to real compounding records, order pages, customer history, patient records, or inventory systems. A pharmacist or reviewer should check the appropriate internal record and document what they confirm.
+```
+
+### Why This Refuses
+
+The question asks for stock availability and ordering capability, which require real inventory or order-system access. The public demo cannot check those systems, so it should stop before Phase 1 checklist generation.
 
 ---
 

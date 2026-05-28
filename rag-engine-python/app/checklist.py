@@ -3,15 +3,17 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.checklist_models import EvidenceCitation, ChecklistItem, IntakeChecklist
+from app.extract_intake_understanding import IntakeUnderstanding
 from app.retrieval import DEFAULT_CHUNKS_PATH, SearchResult, retrieve
 from app.schemas import ConcernType, EscalationTrigger, RiskLane, SourceType
-
 
 VOMITING_TERMS = {"vomit", "vomited", "vomiting", "threw up", "throwing up"}
 FLAVOR_TERMS = {"flavor", "flavored", "chicken", "beef", "tuna", "palatability", "refuse", "refused"}
 TRANSDERMAL_TERMS = {"transdermal", "pen", "click", "clicks", "leak", "leaking", "air bubbles"}
 BUD_TERMS = {"bud", "beyond use", "beyond-use", "expiration", "expired"}
 WRONG_MEDICATION_TERMS = {"wrong medication", "wrong patient", "wrong med", "dispensing error"}
+ORAL_LIQUID_TERMS = { "oral liquid", "compounded liquid", "liquid", "suspension", "solution"}
+FLAVOR_REJECTION_TERMS = { "foamed", "foaming", "foamed at the mouth", "drooled", "drooling", "salivating", "hypersalivation", "spit out", "spat out", "refused", "wouldn't take" }
 
 
 def build_intake_checklist(
@@ -19,6 +21,7 @@ def build_intake_checklist(
     *,
     chunks_path: Path = DEFAULT_CHUNKS_PATH,
     top_k: int = 5,
+    intake_understanding: IntakeUnderstanding | None = None,
 ) -> IntakeChecklist:
     clean_text = concern_text.strip()
 
@@ -42,7 +45,10 @@ def build_intake_checklist(
         likely_concern_type=likely_concern_type,
         likely_risk_lane=likely_risk_lane,
         review_checks=build_review_checks(clean_text, evidence),
-        missing_information=build_missing_information(clean_text),
+        missing_information = build_missing_information(
+            concern_text,
+            intake_understanding=intake_understanding,
+        ),
         escalation_triggers_to_rule_out=build_escalation_triggers_to_rule_out(clean_text),
         evidence=evidence,
         limitations=[
@@ -51,6 +57,7 @@ def build_intake_checklist(
             "Causality should not be inferred from the intake narrative alone.",
         ],
     )
+    
 
 
 def build_evidence_citations(search_results: list[SearchResult]) -> list[EvidenceCitation]:
@@ -84,6 +91,10 @@ def infer_likely_concern_type(concern_text: str) -> ConcernType | None:
         if contains_any(normalized, FLAVOR_TERMS):
             return ConcernType.FLAVOR_RELATED_VOMITING
         return ConcernType.POSSIBLE_ADVERSE_DRUG_EVENT
+    
+    if contains_any(normalized, FLAVOR_REJECTION_TERMS):
+        if contains_any(normalized, FLAVOR_TERMS | FLAVOR_REJECTION_TERMS):
+            return ConcernType.PET_REFUSED_FLAVOR
 
     if contains_any(normalized, TRANSDERMAL_TERMS):
         return ConcernType.SYRINGE_OR_DEVICE_ISSUE
@@ -102,7 +113,9 @@ def infer_likely_risk_lane(concern_text: str) -> RiskLane | None:
 
     severe_terms = {
         "died", "death", "hospitalized", "hospitalization", "legal", "lawsuit", "lawyer",
-        "vet said", "veterinarian said", "contamination", "contaminated", "wrong medication", "wrong patient",
+        "vet said", "veterinarian said", "contamination", "contaminated", "wrong medication", "wrong patient", "wrong medication", "wrong patient",
+        "seizure", "seizures", "collapsed", "collapse", "trouble breathing",
+        "difficulty breathing", "could not breathe", "unresponsive",
     }
 
     if contains_any(normalized, severe_terms):
@@ -111,7 +124,7 @@ def infer_likely_risk_lane(concern_text: str) -> RiskLane | None:
     if contains_any(normalized, VOMITING_TERMS):
         return RiskLane.UNEXPECTED_NON_LIFE_THREATENING
 
-    if contains_any(normalized, FLAVOR_TERMS | TRANSDERMAL_TERMS | BUD_TERMS):
+    if contains_any(normalized, FLAVOR_TERMS | FLAVOR_REJECTION_TERMS | TRANSDERMAL_TERMS | ORAL_LIQUID_TERMS | BUD_TERMS):
         return RiskLane.EXPECTED_SELF_LIMITING
 
     return None
@@ -179,7 +192,7 @@ def build_review_checks(concern_text: str, evidence: list[EvidenceCitation]) -> 
     return checks
 
 
-def build_missing_information(concern_text: str) -> list[str]:
+def build_missing_information(concern_text: str, intake_understanding: IntakeUnderstanding | None = None,) -> list[str]:
     normalized = concern_text.lower()
     missing = [
         "Medication or product placeholder",
@@ -220,7 +233,54 @@ def build_missing_information(concern_text: str) -> list[str]:
             ]
         )
 
-    return unique_in_order(missing)
+    if contains_any(normalized, FLAVOR_REJECTION_TERMS):
+        missing.extend(
+            [
+                "Flavor or base if available",
+                "Whether the pet swallowed the dose or spit it out",
+                "Whether this was the first dose or a repeat dose",
+                "Whether the pet previously tolerated this medication or flavor",
+                "Whether symptoms resolved without further issue"
+            ]
+        )
+
+    if intake_understanding is None:
+        return unique_in_order(missing)
+
+    product_context = intake_understanding.product_context
+    facts_present_text = " ".join(intake_understanding.facts_present).lower()
+    customer_context = (intake_understanding.extracted_customer_context or "").lower()
+    known_text = f"{facts_present_text} {customer_context}"
+
+    filtered: list[str] = []
+
+    for item in missing:
+        item_lower = item.lower()
+
+        if item_lower == "species" and product_context.species.value != "unknown":
+            continue
+
+        if item_lower == "dosage form" and product_context.dosage_form.value != "unknown":
+            continue
+
+        if "flavor" in item_lower and product_context.flavor_or_attribute is not None:
+            continue
+
+        if "timing of vomiting" in item_lower and (
+            "minute" in known_text or "after administration" in known_text
+        ):
+            continue
+
+        if "whether symptoms resolved" in item_lower and (
+            "seems okay" in known_text
+            or "recovered" in known_text
+            or "resolved" in known_text
+        ):
+            continue
+
+        filtered.append(item)
+
+    return unique_in_order(filtered)
 
 
 def build_escalation_triggers_to_rule_out(concern_text: str) -> list[EscalationTrigger]:

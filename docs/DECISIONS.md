@@ -218,3 +218,27 @@ This requires one additional structured reviewer field, but it is safer and easi
 
 ### Revisit when
 The LLM review-summary extraction layer is added and must map normal English reviewer notes into `ReviewSummary`.
+
+---
+
+## 2026-05-26 — Intake understanding as schema-validated LLM extraction
+
+### Decision
+Add `IntakeUnderstanding` as a schema-level contract and route Phase 1 intake text through an optional OpenAI-backed structured extraction layer before checklist generation.
+
+### Reason
+The initial checklist should not ask for facts already supplied in the concern text, such as species, dosage form, flavor, timing, or symptom course. A typed extraction layer lets the project capture those facts once, validate them with Pydantic, and pass them into deterministic checklist logic without making the LLM the decision engine.
+
+### Consequence
+`app/extract_intake_understanding.py` owns prompt construction, JSON parsing, and `IntakeUnderstanding` validation. The module may identify a possible semantic boundary issue, but downstream application logic still owns refusal handling, checklist generation, final assessment routing, and safety-critical decisions.
+
+### Alternatives considered
+- Hard-code a deterministic keyword-based intake fact extractor.
+- Expand checklist heuristics directly.
+- Let the LLM generate the checklist.
+
+### Tradeoff
+The OpenAI extraction layer improves semantic understanding but adds dependency, latency, and failure modes. The CLI therefore keeps deterministic refusal first and can continue checklist generation if optional intake understanding is unavailable.
+
+### Revisit when
+The Spring Boot API exposes checklist generation and the request/response DTOs need to represent intake understanding explicitly.

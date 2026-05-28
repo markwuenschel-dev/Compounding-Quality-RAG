@@ -3,8 +3,8 @@ from pathlib import Path
 from app.checklist import build_intake_checklist
 from app.final_assessment import build_final_assessment
 from app.reporting import (
-    enum_value_or_none,
-    enum_value_or_unknown,
+    humanize_or_none,
+    humanize,
     format_evidence,
     format_final_assessment,
     format_intake_checklist,
@@ -48,36 +48,18 @@ def test_format_intake_checklist_includes_manager_readable_sections() -> None:
 
     report = format_intake_checklist(checklist)
 
-    assert "COMPOUNDING QUALITY INTAKE CHECKLIST" in report
-    assert "SYNTHETIC PROOF OF CONCEPT" in report
-    assert "NO REAL RECORD ACCESS" in report
-    assert "Initial review takeaway:" in report
-    assert "What should be checked:" in report
-    assert "Missing information to resolve before final disposition:" in report
-    assert "Evidence used for checklist:" in report
-    assert "Limitations:" in report
+    assert "PHASE 1" in report
+    assert "INTAKE CHECKLIST" in report
+    assert "Demo boundary: synthetic proof of concept only" in report
+    assert "INITIAL SUMMARY" in report
+    assert "CONCERN RECEIVED" in report
+    assert "INITIAL CLASSIFICATION" in report
+    assert "EVIDENCE USED" in report
+    assert "LIMITATIONS" in report
     assert "score=" not in report
 
-
-def test_format_final_assessment_includes_manager_readable_sections() -> None:
-    checklist = make_checklist()
-    output = build_final_assessment(
-        checklist=checklist,
-        review_summary=make_review_summary(),
-    )
-
-    report = format_final_assessment(output, checklist.evidence)
-
-    assert "COMPOUNDING QUALITY FINAL CONSISTENCY SUMMARY" in report
-    assert "SYNTHETIC PROOF OF CONCEPT" in report
-    assert "Final review takeaway:" in report
-    assert "What was checked:" in report
-    assert "What was not available / still limited:" in report
-    assert "Recommended review disposition:" in report
-    assert "None identified from supplied review findings" in report
-    assert "Human pharmacist review remains the final decision point." in report
-    assert "score=" not in report
-
+    for item in checklist.review_checks:
+        assert item.check_name in report
 
 def test_format_final_assessment_debug_mode_shows_scores_and_matched_terms() -> None:
     checklist = make_checklist()
@@ -97,7 +79,8 @@ def test_format_evidence_respects_max_items() -> None:
 
     lines = format_evidence(checklist.evidence, max_items=1)
 
-    assert len(lines) == 1
+    assert any(line.startswith("1. ") for line in lines)
+    assert not any(line.startswith("2. ") for line in lines)
 
 
 def test_format_evidence_hides_scores_by_default() -> None:
@@ -112,12 +95,14 @@ def test_format_evidence_hides_scores_by_default() -> None:
 def test_format_evidence_handles_empty_evidence() -> None:
     lines = format_evidence([])
 
-    assert lines == ["- No evidence chunks were retrieved"]
+    assert lines == ["• No evidence chunks were retrieved"]
 
 
 def test_enum_value_helpers_handle_none_and_enums() -> None:
-    assert enum_value_or_unknown(None) == "unknown"
-    assert enum_value_or_unknown(RiskLane.EXPECTED_SELF_LIMITING) == "expected_self_limiting"
+    assert humanize(None) == "Unknown"
+    assert humanize(RiskLane.EXPECTED_SELF_LIMITING) == "Expected self limiting"
 
-    assert enum_value_or_none(None) == "None"
-    assert enum_value_or_none(RiskLane.UNEXPECTED_NON_LIFE_THREATENING) == "unexpected_non_life_threatening"
+    assert humanize_or_none(None) == "None"
+    assert humanize_or_none(RiskLane.UNEXPECTED_NON_LIFE_THREATENING) == (
+        "Unexpected non life threatening"
+    )

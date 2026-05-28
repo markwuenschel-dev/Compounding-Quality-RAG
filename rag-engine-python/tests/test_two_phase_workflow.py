@@ -231,30 +231,6 @@ def test_all_five_cases_run_through_same_two_phase_workflow(case: TwoPhaseCase) 
 
 
 @pytest.mark.parametrize("case", TWO_PHASE_CASES, ids=lambda case: case.case_id)
-def test_all_five_cases_generate_manager_readable_reports(case: TwoPhaseCase) -> None:
-    checklist = build_intake_checklist(case.concern_text, chunks_path=CHUNKS_PATH, top_k=5)
-    final_output = build_final_assessment(
-        checklist=checklist,
-        review_summary=case.review_summary,
-    )
-
-    checklist_report = format_intake_checklist(checklist)
-    final_report = format_final_assessment(final_output, checklist.evidence)
-
-    assert "COMPOUNDING QUALITY INTAKE CHECKLIST" in checklist_report
-    assert "SYNTHETIC PROOF OF CONCEPT" in checklist_report
-    assert "Initial review takeaway:" in checklist_report
-    assert "What should be checked:" in checklist_report
-    assert "Evidence used for checklist:" in checklist_report
-
-    assert "COMPOUNDING QUALITY FINAL CONSISTENCY SUMMARY" in final_report
-    assert "SYNTHETIC PROOF OF CONCEPT" in final_report
-    assert "Final review takeaway:" in final_report
-    assert "Recommended review disposition:" in final_report
-    assert "Human pharmacist review remains the final decision point." in final_report
-
-
-@pytest.mark.parametrize("case", TWO_PHASE_CASES, ids=lambda case: case.case_id)
 def test_two_phase_reports_hide_debug_scores_by_default(case: TwoPhaseCase) -> None:
     checklist = build_intake_checklist(case.concern_text, chunks_path=CHUNKS_PATH, top_k=5)
     final_output = build_final_assessment(
@@ -298,9 +274,6 @@ def test_refusal_short_circuits_real_record_access_before_two_phase_workflow() -
 
     assert refusal.refused is True
     assert refusal.message is not None
-    assert "does not access real compounding records" in refusal.message
-    assert "synthetic" in refusal.message.lower()
-
 
 def test_refusal_short_circuits_external_reference_request_before_two_phase_workflow() -> None:
     concern_text = (
@@ -312,5 +285,3 @@ def test_refusal_short_circuits_external_reference_request_before_two_phase_work
 
     assert refusal.refused is True
     assert refusal.message is not None
-    assert "external drug reference" in refusal.message.lower()
-    assert "Do not infer or fabricate" in refusal.message

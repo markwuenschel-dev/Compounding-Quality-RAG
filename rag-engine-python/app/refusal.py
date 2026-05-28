@@ -4,20 +4,8 @@ from enum import StrEnum
 
 from pydantic import Field
 
-from app.schemas import StrictBaseModel
+from app.schemas import RefusalReason, RefusalResult
 
-
-class RefusalReason(StrEnum):
-    EXTERNAL_DRUG_REFERENCE = "external_drug_reference"
-    INTERNAL_RECORD_ACCESS = "internal_record_access"
-    CLINICAL_OR_LEGAL_CONCLUSION = "clinical_or_legal_conclusion"
-
-
-class RefusalResult(StrictBaseModel):
-    refused: bool
-    reason: RefusalReason | None = None
-    message: str | None = None
-    matched_terms: list[str] = Field(default_factory=list)
 
 
 EXTERNAL_REFERENCE_TERMS = {
@@ -48,6 +36,16 @@ INTERNAL_RECORD_ACCESS_TERMS = {
     "check the real record",
     "inventory record",
     "real inventory",
+    "inventory system",
+    "inventory systems",
+    "stock status",
+    "stock availability",
+    "in stock",
+    "back in stock",
+    "out of stock",
+    "available to order",
+    "order it again",
+    "when this medication will be back in stock",
 }
 
 CLINICAL_OR_LEGAL_CONCLUSION_TERMS = {
@@ -117,26 +115,27 @@ def build_refusal_result(
 def build_refusal_message(reason: RefusalReason) -> str:
     if reason == RefusalReason.EXTERNAL_DRUG_REFERENCE:
         return (
-            "Unsupported in this synthetic proof of concept: the public synthetic "
-            "corpus does not include Plumb's or another external drug reference. "
-            "Do not infer or fabricate medication-specific adverse effects, "
-            "contraindications, interactions, dose ranges, or species-specific "
-            "toxicity from the available synthetic SOP evidence."
+            "I can’t safely answer that from the synthetic SOP evidence available here. "
+            "This proof of concept does not include Plumb’s, a package insert, or another "
+            "validated drug reference, so I should not make medication-specific claims about "
+            "adverse effects, contraindications, interactions, dosing ranges, or species-specific "
+            "toxicity. A pharmacist should verify that information against an appropriate external "
+            "drug reference before making a recommendation."
         )
 
     if reason == RefusalReason.INTERNAL_RECORD_ACCESS:
         return (
-            "Unsupported in this synthetic proof of concept: this project does not "
-            "access real compounding records, order pages, customer history, patient "
-            "records, or inventory systems. Use only supplied synthetic summaries or "
-            "state what a human reviewer should verify."
+            "I can’t verify that from the information available in this proof of concept. "
+            "This system does not have access to real compounding records, order pages, customer "
+            "history, patient records, or inventory systems. A pharmacist or reviewer should check "
+            "the appropriate internal record and document what they confirm."
         )
 
     return (
-        "Unsupported in this synthetic proof of concept: the request asks for a "
-        "clinical, causality, or legal conclusion that this review-support workflow "
-        "cannot determine. A human pharmacist or appropriate professional remains "
-        "the final decision-maker."
+        "I can’t make that determination from this review-support workflow alone. "
+        "The available evidence does not support a final clinical, causality, or legal conclusion. "
+        "This should be reviewed by a pharmacist or the appropriate responsible professional before "
+        "any final decision is made."
     )
 
 

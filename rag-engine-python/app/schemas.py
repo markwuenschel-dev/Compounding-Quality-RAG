@@ -30,7 +30,7 @@ class SubmitterRole(StrEnum):
     CUSTOMER_CARE = "customer_care"
     CUSTOMER_REVIEW_SYSTEM = "customer_review_system"
     TECHNICAL_SERVICES = "technical_services"
-    OPERATIONS_LEADERSHIP = "operations_leadership"
+    OPERATIONS_LEADERSHIP = "operations_leADErship"
     OTHER = "other"
     UNKNOWN = "unknown"
 
@@ -45,7 +45,7 @@ class SubmissionPurpose(StrEnum):
 
 
 class FormalClassification(StrEnum):
-    QRE = "qre"
+    QRE = "QRE"
     GENERAL_QUESTION = "general_question"
 
 
@@ -53,7 +53,7 @@ class FormalCategory(StrEnum):
     CUSTOMER_SERVICE_RELATED = "customer_service_related"
     EQUIPMENT_DEVICE_RELATED = "equipment_device_related"
     MEDICATION_RELATED = "medication_related"
-    SUSPECTED_ADE = "suspected_ade"
+    SUSPECTED_ADE = "suspected_ADE"
     DISPENSING_ERROR = "dispensing_error"
 
 
@@ -75,8 +75,8 @@ class FormalSubcategory(StrEnum):
     EFFICACY = "efficacy"
     DAYS_SUPPLY = "days_supply"
 
-    SUSPECTED_ADE = "suspected_ade"
-    FLAVOR_RELATED_ADE = "flavor_related_ade"
+    SUSPECTED_ADE = "suspected_ADE"
+    FLAVOR_RELATED_ADE = "flavor_related_ADE"
 
     WRONG_QUANTITY = "wrong_quantity"
     WRONG_PATIENT = "wrong_patient"
@@ -166,8 +166,8 @@ class HandlingPath(StrEnum):
     TECHNICAL_SERVICES_CUSTOMER_OUTREACH = "technical_services_customer_outreach"
     RECORD_REVIEW_THEN_DOCUMENT = "record_review_then_document"
     INVESTIGATE_TO_RESOLUTION = "investigate_to_resolution"
-    FLAG_LEADERSHIP_DURING_INVESTIGATION = "flag_leadership_during_investigation"
-    LEADERSHIP_ESCALATION_BEFORE_RESOLUTION = "leadership_escalation_before_resolution"
+    FLAG_LEADERSHIP_DURING_INVESTIGATION = "flag_leADErship_during_investigation"
+    LEADERSHIP_ESCALATION_BEFORE_RESOLUTION = "leADErship_escalation_before_resolution"
     INSUFFICIENT_INFORMATION = "insufficient_information"
 
 
@@ -176,7 +176,7 @@ class ResolutionOption(StrEnum):
     REFUND_OR_CONCESSION_REVIEW = "refund_or_concession_review"
     ALTERNATE_DOSAGE_FORM_DISCUSSION = "alternate_dosage_form_discussion"
     COUNSELING_OR_FOLLOW_UP = "counseling_or_follow_up"
-    LEADERSHIP_DIRECTED_RESOLUTION = "leadership_directed_resolution"
+    LEADERSHIP_DIRECTED_RESOLUTION = "leADErship_directed_resolution"
     NO_CUSTOMER_FACING_RESOLUTION = "no_customer_facing_resolution"
 
 
@@ -350,3 +350,26 @@ class IntakeChecklist(StrictBaseModel):
     escalation_triggers_to_rule_out: list[EscalationTrigger] = Field(default_factory=list)
     evidence: list[EvidenceCitation] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
+
+
+class RefusalReason(StrEnum):
+    EXTERNAL_DRUG_REFERENCE = "external_drug_reference"
+    INTERNAL_RECORD_ACCESS = "internal_record_access"
+    CLINICAL_OR_LEGAL_CONCLUSION = "clinical_or_legal_conclusion"
+
+
+class RefusalResult(StrictBaseModel):
+    refused: bool
+    reason: RefusalReason | None = None
+    message: str | None = None
+    matched_terms: list[str] = Field(default_factory=list)
+
+
+class IntakeUnderstanding(StrictBaseModel):
+    raw_intake: RawIntake
+    product_context: ProductContext
+    possible_boundary_issue: RefusalReason | None = None
+    boundary_supporting_phrase: str | None = None
+    extracted_customer_context: str | None = None
+    facts_present: list[str] = Field(default_factory=list)
+    facts_missing: list[str] = Field(default_factory=list)

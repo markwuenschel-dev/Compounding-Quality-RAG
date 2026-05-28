@@ -5,7 +5,7 @@ This log captures implementation failures found while building the synthetic Com
 ## Current status
 
 - Test suite is passing.
-- The project now has schemas, expected outputs, synthetic SOP corpus, ingestion, retrieval, retrieval evaluation, a stubbed pipeline, structured evaluation, checklist generation, final assessment generation, reporting, a two-phase CLI workflow, and OpenAI-backed review-summary extraction.
+- The project now has schemas, expected outputs, synthetic SOP corpus, ingestion, retrieval, retrieval evaluation, a stubbed pipeline, structured evaluation, checklist generation, final assessment generation, reporting, a two-phase CLI workflow, deterministic refusal behavior, optional OpenAI-backed intake understanding, and OpenAI-backed review-summary extraction.
 - The current demo boundary remains synthetic only: no real customer data, patient data, pharmacy records, inventory, customer history, or external drug references.
 
 ## Failures
@@ -144,3 +144,27 @@ This log captures implementation failures found while building the synthetic Com
 
 **Prevention:** Retrieval eval questions should only expect sources that actually contain the supporting policy concept. When a query combines unsupported-evidence boundaries with routing behavior, either split the query or include all expected source concepts in the query text. Fix corpus/source-truth gaps before using embeddings to compensate for poor source coverage.
 
+
+---
+
+### 11. Phase 1 checklist asked for facts already present in the concern
+
+**Symptom:** The vomiting demo concern already stated dog, oral liquid, chicken flavor, vomiting once, and timing about 10 minutes after administration, but the initial checklist still asked for species, dosage form, flavor/base, timing, and symptom course.
+
+**Root cause:** Checklist generation used concern-type heuristics without a structured intake-understanding object. It could identify vomiting terms but did not carry extracted product context or customer context into missing-information filtering.
+
+**Fix:** Added `IntakeUnderstanding` as a schema-level contract and `app/extract_intake_understanding.py` as an optional OpenAI-backed structured JSON extraction layer. The checklist can now receive intake understanding and suppress missing-information items that are already captured.
+
+**Prevention:** Keep tests focused on schema validation and behavior, not exact report prose. Add demo cases proving known facts are not re-asked and boundary issues stop before checklist generation.
+
+---
+
+### 12. Presentation tests over-asserted report copy
+
+**Symptom:** Tests failed even though the CLI worked because assertions expected exact headings such as `COMPOUNDING QUALITY INTAKE CHECKLIST`, `What should be checked:`, or exact bullet text.
+
+**Root cause:** Report formatting changed to manager-readable section labels, but tests asserted incidental prose instead of stable report behavior.
+
+**Fix:** Updated tests to assert stable structure: phase label, synthetic boundary, evidence visibility, absence of debug scores by default, and generated review checks appearing in the report.
+
+**Prevention:** Do not exact-match presentation copy unless it is part of a public contract. For CLI/reporting, prefer structural assertions and key concepts.

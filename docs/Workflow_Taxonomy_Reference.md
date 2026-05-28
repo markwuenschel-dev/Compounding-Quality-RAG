@@ -19,6 +19,7 @@ This reference summarizes the controlled values used by the synthetic SOP set an
 - `review_summary`: reviewer-entered or synthetic summary of completed review findings.
 - `handling_path`: what Technical Services does next.
 - `resolution_options`: possible customer-facing closure or support options.
+- `intake_understanding`: structured facts extracted from the initial concern before checklist generation.
 
 ## Workflow Stages
 
@@ -122,6 +123,29 @@ A submission is a QRE if it falls into one of the five formal QRE categories. If
 - `pet_hospitalized`
 - `pet_death`
 - `threatened_legal_action`
+
+
+## Intake Understanding
+
+`IntakeUnderstanding` is an optional Phase 1 structure that captures facts already present in the concern before checklist generation.
+
+Fields:
+
+- `raw_intake`: original concern metadata and verbatim concern narrative.
+- `product_context`: stated species, dosage form, product placeholder, flavor/attribute, BUD presence, and batch/lot presence.
+- `possible_boundary_issue`: semantic boundary reason such as `internal_record_access`, `external_drug_reference`, or `clinical_or_legal_conclusion`.
+- `boundary_supporting_phrase`: shortest supporting phrase from the concern when a boundary issue is present.
+- `extracted_customer_context`: neutral factual summary of customer-provided context.
+- `facts_present`: short facts explicitly stated in the concern.
+- `facts_missing`: relevant missing facts, not a generic exhaustive checklist.
+
+The LLM may populate this structure, but deterministic application logic still owns refusal, checklist generation, and final routing.
+
+## Boundary / Refusal Reasons
+
+- `internal_record_access`: real order status, stock availability, inventory, customer history, compounding records, patient records, or internal-system access.
+- `external_drug_reference`: Plumb's, package inserts, drug handbooks, dose ranges, contraindications, interactions, toxicity, published adverse effects, or medication-specific safety claims.
+- `clinical_or_legal_conclusion`: causality, diagnosis, safety determination, death causation, liability, legal advice, or another final clinical/legal conclusion.
 
 ## Review Scopes
 
