@@ -13,7 +13,9 @@ class FakeJSONClient:
     def __init__(self, response):
         self.response = response
 
-    def complete_json(self, system_prompt, user_prompt):
+    def complete_json(self, *args):
+        assert args
+        assert all(isinstance(arg, str) for arg in args)
         return self.response
 
 
