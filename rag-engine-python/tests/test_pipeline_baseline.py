@@ -8,6 +8,7 @@ from app.pipeline import (
     run_stubbed_pipeline_for_file_name,
 )
 from app.schemas import ConcernType, ExpectedStructuredOutput, RiskLane
+from tests.test_helpers import write_normalized_expected_outputs_dir
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -22,9 +23,20 @@ EXPECTED_OUTPUT_FILE_NAMES = [
 ]
 
 
-def test_stubbed_pipeline_runs_for_flavor_refusal() -> None:
+@pytest.fixture()
+def normalized_expected_outputs_dir(tmp_path: Path) -> Path:
+    return write_normalized_expected_outputs_dir(
+        DEFAULT_EXPECTED_OUTPUTS_DIR,
+        tmp_path / "expected_outputs",
+    )
+
+
+def test_stubbed_pipeline_runs_for_flavor_refusal(
+    normalized_expected_outputs_dir: Path,
+) -> None:
     result = run_stubbed_pipeline_for_file_name(
         "inquiry_001_flavor_refusal.json",
+        expected_output_dir=normalized_expected_outputs_dir,
         chunks_path=CHUNKS_PATH,
     )
 
@@ -34,9 +46,12 @@ def test_stubbed_pipeline_runs_for_flavor_refusal() -> None:
     assert isinstance(result["structured_output"], ExpectedStructuredOutput)
 
 
-def test_stubbed_pipeline_returns_expected_flavor_refusal_assessment() -> None:
+def test_stubbed_pipeline_returns_expected_flavor_refusal_assessment(
+    normalized_expected_outputs_dir: Path,
+) -> None:
     result = run_stubbed_pipeline_for_file_name(
         "inquiry_001_flavor_refusal.json",
+        expected_output_dir=normalized_expected_outputs_dir,
         chunks_path=CHUNKS_PATH,
     )
 
@@ -53,9 +68,13 @@ def test_stubbed_pipeline_returns_expected_flavor_refusal_assessment() -> None:
 
 
 @pytest.mark.parametrize("file_name", EXPECTED_OUTPUT_FILE_NAMES)
-def test_stubbed_pipeline_runs_for_each_expected_output(file_name: str) -> None:
+def test_stubbed_pipeline_runs_for_each_expected_output(
+    file_name: str,
+    normalized_expected_outputs_dir: Path,
+) -> None:
     result = run_stubbed_pipeline_for_file_name(
         file_name,
+        expected_output_dir=normalized_expected_outputs_dir,
         chunks_path=CHUNKS_PATH,
     )
 
@@ -66,9 +85,13 @@ def test_stubbed_pipeline_runs_for_each_expected_output(file_name: str) -> None:
 
 
 @pytest.mark.parametrize("file_name", EXPECTED_OUTPUT_FILE_NAMES)
-def test_stubbed_pipeline_retrieves_only_sop_chunks(file_name: str) -> None:
+def test_stubbed_pipeline_retrieves_only_sop_chunks(
+    file_name: str,
+    normalized_expected_outputs_dir: Path,
+) -> None:
     result = run_stubbed_pipeline_for_file_name(
         file_name,
+        expected_output_dir=normalized_expected_outputs_dir,
         chunks_path=CHUNKS_PATH,
     )
 
@@ -79,9 +102,13 @@ def test_stubbed_pipeline_retrieves_only_sop_chunks(file_name: str) -> None:
 
 
 @pytest.mark.parametrize("file_name", EXPECTED_OUTPUT_FILE_NAMES)
-def test_stubbed_pipeline_retrieved_chunks_have_scores(file_name: str) -> None:
+def test_stubbed_pipeline_retrieved_chunks_have_scores(
+    file_name: str,
+    normalized_expected_outputs_dir: Path,
+) -> None:
     result = run_stubbed_pipeline_for_file_name(
         file_name,
+        expected_output_dir=normalized_expected_outputs_dir,
         chunks_path=CHUNKS_PATH,
     )
 
@@ -90,9 +117,12 @@ def test_stubbed_pipeline_retrieved_chunks_have_scores(file_name: str) -> None:
         assert search_result["matched_terms"]
 
 
-def test_stubbed_pipeline_respects_top_k() -> None:
+def test_stubbed_pipeline_respects_top_k(
+    normalized_expected_outputs_dir: Path,
+) -> None:
     result = run_stubbed_pipeline_for_file_name(
         "inquiry_001_flavor_refusal.json",
+        expected_output_dir=normalized_expected_outputs_dir,
         chunks_path=CHUNKS_PATH,
         top_k=3,
     )

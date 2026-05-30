@@ -9,8 +9,11 @@ from app.evaluate import (
     get_field_value,
     load_expected_output,
     normalize_for_comparison,
+    
 )
+
 from app.schemas import ConcernType, ExpectedStructuredOutput, RiskLane
+from tests.test_helpers import load_expected_output_normalized, write_normalized_expected_output
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -18,13 +21,18 @@ EXPECTED_OUTPUTS_DIR = PROJECT_ROOT / "data" / "expected_outputs"
 
 
 def load_flavor_refusal_output() -> ExpectedStructuredOutput:
-    return load_expected_output(
+    return load_expected_output_normalized(
         EXPECTED_OUTPUTS_DIR / "inquiry_001_flavor_refusal.json"
     )
 
 
-def test_load_expected_output_returns_expected_structured_output() -> None:
-    output = load_flavor_refusal_output()
+def test_load_expected_output_returns_expected_structured_output(tmp_path: Path) -> None:
+    normalized_path = write_normalized_expected_output(
+        EXPECTED_OUTPUTS_DIR / "inquiry_001_flavor_refusal.json",
+        tmp_path,
+    )
+
+    output = load_expected_output(normalized_path)
 
     assert isinstance(output, ExpectedStructuredOutput)
     assert output.derived_assessment.concern_type == ConcernType.PET_REFUSED_FLAVOR

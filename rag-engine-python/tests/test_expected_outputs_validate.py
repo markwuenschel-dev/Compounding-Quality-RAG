@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from app.schemas import ExpectedStructuredOutput
+from tests.test_helpers import load_expected_output_normalized
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -39,9 +40,7 @@ def test_expected_output_files_are_present() -> None:
 def test_expected_output_validates_against_schema(file_name: str) -> None:
     json_path = EXPECTED_OUTPUTS_DIR / file_name
 
-    output = ExpectedStructuredOutput.model_validate_json(
-        json_path.read_text(encoding="utf-8")
-    )
+    output = load_expected_output_normalized(json_path)
 
     assert isinstance(output, ExpectedStructuredOutput)
 
@@ -60,8 +59,6 @@ def test_expected_output_uses_known_dosage_form_when_case_provides_it(
 ) -> None:
     json_path = EXPECTED_OUTPUTS_DIR / file_name
 
-    output = ExpectedStructuredOutput.model_validate_json(
-        json_path.read_text(encoding="utf-8")
-    )
+    output = load_expected_output_normalized(json_path)
 
-    assert output.product_context.dosage_form != "unknown"
+    assert output.product_context.dosage_form.value != "unknown"
