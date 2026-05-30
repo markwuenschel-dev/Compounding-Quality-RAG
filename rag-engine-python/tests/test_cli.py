@@ -12,7 +12,13 @@ from app.schemas import (
     ReviewSummary,
 )
 
+def disable_intake_understanding(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "openai_json_client_from_env", lambda: object())
 
+    def fake_extract_intake_understanding(concern_text, client):
+        return None
+
+    monkeypatch.setattr(cli, "extract_intake_understanding", fake_extract_intake_understanding)
 
 def input_iterator(values: list[str]) -> Iterator[str]:
     yield from values
@@ -80,6 +86,8 @@ def test_main_can_stop_after_phase_one(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    disable_intake_understanding(monkeypatch)
+
     inputs = input_iterator(
         [
             "Dog vomited after chicken flavored oral liquid.",
@@ -102,26 +110,31 @@ def test_main_runs_phase_two_with_controlled_findings(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    disable_intake_understanding(monkeypatch)
+
     inputs = input_iterator(
-    [
-        "Dog vomited after chicken flavored oral liquid.",
-        "y",
-        "1",  # phase two input mode: controlled menu fields
-        "1",  # record_review_result
-        "1",  # lot_batch_pattern_summary
-        "4",  # inventory_inspection_result
-        "1",  # api_reference_review_result
-        "0",  # severe_triggers_observed: none
-        "Vomited once and recovered. No hospitalization.",
-        "",
-        "",
-    ]
-)
+        [
+            "Dog vomited after chicken flavored oral liquid.",
+            "y",
+            "1",
+            "1",
+            "1",
+            "4",
+            "1",
+            "0",
+            "Vomited once and recovered. No hospitalization.",
+            "",
+            "",
+        ]
+    )
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
 
     cli.main()
 
     captured = capsys.readouterr()
+
+    assert "PHASE 2" in captured.out
+    assert "FINAL REVIEW" in captured.out
 
 
 def test_choose_multiple_enum_returns_empty_list_for_zero(
@@ -169,6 +182,11 @@ def test_main_runs_phase_two_with_llm_findings(
         )
 
     monkeypatch.setattr(cli, "openai_json_client_from_env", lambda: object())
+
+    def fake_extract_intake_understanding(concern_text, client):
+        return None
+
+
     monkeypatch.setattr(cli, "extract_review_summary", fake_extract_review_summary)
 
     cli.main()

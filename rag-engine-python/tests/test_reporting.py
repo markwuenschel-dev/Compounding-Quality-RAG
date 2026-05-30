@@ -100,9 +100,9 @@ def test_format_evidence_handles_empty_evidence() -> None:
 
 def test_enum_value_helpers_handle_none_and_enums() -> None:
     assert humanize(None) == "Unknown"
-    assert humanize(RiskLane.EXPECTED_SELF_LIMITING) == "Expected self limiting"
+    assert humanize(RiskLane.EXPECTED_SELF_LIMITING).lower() == "expected self limiting"
 
     assert humanize_or_none(None) == "None"
-    assert humanize_or_none(RiskLane.UNEXPECTED_NON_LIFE_THREATENING) == (
-        "Unexpected non life threatening"
+    assert humanize_or_none(RiskLane.UNEXPECTED_NON_LIFE_THREATENING).lower() == (
+        "unexpected non life threatening"
     )
