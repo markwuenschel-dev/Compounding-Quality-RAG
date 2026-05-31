@@ -124,7 +124,6 @@ A submission is a QRE if it falls into one of the five formal QRE categories. If
 - `pet_death`
 - `threatened_legal_action`
 
-
 ## Intake Understanding
 
 `IntakeUnderstanding` is an optional Phase 1 structure that captures facts already present in the concern before checklist generation.
@@ -146,6 +145,28 @@ The LLM may populate this structure, but deterministic application logic still o
 - `internal_record_access`: real order status, stock availability, inventory, customer history, compounding records, patient records, or internal-system access.
 - `external_drug_reference`: Plumb's, package inserts, drug handbooks, dose ranges, contraindications, interactions, toxicity, published adverse effects, or medication-specific safety claims.
 - `clinical_or_legal_conclusion`: causality, diagnosis, safety determination, death causation, liability, legal advice, or another final clinical/legal conclusion.
+
+## API Runner Bridge
+
+The Python bridge accepts a command envelope from stdin and returns a response envelope on stdout.
+
+Current command:
+
+```json
+{
+  "command": "checklist",
+  "payload": {
+    "concernText": "..."
+  }
+}
+```
+
+Response envelopes:
+
+- `{"ok": true, "result": {...}}` for successful checklist generation.
+- `{"ok": false, "error": {...}}` for handled validation, refusal, unknown command, or engine errors.
+
+stdout is reserved for JSON. stderr is reserved for diagnostics.
 
 ## Review Scopes
 

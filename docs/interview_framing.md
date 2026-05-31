@@ -19,16 +19,25 @@ The Python package already owns the tested RAG behavior: ingestion, retrieval, e
 ### Why not rewrite the RAG engine in Java?
 
 A rewrite would duplicate tested domain logic and slow down the project. The better engineering choice is to preserve the working Python engine and wrap it behind a stable service contract. Later, the subprocess bridge could be replaced with a FastAPI or HTTP service without changing the public Java API.
-## Intake Understanding / LLM Boundary Talking Points
 
-### Why add an intake-understanding layer?
+## Python Bridge / Java Integration Talking Points
 
-The first version of the checklist could identify concern types, but it sometimes asked for facts already supplied in the concern text. I added a schema-validated `IntakeUnderstanding` layer so the system can capture product context, customer context, facts present, facts missing, and possible boundary issues before checklist generation.
+### What is `api_runner.py`?
 
-### Why not let the LLM generate the checklist?
+`api_runner.py` is a process bridge. It lets a future Java `RagEngineClient` call the Python checklist engine by sending one JSON request through stdin and reading one JSON response from stdout.
 
-The LLM is treated as a structured extraction dependency, not a decision engine. It extracts facts into a Pydantic model. Deterministic application code still owns refusal handling, checklist generation, escalation routing, and final assessment.
+### Why use stdin/stdout instead of calling Python logic from Java directly?
 
-### What makes this safer than a chatbot?
+It keeps the boundary simple and explicit. Python remains responsible for RAG/checklist behavior. Java remains responsible for the HTTP service contract, validation, OpenAPI, error translation, and orchestration. The bridge can later be replaced by FastAPI or another service without changing the public Spring controller contract.
 
-The workflow has explicit boundaries: deterministic refusal runs first, optional semantic boundary detection can stop unsupported requests, structured reviewer findings drive final escalation, and the reports repeat that the project uses synthetic data only.
+### Why use an `ok:true` / `ok:false` envelope?
+
+The envelope separates handled engine/application errors from process failures. `ok:false` means Python ran and returned a structured refusal or validation error. A nonzero exit code, timeout, or invalid stdout means the bridge itself failed.
+
+### Why keep stdout JSON-only?
+
+The Java client will parse stdout. If logs or tracebacks are mixed into stdout, the integration becomes brittle. Diagnostics belong on stderr; stdout belongs to the machine-readable response contract.
+
+### How does this map to production design?
+
+The current bridge is a local integration adapter. The production-shaped decision is the separation of concerns: controller → service/client interface → Python adapter. That keeps subprocess details out of the controller and makes the integration replaceable later.

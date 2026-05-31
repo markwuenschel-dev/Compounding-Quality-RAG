@@ -5,7 +5,7 @@ This log captures implementation failures found while building the synthetic Com
 ## Current status
 
 - Test suite is passing.
-- The project now has schemas, expected outputs, synthetic SOP corpus, ingestion, retrieval, retrieval evaluation, a stubbed pipeline, structured evaluation, checklist generation, final assessment generation, reporting, a two-phase CLI workflow, deterministic refusal behavior, optional OpenAI-backed intake understanding, and OpenAI-backed review-summary extraction.
+- The project now has schemas, expected outputs, synthetic SOP corpus, ingestion, retrieval, retrieval evaluation, a stubbed pipeline, structured evaluation, checklist generation, final assessment generation, reporting, a two-phase CLI workflow, and OpenAI-backed review-summary extraction.
 - The current demo boundary remains synthetic only: no real customer data, patient data, pharmacy records, inventory, customer history, or external drug references.
 
 ## Failures
@@ -145,26 +145,39 @@ This log captures implementation failures found while building the synthetic Com
 **Prevention:** Retrieval eval questions should only expect sources that actually contain the supporting policy concept. When a query combines unsupported-evidence boundaries with routing behavior, either split the query or include all expected source concepts in the query text. Fix corpus/source-truth gaps before using embeddings to compensate for poor source coverage.
 
 
----
-
-### 11. Phase 1 checklist asked for facts already present in the concern
-
-**Symptom:** The vomiting demo concern already stated dog, oral liquid, chicken flavor, vomiting once, and timing about 10 minutes after administration, but the initial checklist still asked for species, dosage form, flavor/base, timing, and symptom course.
-
-**Root cause:** Checklist generation used concern-type heuristics without a structured intake-understanding object. It could identify vomiting terms but did not carry extracted product context or customer context into missing-information filtering.
-
-**Fix:** Added `IntakeUnderstanding` as a schema-level contract and `app/extract_intake_understanding.py` as an optional OpenAI-backed structured JSON extraction layer. The checklist can now receive intake understanding and suppress missing-information items that are already captured.
-
-**Prevention:** Keep tests focused on schema validation and behavior, not exact report prose. Add demo cases proving known facts are not re-asked and boundary issues stop before checklist generation.
 
 ---
 
-### 12. Presentation tests over-asserted report copy
+### 13. Expected-output tests became brittle around enum casing
 
-**Symptom:** Tests failed even though the CLI worked because assertions expected exact headings such as `COMPOUNDING QUALITY INTAKE CHECKLIST`, `What should be checked:`, or exact bullet text.
+**Symptom:** Tests failed after schema values such as QRE/ADE casing were treated as implementation mistakes even though `app/schemas.py` was the intended source of truth.
 
-**Root cause:** Report formatting changed to manager-readable section labels, but tests asserted incidental prose instead of stable report behavior.
+**Root cause:** Tests validated fixture literals too directly and made the expected-output JSON files act like a competing schema definition.
 
-**Fix:** Updated tests to assert stable structure: phase label, synthetic boundary, evidence visibility, absence of debug scores by default, and generated review checks appearing in the report.
+**Fix:** Added test helper normalization so expected-output fixtures are normalized to current schema enum values at test load time. Evaluation and pipeline tests now test behavior against the schema instead of forcing fixture casing to drive production enums.
 
-**Prevention:** Do not exact-match presentation copy unless it is part of a public contract. For CLI/reporting, prefer structural assertions and key concepts.
+**Prevention:** Treat `app/schemas.py` as the controlled source of truth. Fixture normalization is acceptable in tests, but production schema values should not be changed just to satisfy brittle fixture literals.
+
+---
+
+### 14. CLI and reporting tests overfit incidental formatting
+
+**Symptom:** Tests failed when headings, capitalization, or report wording changed even though the workflow behavior still worked.
+
+**Root cause:** Tests asserted presentation copy instead of stable behavior and contract-level structure.
+
+**Fix:** Updated CLI/reporting tests to check stable signals: phase labels, boundary text, evidence visibility, absence of debug scores by default, and generated review checks.
+
+**Prevention:** Exact-match public prose only when that prose is itself the contract. Otherwise prefer structural assertions and key concepts.
+
+---
+
+### 15. API runner needed clear stdout/stderr and exit-code rules
+
+**Symptom:** The bridge needed to be safe for future Java process parsing, but ordinary Python logging or tracebacks on stdout would break JSON parsing.
+
+**Root cause:** A subprocess bridge creates two contracts at once: process-level behavior and application-level JSON behavior. Without explicit rules, those concerns blur.
+
+**Fix:** Added `app/api_runner.py` with a request envelope, success/error response envelopes, stdout-only JSON, stderr diagnostics, handled errors with exit code 0, and unexpected failures with a nonzero exit code plus JSON error output.
+
+**Prevention:** Keep `tests/test_api_runner.py` focused on bridge invariants: stdout is valid JSON, handled errors return `ok:false`, refusal returns structured details, and unexpected exceptions do not leak tracebacks into stdout.

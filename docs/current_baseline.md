@@ -4,7 +4,11 @@
 - Added `HealthResponse` DTO record.
 - Added `HealthControllerTest` with MockMvc.
 - Added Swagger/OpenAPI UI.
-- Confirmed `gradlew test` passes.
+- Added centralized `ApiErrorResponse` and `GlobalExceptionHandler`.
+- Added mocked `POST /api/checklist` endpoint with request/response DTOs.
+- Added validation coverage for blank checklist concern text.
+- Confirmed `gradlew test` passes from `services/review-api`.
+
 ## Python RAG / CLI Update
 
 - Added schema-level `RefusalReason`, `RefusalResult`, and `IntakeUnderstanding` contracts.
@@ -13,3 +17,24 @@
 - Added semantic boundary detection for unsupported inventory/order, external drug-reference, and clinical/legal conclusion requests.
 - Updated reporting tests to avoid brittle exact-copy assertions.
 - Confirmed Python tests pass after intake-understanding wiring.
+
+## Python API Runner Bridge
+
+- Added `app/api_runner.py` as the JSON stdin/stdout bridge for the future Java process client.
+- Added `checklist` command support using the existing Python checklist engine.
+- Added bridge envelope:
+  - request: `{"command":"checklist","payload":{"concernText":"..."}}`
+  - success: `{"ok":true,"result":{...}}`
+  - handled error: `{"ok":false,"error":{"code":"...","message":"..."}}`
+- Reserved stdout for machine-readable JSON only.
+- Reserved stderr for unexpected tracebacks and diagnostics.
+- Added nonzero exit code behavior only for unexpected bridge/engine failures.
+- Added `tests/test_api_runner.py` coverage for success, invalid JSON, blank/missing concern text, unknown command, refusal, invalid `topK`, and unexpected engine failure.
+
+## Test Hardening
+
+- Added `tests/test_helpers.py` to normalize expected-output fixtures to current schema enum values during tests.
+- Updated evaluation and pipeline tests to treat `app/schemas.py` as the source of truth.
+- Updated CLI tests to isolate `cli.main()` from external LLM configuration when LLM behavior is not under test.
+- Updated intake-understanding fake client to tolerate the current prompt-call contract.
+- Updated reporting assertions to check stable behavior instead of incidental capitalization or exact report prose.

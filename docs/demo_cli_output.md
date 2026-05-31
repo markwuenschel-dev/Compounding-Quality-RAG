@@ -16,29 +16,7 @@ My dog received a chicken-flavored compounded oral liquid. About 10 minutes late
 
 ---
 
-## Phase 1: Intake Understanding + Checklist
-
-### Intake Understanding
-
-Before the checklist is built, the optional structured extraction layer captures facts that are already present in the concern.
-
-| Field | Output |
-|---|---|
-| Species | `dog` |
-| Dosage form | `oral_liquid` |
-| Flavor / attribute | `chicken-flavored` |
-| Boundary issue | `null` |
-| Customer context | Dog received chicken-flavored compounded oral liquid, ran around frantically, vomited once about 10 minutes later, and seems okay now. |
-
-### Facts Already Captured
-
-- Species is dog.
-- Dosage form is oral liquid.
-- Flavor is chicken-flavored.
-- Vomiting occurred about 10 minutes after administration.
-- Dog vomited once.
-- Dog ran around frantically.
-- Customer reports dog seems okay now.
+## Phase 1: Intake Checklist
 
 ### Initial Review Takeaway
 
@@ -62,9 +40,13 @@ Initial screen suggests **flavor-related vomiting** with an **unexpected non-lif
 ### Missing Information to Resolve Before Final Disposition
 
 - Medication or product placeholder
+- Species
+- Dosage form
 - Lot or batch information, if available
 - Whether any severe escalation trigger is present
 - Dose administered
+- Timing of vomiting relative to administration
+- Whether symptoms resolved
 - Whether veterinarian was contacted
 - Whether the pet was hospitalized
 
@@ -191,26 +173,6 @@ This question asks the tool to access real operational records and determine whe
 
 ---
 
-## Demo Case 3: Unsupported Inventory / Ordering Access
-
-### Input Question
-
-```text
-A customer wants to know when this medication will be back in stock so they can order it again.
-```
-
-### Refusal Output
-
-```text
-I can’t verify that from the information available in this proof of concept. This system does not have access to real compounding records, order pages, customer history, patient records, or inventory systems. A pharmacist or reviewer should check the appropriate internal record and document what they confirm.
-```
-
-### Why This Refuses
-
-The question asks for stock availability and ordering capability, which require real inventory or order-system access. The public demo cannot check those systems, so it should stop before Phase 1 checklist generation.
-
----
-
 ## Demo Interpretation
 
 This walkthrough shows two key behaviors:
@@ -219,3 +181,57 @@ This walkthrough shows two key behaviors:
 2. The tool refuses requests that require real record access or unsupported evidence.
 
 The output is intended to support pharmacist review, not replace it.
+
+
+---
+
+## API Runner Bridge Smoke Test
+
+The same checklist behavior can now be exercised through the Python process bridge that the future Spring Boot client will call.
+
+### Input
+
+```powershell
+@'
+{"command":"checklist","payload":{"concernText":"My dog vomited after taking a flavored compounded oral liquid."}}
+'@ | python -m app.api_runner
+```
+
+### Expected Response Shape
+
+```json
+{
+  "ok": true,
+  "result": {
+    "concernType": "flavor_related_vomiting",
+    "riskLane": "unexpected_non_life_threatening",
+    "reviewScope": "full_quality_review",
+    "initialTakeaway": "...",
+    "requiredChecks": [],
+    "missingInformation": [],
+    "escalationTriggersToRuleOut": [],
+    "evidence": [],
+    "limitations": []
+  }
+}
+```
+
+### Handled Error Example
+
+```powershell
+@'
+{"command":"checklist","payload":{"concernText":"   "}}
+'@ | python -m app.api_runner
+```
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "payload.concernText must not be blank"
+  }
+}
+```
+
+The bridge contract keeps stdout reserved for JSON so a Java process client can parse it safely. Diagnostics and tracebacks belong on stderr.

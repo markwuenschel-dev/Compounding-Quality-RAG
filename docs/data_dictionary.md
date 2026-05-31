@@ -1,14 +1,14 @@
 # Compounding Quality RAG Data Dictionary
 
 
-Version: 0.4 — intake-understanding schema update  
+Version: 0.5 — API runner bridge update  
 Project: Compounding Quality Inquiry Evidence Assistant  
-Data boundary: synthetic public learning artifact only
+Data boundary: demo-only public learning artifact
 
 
 ## 1. Purpose
 
-This data dictionary is synchronized with the current `app/schemas.py` contracts. It defines controlled values, model contracts, authority rules, and evidence metadata for the two-phase synthetic Compounding Quality RAG workflow.
+This data dictionary is synchronized with `app/schemas.py` v8. It defines controlled values, model contracts, authority rules, and evidence metadata for the two-phase synthetic Compounding Quality RAG workflow.
 
 
 ## 2. Current Schema Boundaries
@@ -20,6 +20,8 @@ This data dictionary is synchronized with the current `app/schemas.py` contracts
 - Final escalation routing uses reviewer-confirmed `review_summary.severe_triggers_observed`, not raw free-text keyword matching.
 - Phase 1 can use `IntakeUnderstanding` to structure facts already present in the concern before checklist generation.
 - `RefusalReason` and `RefusalResult` are schema-level contracts; `app/refusal.py` owns the detection logic.
+- `app/api_runner.py` is a process bridge for Java/Spring integration. It accepts one JSON request from stdin and returns one JSON response on stdout.
+- Bridge stdout must remain valid JSON only; diagnostics and tracebacks belong on stderr.
 - The current `ExpectedStructuredOutput` does not use `workflow_stage`; workflow stage is represented operationally by Phase 1 checklist output and Phase 2 reviewer findings.
 
 
@@ -382,6 +384,46 @@ All fields are boolean or null: `record_review_required`, `lot_batch_review_requ
 Wrapper with `raw_intake`, `product_context`, `investigation_requirements`, `review_summary`, and `derived_assessment`.
 
 
+### `ApiRunnerRequest`
+
+The Python process bridge reads exactly one JSON object from stdin.
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `command` | string | Yes | Currently supports `checklist`. |
+| `payload` | object | Yes | Command-specific payload. |
+
+Checklist payload:
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `concernText` | string | Yes | Concern narrative passed from the Java API boundary. Must not be blank. |
+| `topK` | integer | No | Optional retrieval count. Defaults to 5. Must be at least 1. |
+
+### `ApiRunnerSuccessResponse`
+
+| Field | Type | Notes |
+|---|---|---|
+| `ok` | literal `true` | Indicates the bridge handled the command and returned a usable result. |
+| `result` | object | API-facing checklist result with camelCase keys for Java/Spring consumption. |
+
+### `ApiRunnerErrorResponse`
+
+| Field | Type | Notes |
+|---|---|---|
+| `ok` | literal `false` | Indicates the bridge handled the request but did not return a usable result, or returned a safe error envelope for an unexpected failure. |
+| `error.code` | string | Stable machine-readable error code such as `INVALID_JSON`, `INVALID_REQUEST`, `UNKNOWN_COMMAND`, `REFUSED`, or `ENGINE_FAILURE`. |
+| `error.message` | string | Human-readable error message suitable for Java-side translation. |
+| `error.details` | object | Optional structured detail map, used for refusal reason and matched terms when available. |
+
+Bridge exit-code rule:
+
+| Case | Exit code | stdout |
+|---|---:|---|
+| Success | `0` | `{"ok":true,"result":{...}}` |
+| Handled request/refusal error | `0` | `{"ok":false,"error":{...}}` |
+| Unexpected bridge/engine failure | nonzero | `{"ok":false,"error":{"code":"ENGINE_FAILURE",...}}` |
+
 ## 19. Citation Metadata Contract
 
 Every citation should identify:
@@ -430,7 +472,7 @@ Keep these in sync whenever either file changes:
 
 - `data_dictionary.md` enum tables and `app/schemas.py` enum classes.
 - `EvidenceCitation` fields in `app/checklist_models.py` and any backward-compatible copy in `app/schemas.py`.
-- `IntakeUnderstanding`, `RefusalReason`, and `RefusalResult` fields in `app/schemas.py`, `app/extract_intake_understanding.py`, and `app/refusal.py`.
 - Expected-output JSON keys and `ExpectedStructuredOutput` fields.
 - Retrieval citation metadata and README citation language.
+- `app/api_runner.py` bridge envelope and `tests/test_api_runner.py`.
 - Failure log prevention rules and actual tests.

@@ -219,26 +219,55 @@ This requires one additional structured reviewer field, but it is safer and easi
 ### Revisit when
 The LLM review-summary extraction layer is added and must map normal English reviewer notes into `ReviewSummary`.
 
+
 ---
 
-## 2026-05-26 — Intake understanding as schema-validated LLM extraction
+## 2026-05-30 — Python process bridge contract
 
 ### Decision
-Add `IntakeUnderstanding` as a schema-level contract and route Phase 1 intake text through an optional OpenAI-backed structured extraction layer before checklist generation.
+Add `app/api_runner.py` as a JSON stdin/stdout process bridge between the Spring Boot API and the existing Python checklist engine.
 
 ### Reason
-The initial checklist should not ask for facts already supplied in the concern text, such as species, dosage form, flavor, timing, or symptom course. A typed extraction layer lets the project capture those facts once, validate them with Pydantic, and pass them into deterministic checklist logic without making the LLM the decision engine.
+The Python package already owns the tested RAG/checklist behavior. The Java/Spring layer should wrap that behavior behind a stable API boundary instead of rewriting it. A process bridge gives Spring Boot a narrow integration point now while keeping the option to replace the subprocess with FastAPI or another HTTP service later.
+
+### Contract
+The bridge accepts one JSON request object from stdin:
+
+```json
+{
+  "command": "checklist",
+  "payload": {
+    "concernText": "..."
+  }
+}
+```
+
+It returns one JSON response object on stdout:
+
+```json
+{
+  "ok": true,
+  "result": {}
+}
+```
+
+or:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "payload.concernText must not be blank"
+  }
+}
+```
 
 ### Consequence
-`app/extract_intake_understanding.py` owns prompt construction, JSON parsing, and `IntakeUnderstanding` validation. The module may identify a possible semantic boundary issue, but downstream application logic still owns refusal handling, checklist generation, final assessment routing, and safety-critical decisions.
-
-### Alternatives considered
-- Hard-code a deterministic keyword-based intake fact extractor.
-- Expand checklist heuristics directly.
-- Let the LLM generate the checklist.
+Java can treat `ok:false` as a handled engine/application response and treat nonzero process exit, timeout, or invalid stdout as bridge/process failure.
 
 ### Tradeoff
-The OpenAI extraction layer improves semantic understanding but adds dependency, latency, and failure modes. The CLI therefore keeps deterministic refusal first and can continue checklist generation if optional intake understanding is unavailable.
+A subprocess bridge is simpler than running a separate Python web service, but it requires strict stdout discipline, timeout handling, and careful error translation in the future Java client.
 
 ### Revisit when
-The Spring Boot API exposes checklist generation and the request/response DTOs need to represent intake understanding explicitly.
+The Spring Boot `RagEngineClient` interface and `PythonProcessRagEngineClient` are implemented, or when the bridge needs to become a long-running Python service.
