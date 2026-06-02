@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: review-api
+
+rag:
+  python:
+    command:
+      - python
+      - -m
+      - app.api_runner
+    working-directory: ../../rag-engine-python
+    timeout: 10s

@@ -1,7 +1,7 @@
 # Compounding Quality RAG Data Dictionary
 
 
-Version: 0.5 — API runner bridge update  
+Version: 0.6 — Spring API error contract update  
 Project: Compounding Quality Inquiry Evidence Assistant  
 Data boundary: demo-only public learning artifact
 
@@ -22,6 +22,7 @@ This data dictionary is synchronized with `app/schemas.py` v8. It defines contro
 - `RefusalReason` and `RefusalResult` are schema-level contracts; `app/refusal.py` owns the detection logic.
 - `app/api_runner.py` is a process bridge for Java/Spring integration. It accepts one JSON request from stdin and returns one JSON response on stdout.
 - Bridge stdout must remain valid JSON only; diagnostics and tracebacks belong on stderr.
+- The Spring Boot API exposes a centralized `ApiErrorResponse` contract for validation errors, malformed JSON, explicit response-status errors, and generic fallback errors.
 - The current `ExpectedStructuredOutput` does not use `workflow_stage`; workflow stage is represented operationally by Phase 1 checklist output and Phase 2 reviewer findings.
 
 
@@ -424,6 +425,39 @@ Bridge exit-code rule:
 | Handled request/refusal error | `0` | `{"ok":false,"error":{...}}` |
 | Unexpected bridge/engine failure | nonzero | `{"ok":false,"error":{"code":"ENGINE_FAILURE",...}}` |
 
+### `ApiErrorResponse`
+
+The Spring Boot API returns this centralized JSON error shape for handled API failures.
+
+| Field | Type | Notes |
+|---|---|---|
+| `timestamp` | ISO-8601 string | Time the API error response was built. |
+| `status` | integer | HTTP status code such as `400`, `404`, or `500`. |
+| `error` | string | HTTP reason phrase such as `Bad Request` or `Internal Server Error`. |
+| `message` | string | Stable user-facing message. Generic fallback errors must not leak implementation details. |
+| `path` | string | Request path, such as `/api/checklist` or `/test/validate`. |
+| `requestId` | string | Incoming `X-Request-Id` when present, otherwise a generated identifier. |
+| `fieldErrors` | list | Validation errors. Empty for non-validation failures. |
+
+`fieldErrors` entries use this shape:
+
+| Field | Type | Notes |
+|---|---|---|
+| `field` | string | Field name that failed validation. |
+| `rejectedValue` | any or null | Rejected value when safe to return. |
+| `message` | string | Validation message. |
+
+Spring API error mapping:
+
+| Failure case | Expected status | Message rule |
+|---|---:|---|
+| Request-body validation failure | `400` | `Validation failed` with field errors. |
+| Handler-method validation failure | `400` | `Validation failed`; field errors may be empty until mapped. |
+| Malformed JSON body | `400` | Stable bad-request message with the centralized error shape. |
+| `ResponseStatusException` | Exception status | Preserve status and provide non-empty message. |
+| Unexpected exception | `500` | Generic message only; do not expose internal exception text. |
+
+
 ## 19. Citation Metadata Contract
 
 Every citation should identify:
@@ -475,4 +509,5 @@ Keep these in sync whenever either file changes:
 - Expected-output JSON keys and `ExpectedStructuredOutput` fields.
 - Retrieval citation metadata and README citation language.
 - `app/api_runner.py` bridge envelope and `tests/test_api_runner.py`.
+- Spring `ApiErrorResponse`, `GlobalExceptionHandler`, and `GlobalExceptionHandlerTest` expected error shapes.
 - Failure log prevention rules and actual tests.

@@ -17,135 +17,122 @@ import org.springframework.web.server.ResponseStatusException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiErrorResponse> handleMethodArgumentNotValid(
-            MethodArgumentNotValidException exception,
-            HttpServletRequest request
-    ) {
-        List<FieldErrorDetail> fieldErrors = exception.getBindingResult()
-                .getFieldErrors()
-                .stream()
-                .map(error -> new FieldErrorDetail(error.getField(), rejectedValue(error.getRejectedValue()), error.getDefaultMessage()))
-                .toList();
+        @ExceptionHandler(MethodArgumentNotValidException.class)
+        public ResponseEntity<ApiErrorResponse> handleMethodArgumentNotValid(
+                        MethodArgumentNotValidException exception,
+                        HttpServletRequest request) {
+                List<FieldErrorDetail> fieldErrors = exception.getBindingResult()
+                                .getFieldErrors()
+                                .stream()
+                                .map(error -> new FieldErrorDetail(error.getField(),
+                                                rejectedValue(error.getRejectedValue()), error.getDefaultMessage()))
+                                .toList();
 
-        return buildResponse(
-                HttpStatus.BAD_REQUEST,
-                "Validation failed",
-                request,
-                fieldErrors
-        );
-    }
-
-    @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
-            ConstraintViolationException exception,
-            HttpServletRequest request
-    ) {
-        List<FieldErrorDetail> fieldErrors = exception.getConstraintViolations()
-                .stream()
-                .map(violation -> new FieldErrorDetail(
-                        violation.getPropertyPath().toString(),
-                        null,
-                        violation.getMessage()
-                ))
-                .toList();
-
-        return buildResponse(
-                HttpStatus.BAD_REQUEST,
-                "Validation failed",
-                request,
-                fieldErrors
-        );
-    }
-
-    @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiErrorResponse> handleUnreadableMessage(
-            HttpMessageNotReadableException exception,
-            HttpServletRequest request
-    ) {
-        return buildResponse(
-                HttpStatus.BAD_REQUEST,
-                "Malformed request body",
-                request,
-                List.of()
-        );
-    }
-
-    @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<ApiErrorResponse> handleResponseStatus(
-            ResponseStatusException exception,
-            HttpServletRequest request
-    ) {
-        HttpStatusCode statusCode = exception.getStatusCode();
-        String message = exception.getReason() == null
-                ? "Request failed"
-                : exception.getReason();
-
-        return buildResponse(statusCode, message, request, List.of());
-    }
-
-    @ExceptionHandler(ErrorResponseException.class)
-    public ResponseEntity<ApiErrorResponse> handleErrorResponse(
-            ErrorResponseException exception,
-            HttpServletRequest request
-    ) {
-        return buildResponse(
-                exception.getStatusCode(),
-                exception.getBody().getDetail(),
-                request,
-                List.of()
-        );
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiErrorResponse> handleUnexpected(
-            Exception exception,
-            HttpServletRequest request
-    ) {
-        return buildResponse(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Unexpected server error",
-                request,
-                List.of()
-        );
-    }
-
-    private ResponseEntity<ApiErrorResponse> buildResponse(
-            HttpStatusCode statusCode,
-            String message,
-            HttpServletRequest request,
-            List<FieldErrorDetail> fieldErrors
-    ) {
-        int status = statusCode.value();
-
-        ApiErrorResponse response = ApiErrorResponse.of(
-                status,
-                reasonPhrase(statusCode),
-                message,
-                request.getRequestURI(),
-                requestId(request),
-                fieldErrors
-        );
-
-        return ResponseEntity.status(statusCode).body(response);
-    }
-
-    private String reasonPhrase(HttpStatusCode statusCode) {
-        if (statusCode instanceof HttpStatus httpStatus) {
-            return httpStatus.getReasonPhrase();
+                return buildResponse(
+                                HttpStatus.BAD_REQUEST,
+                                "Validation failed",
+                                request,
+                                fieldErrors);
         }
 
-        return "HTTP " + statusCode.value();
-    }
+        @ExceptionHandler(ConstraintViolationException.class)
+        public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
+                        ConstraintViolationException exception,
+                        HttpServletRequest request) {
+                List<FieldErrorDetail> fieldErrors = exception.getConstraintViolations()
+                                .stream()
+                                .map(violation -> new FieldErrorDetail(
+                                                violation.getPropertyPath().toString(),
+                                                null,
+                                                violation.getMessage()))
+                                .toList();
 
-    private String requestId(HttpServletRequest request) {
-        String requestId = request.getHeader("X-Request-Id");
-        return requestId == null || requestId.isBlank()
-                ? UUID.randomUUID().toString()
-                : requestId;
-    }
+                return buildResponse(
+                                HttpStatus.BAD_REQUEST,
+                                "Validation failed",
+                                request,
+                                fieldErrors);
+        }
 
-    private String rejectedValue(Object value) {
-        return value == null ? null : value.toString();
-    }
+        @ExceptionHandler(HttpMessageNotReadableException.class)
+        public ResponseEntity<ApiErrorResponse> handleUnreadableMessage(
+                        HttpMessageNotReadableException exception,
+                        HttpServletRequest request) {
+                return buildResponse(
+                                HttpStatus.BAD_REQUEST,
+                                "Malformed request body",
+                                request,
+                                List.of());
+        }
+
+        @ExceptionHandler(ResponseStatusException.class)
+        public ResponseEntity<ApiErrorResponse> handleResponseStatus(
+                        ResponseStatusException exception,
+                        HttpServletRequest request) {
+                HttpStatusCode statusCode = exception.getStatusCode();
+                String message = exception.getReason() == null
+                                ? "Request failed"
+                                : exception.getReason();
+
+                return buildResponse(statusCode, message, request, List.of());
+        }
+
+        @ExceptionHandler(ErrorResponseException.class)
+        public ResponseEntity<ApiErrorResponse> handleErrorResponse(
+                        ErrorResponseException exception,
+                        HttpServletRequest request) {
+                return buildResponse(
+                                exception.getStatusCode(),
+                                exception.getBody().getDetail(),
+                                request,
+                                List.of());
+        }
+
+        @ExceptionHandler(Exception.class)
+        public ResponseEntity<ApiErrorResponse> handleUnexpected(
+                        Exception exception,
+                        HttpServletRequest request) {
+                return buildResponse(
+                                HttpStatus.INTERNAL_SERVER_ERROR,
+                                "Unexpected server error",
+                                request,
+                                List.of());
+        }
+
+        private ResponseEntity<ApiErrorResponse> buildResponse(
+                        HttpStatusCode statusCode,
+                        String message,
+                        HttpServletRequest request,
+                        List<FieldErrorDetail> fieldErrors) {
+                int status = statusCode.value();
+
+                ApiErrorResponse response = ApiErrorResponse.of(
+                                status,
+                                reasonPhrase(statusCode),
+                                message,
+                                request.getRequestURI(),
+                                requestId(request),
+                                fieldErrors);
+
+                return ResponseEntity.status(statusCode).body(response);
+        }
+
+        private String reasonPhrase(HttpStatusCode statusCode) {
+                if (statusCode instanceof HttpStatus httpStatus) {
+                        return httpStatus.getReasonPhrase();
+                }
+
+                return "HTTP " + statusCode.value();
+        }
+
+        private String requestId(HttpServletRequest request) {
+                String requestId = request.getHeader("X-Request-Id");
+                return requestId == null || requestId.isBlank()
+                                ? UUID.randomUUID().toString()
+                                : requestId;
+        }
+
+        private String rejectedValue(Object value) {
+                return value == null ? null : value.toString();
+        }
 }

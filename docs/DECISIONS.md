@@ -271,3 +271,35 @@ A subprocess bridge is simpler than running a separate Python web service, but i
 
 ### Revisit when
 The Spring Boot `RagEngineClient` interface and `PythonProcessRagEngineClient` are implemented, or when the bridge needs to become a long-running Python service.
+
+---
+
+## 2026-06-01 — Centralized Spring API error response contract
+
+### Decision
+Use `GlobalExceptionHandler` and `ApiErrorResponse` as the centralized Spring Boot error boundary for the review API.
+
+### Reason
+The API needs predictable HTTP semantics and a stable JSON shape before the Java layer starts calling the Python RAG bridge. Validation failures, malformed request bodies, explicit `ResponseStatusException`s, and unexpected exceptions should all return the same top-level shape so clients and tests do not need one-off parsing paths.
+
+### Contract
+The response includes `timestamp`, `status`, `error`, `message`, `path`, `requestId`, and `fieldErrors`.
+
+Current mappings:
+
+| Failure case | Status | Rule |
+|---|---:|---|
+| Invalid request body validation | `400` | Return `Validation failed` with field errors. |
+| Handler-method validation | `400` | Return `Validation failed`; field errors may be empty until mapped. |
+| Malformed JSON request body | `400` | Return the centralized bad-request shape. |
+| `ResponseStatusException` | Exception status | Preserve the explicit HTTP status and provide a non-empty message. |
+| Unexpected exception | `500` | Return a generic message without leaking the internal exception detail. |
+
+### Consequence
+`GlobalExceptionHandlerTest` now covers invalid body validation, malformed JSON, response-status errors, and generic fallback errors. `ChecklistControllerTest` also confirms checklist validation failures use the same global error shape and preserve incoming `X-Request-Id` values.
+
+### Tradeoff
+The handler-method validation branch currently returns an empty `fieldErrors` list. That is acceptable for the current API shell because request-body validation is the active contract being exercised, but it can be expanded later if method-parameter validation becomes user-facing.
+
+### Revisit when
+The API adds query/path parameter validation, the Python bridge maps engine errors to HTTP responses, or the React UI starts consuming field-level validation errors directly.

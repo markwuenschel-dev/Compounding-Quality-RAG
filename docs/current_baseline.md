@@ -4,10 +4,12 @@
 - Added `HealthResponse` DTO record.
 - Added `HealthControllerTest` with MockMvc.
 - Added Swagger/OpenAPI UI.
-- Added centralized `ApiErrorResponse` and `GlobalExceptionHandler`.
+- Added centralized `ApiErrorResponse` and `GlobalExceptionHandler` with a stable JSON error contract.
 - Added mocked `POST /api/checklist` endpoint with request/response DTOs.
 - Added validation coverage for blank checklist concern text.
-- Confirmed `gradlew test` passes from `services/review-api`.
+- Added `GlobalExceptionHandlerTest` coverage for invalid request-body validation, malformed JSON bodies, `ResponseStatusException`, and generic fallback errors.
+- Preserved incoming `X-Request-Id` on validation failures and generated request IDs when one is not supplied.
+- Confirmed `./gradlew clean test` passes from `services/review-api`.
 
 ## Python RAG / CLI Update
 
@@ -38,3 +40,5 @@
 - Updated CLI tests to isolate `cli.main()` from external LLM configuration when LLM behavior is not under test.
 - Updated intake-understanding fake client to tolerate the current prompt-call contract.
 - Updated reporting assertions to check stable behavior instead of incidental capitalization or exact report prose.
+- Updated Spring MVC tests to distinguish controller registration failures from actual exception-handler failures.
+- Removed temporary diagnostic assertions from the global exception-handler path after the handler behavior was confirmed.

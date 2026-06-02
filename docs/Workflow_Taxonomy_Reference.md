@@ -124,6 +124,7 @@ A submission is a QRE if it falls into one of the five formal QRE categories. If
 - `pet_death`
 - `threatened_legal_action`
 
+
 ## Intake Understanding
 
 `IntakeUnderstanding` is an optional Phase 1 structure that captures facts already present in the concern before checklist generation.
@@ -167,6 +168,28 @@ Response envelopes:
 - `{"ok": false, "error": {...}}` for handled validation, refusal, unknown command, or engine errors.
 
 stdout is reserved for JSON. stderr is reserved for diagnostics.
+
+## Spring API Error Contract
+
+The Spring Boot API shell uses a centralized `ApiErrorResponse` for handled API failures.
+
+Fields:
+
+- `timestamp`: time the error response was built.
+- `status`: HTTP status code.
+- `error`: HTTP reason phrase.
+- `message`: stable user-facing message.
+- `path`: request path.
+- `requestId`: incoming `X-Request-Id` when supplied, otherwise generated.
+- `fieldErrors`: validation details, empty for non-validation failures.
+
+Current mappings:
+
+- Invalid request body validation → `400` with `Validation failed` and field errors.
+- Handler-method validation → `400` with `Validation failed`.
+- Malformed JSON request body → `400` with the centralized bad-request shape.
+- `ResponseStatusException` → the exception's explicit HTTP status.
+- Unexpected exception → `500` with a generic message that does not leak internal exception details.
 
 ## Review Scopes
 

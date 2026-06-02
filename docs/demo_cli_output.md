@@ -235,3 +235,61 @@ The same checklist behavior can now be exercised through the Python process brid
 ```
 
 The bridge contract keeps stdout reserved for JSON so a Java process client can parse it safely. Diagnostics and tracebacks belong on stderr.
+
+---
+
+## Spring API Error Contract Smoke Tests
+
+The Spring Boot API shell now has centralized JSON error handling through `GlobalExceptionHandler` and `ApiErrorResponse`.
+
+### Invalid Request Body Validation
+
+Targeted test:
+
+```powershell
+./gradlew test --tests "*GlobalExceptionHandlerTest.returnsValidationErrorShapeForInvalidRequestBody"
+```
+
+Expected response shape:
+
+```json
+{
+  "timestamp": "...",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Validation failed",
+  "path": "/test/validate",
+  "requestId": "...",
+  "fieldErrors": [
+    {
+      "field": "concernText",
+      "rejectedValue": "",
+      "message": "concernText is required"
+    }
+  ]
+}
+```
+
+### Generic Fallback Error
+
+For an unexpected controller exception, the API returns a generic 500 response instead of leaking the internal exception message.
+
+```json
+{
+  "timestamp": "...",
+  "status": 500,
+  "error": "Internal Server Error",
+  "message": "Unexpected server error",
+  "path": "/test/error",
+  "requestId": "...",
+  "fieldErrors": []
+}
+```
+
+### Current Verification
+
+```powershell
+./gradlew clean test
+```
+
+passes from `services/review-api`.

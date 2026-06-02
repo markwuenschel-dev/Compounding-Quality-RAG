@@ -20,6 +20,19 @@ The Python package already owns the tested RAG behavior: ingestion, retrieval, e
 
 A rewrite would duplicate tested domain logic and slow down the project. The better engineering choice is to preserve the working Python engine and wrap it behind a stable service contract. Later, the subprocess bridge could be replaced with a FastAPI or HTTP service without changing the public Java API.
 
+
+### How do validation and error handling work in the Spring API?
+
+The Spring layer rejects malformed or invalid requests at the boundary before the Python engine is involved. `GlobalExceptionHandler` turns validation failures, malformed JSON, explicit response-status exceptions, and unexpected errors into one `ApiErrorResponse` shape with status, message, path, request ID, and field errors when available.
+
+### Why keep a generic fallback handler?
+
+A generic fallback prevents internal implementation details from leaking to API consumers. The logs can preserve diagnostic detail, but the HTTP response should be stable and safe: a `500` status, an `Internal Server Error` reason, and a generic message such as `Unexpected server error`.
+
+### What did the `GlobalExceptionHandlerTest` debugging teach you?
+
+The important lesson was separating framework setup failures from real handler failures. A `404` in the validation test meant the nested test controller was not registered in the WebMvc slice, not that validation was broken. Once the test controller was imported, the request reached validation and the global handler returned the expected `400` shape.
+
 ## Python Bridge / Java Integration Talking Points
 
 ### What is `api_runner.py`?

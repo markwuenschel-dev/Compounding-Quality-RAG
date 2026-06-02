@@ -5,6 +5,7 @@ This log captures implementation failures found while building the synthetic Com
 ## Current status
 
 - Test suite is passing.
+- `./gradlew clean test` passes from `services/review-api`.
 - The project now has schemas, expected outputs, synthetic SOP corpus, ingestion, retrieval, retrieval evaluation, a stubbed pipeline, structured evaluation, checklist generation, final assessment generation, reporting, a two-phase CLI workflow, and OpenAI-backed review-summary extraction.
 - The current demo boundary remains synthetic only: no real customer data, patient data, pharmacy records, inventory, customer history, or external drug references.
 
@@ -145,10 +146,9 @@ This log captures implementation failures found while building the synthetic Com
 **Prevention:** Retrieval eval questions should only expect sources that actually contain the supporting policy concept. When a query combines unsupported-evidence boundaries with routing behavior, either split the query or include all expected source concepts in the query text. Fix corpus/source-truth gaps before using embeddings to compensate for poor source coverage.
 
 
-
 ---
 
-### 13. Expected-output tests became brittle around enum casing
+### 11. Expected-output tests became brittle around enum casing
 
 **Symptom:** Tests failed after schema values such as QRE/ADE casing were treated as implementation mistakes even though `app/schemas.py` was the intended source of truth.
 
@@ -160,7 +160,7 @@ This log captures implementation failures found while building the synthetic Com
 
 ---
 
-### 14. CLI and reporting tests overfit incidental formatting
+### 12. CLI and reporting tests overfit incidental formatting
 
 **Symptom:** Tests failed when headings, capitalization, or report wording changed even though the workflow behavior still worked.
 
@@ -172,7 +172,7 @@ This log captures implementation failures found while building the synthetic Com
 
 ---
 
-### 15. API runner needed clear stdout/stderr and exit-code rules
+### 13. API runner needed clear stdout/stderr and exit-code rules
 
 **Symptom:** The bridge needed to be safe for future Java process parsing, but ordinary Python logging or tracebacks on stdout would break JSON parsing.
 
@@ -181,3 +181,15 @@ This log captures implementation failures found while building the synthetic Com
 **Fix:** Added `app/api_runner.py` with a request envelope, success/error response envelopes, stdout-only JSON, stderr diagnostics, handled errors with exit code 0, and unexpected failures with a nonzero exit code plus JSON error output.
 
 **Prevention:** Keep `tests/test_api_runner.py` focused on bridge invariants: stdout is valid JSON, handled errors return `ok:false`, refusal returns structured details, and unexpected exceptions do not leak tracebacks into stdout.
+
+---
+
+### 14. Spring error-handler tests were obscured by test-slice setup and diagnostic code
+
+**Symptom:** `GlobalExceptionHandlerTest` first failed with a `404` for `/test/validate`, then later the generic-error test surfaced a `ServletException`/`AssertionError` instead of the intended centralized JSON response.
+
+**Root cause:** The nested `TestController` was not registered in the `@WebMvcTest` slice until it was explicitly imported. Temporary diagnostic code also remained in the test and generic exception handler, so the diagnostics proved the handler path but deliberately crashed the test instead of returning the API error shape.
+
+**Fix:** Imported `GlobalExceptionHandlerTest.TestController` alongside `GlobalExceptionHandler`, restored real MockMvc assertions for the validation test, and replaced the diagnostic generic handler with a normal `buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected server error", request, List.of())` path. The full `services/review-api` clean test run now passes.
+
+**Prevention:** Keep diagnostic assertions temporary and remove them once the failing path is identified. For `@WebMvcTest`, explicitly import nested test controllers or use a top-level controller fixture when the test depends on custom routes. Keep a targeted `GlobalExceptionHandlerTest` class covering validation, malformed JSON, response-status errors, and generic fallback behavior.
