@@ -1,43 +1,44 @@
 package com.compoundingquality.reviewapi.rag;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 public class PythonProcessRagEngineClient implements RagEngineClient {
 
     private static final String COMMAND_CHECKLIST = "checklist";
+    private static final String COMMAND_RETRIEVE = "retrieve";
+    private static final String COMMAND_FINAL_ASSESSMENT = "final_assessment";
     private static final int STDERR_SUMMARY_LIMIT = 2_000;
 
-    private final ObjectMapper objectMapper;
+    private final JsonMapper jsonMapper;
     private final PythonProcessRagEngineProperties properties;
     private final ProcessExecutor processExecutor;
 
     public PythonProcessRagEngineClient(
-            ObjectMapper objectMapper,
+            JsonMapper jsonMapper,
             PythonProcessRagEngineProperties properties
     ) {
-        this(objectMapper, properties, new DefaultProcessExecutor());
+        this(jsonMapper, properties, new DefaultProcessExecutor());
     }
 
     PythonProcessRagEngineClient(
-            ObjectMapper objectMapper,
+            JsonMapper jsonMapper,
             PythonProcessRagEngineProperties properties,
             ProcessExecutor processExecutor
     ) {
-        this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
+        this.jsonMapper = Objects.requireNonNull(jsonMapper, "jsonMapper must not be null");
         this.properties = Objects.requireNonNull(properties, "properties must not be null");
         this.processExecutor = Objects.requireNonNull(processExecutor, "processExecutor must not be null");
     }
@@ -46,7 +47,45 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
     public RagChecklistResult createChecklist(RagChecklistRequest request) {
         Objects.requireNonNull(request, "request must not be null");
 
-        String stdinJson = encodeBridgeRequest(request);
+        return executeCommand(
+                COMMAND_CHECKLIST,
+                new ChecklistPayload(request.concernText(), request.topK()),
+                RagChecklistResult.class
+        );
+    }
+
+    @Override
+    public RagRetrieveResult retrieve(RagRetrieveRequest request) {
+        Objects.requireNonNull(request, "request must not be null");
+
+        return executeCommand(
+                COMMAND_RETRIEVE,
+                new RetrievePayload(request.queryText(), request.topK()),
+                RagRetrieveResult.class
+        );
+    }
+
+    @Override
+    public RagFinalAssessmentResult createFinalAssessment(RagFinalAssessmentRequest request) {
+        Objects.requireNonNull(request, "request must not be null");
+
+        return executeCommand(
+                COMMAND_FINAL_ASSESSMENT,
+                new FinalAssessmentPayload(
+                        request.concernText(),
+                        request.topK(),
+                        request.reviewSummary()
+                ),
+                RagFinalAssessmentResult.class
+        );
+    }
+
+    private <T> T executeCommand(
+            String command,
+            Object payload,
+            Class<T> resultType
+    ) {
+        String stdinJson = encodeBridgeRequest(new BridgeRequest(command, payload));
         ProcessResult processResult = processExecutor.execute(properties, stdinJson);
 
         if (processResult.exitCode() != 0) {
@@ -80,25 +119,20 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
             throw new RagEngineException(code, message);
         }
 
-        if (response.result() == null) {
+        if (response.result() == null || response.result().isNull()) {
             throw new RagEngineException(
                     "ENGINE_INVALID_RESPONSE",
                     "Python RAG engine returned ok=true without a result."
             );
         }
 
-        return mapResult(response.result());
+        return decodeBridgeResult(response.result(), resultType);
     }
 
-    private String encodeBridgeRequest(RagChecklistRequest request) {
-        BridgeRequest bridgeRequest = new BridgeRequest(
-                COMMAND_CHECKLIST,
-                new BridgePayload(request.concernText(), request.topK())
-        );
-
+    private String encodeBridgeRequest(BridgeRequest request) {
         try {
-            return objectMapper.writeValueAsString(bridgeRequest);
-        } catch (JsonProcessingException exc) {
+            return jsonMapper.writeValueAsString(request);
+        } catch (JacksonException exc) {
             throw new RagEngineException(
                     "ENGINE_REQUEST_ENCODING",
                     "Failed to encode Python RAG engine request.",
@@ -116,8 +150,8 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
         }
 
         try {
-            return objectMapper.readValue(stdout, BridgeResponse.class);
-        } catch (JsonProcessingException exc) {
+            return jsonMapper.readValue(stdout, BridgeResponse.class);
+        } catch (JacksonException exc) {
             throw new RagEngineException(
                     "ENGINE_INVALID_STDOUT",
                     "Python RAG engine stdout was not valid bridge JSON.",
@@ -126,68 +160,17 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
         }
     }
 
-    private RagChecklistResult mapResult(BridgeResult result) {
+    private <T> T decodeBridgeResult(JsonNode result, Class<T> resultType) {
         try {
-            return new RagChecklistResult(
-                    result.concernType(),
-                    result.riskLane(),
-                    result.reviewScope(),
-                    result.initialTakeaway(),
-                    mapChecklistItems(result.requiredChecks()),
-                    copyStrings(result.missingInformation()),
-                    copyStrings(result.escalationTriggersToRuleOut()),
-                    mapEvidence(result.evidence()),
-                    copyStrings(result.limitations())
-            );
-        } catch (IllegalArgumentException exc) {
+            return jsonMapper.treeToValue(result, resultType);
+        } catch (JacksonException exc) {
             throw new RagEngineException(
                     "ENGINE_RESPONSE_MAPPING",
-                    "Python RAG engine result did not match the Java checklist contract.",
+                    "Python RAG engine result did not match the Java %s contract."
+                            .formatted(resultType.getSimpleName()),
                     exc
             );
         }
-    }
-
-    private static List<RagChecklistResult.ChecklistItem> mapChecklistItems(
-            List<BridgeChecklistItem> items
-    ) {
-        if (items == null) {
-            return List.of();
-        }
-
-        return items.stream()
-                .map(item -> new RagChecklistResult.ChecklistItem(
-                        item.key(),
-                        item.label(),
-                        item.required(),
-                        item.reason()
-                ))
-                .toList();
-    }
-
-    private static List<RagChecklistResult.EvidenceCitation> mapEvidence(
-            List<BridgeEvidenceCitation> citations
-    ) {
-        if (citations == null) {
-            return List.of();
-        }
-
-        return citations.stream()
-                .map(citation -> new RagChecklistResult.EvidenceCitation(
-                        citation.chunkId(),
-                        citation.sourceId(),
-                        citation.sourceTitle(),
-                        citation.sourceType(),
-                        citation.sectionHeading(),
-                        citation.score(),
-                        copyStrings(citation.matchedTerms()),
-                        citation.supportingText()
-                ))
-                .toList();
-    }
-
-    private static List<String> copyStrings(List<String> values) {
-        return values == null ? List.of() : List.copyOf(values);
     }
 
     private static String summarize(String value) {
@@ -328,59 +311,40 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
 
     record BridgeRequest(
             String command,
-            BridgePayload payload
-    ) {
-    }
-
-    record BridgePayload(
-            String concernText,
-            int topK
+            Object payload
     ) {
     }
 
     record BridgeResponse(
             Boolean ok,
-            BridgeResult result,
+            JsonNode result,
             BridgeError error
     ) {
     }
 
     record BridgeError(
             String code,
-            String message
+            String message,
+            JsonNode details
     ) {
     }
 
-    record BridgeResult(
-            String concernType,
-            String riskLane,
-            String reviewScope,
-            String initialTakeaway,
-            List<BridgeChecklistItem> requiredChecks,
-            List<String> missingInformation,
-            List<String> escalationTriggersToRuleOut,
-            List<BridgeEvidenceCitation> evidence,
-            List<String> limitations
+    record ChecklistPayload(
+            String concernText,
+            int topK
     ) {
     }
 
-    record BridgeChecklistItem(
-            String key,
-            String label,
-            boolean required,
-            String reason
+    record RetrievePayload(
+            String queryText,
+            int topK
     ) {
     }
 
-    record BridgeEvidenceCitation(
-            String chunkId,
-            String sourceId,
-            String sourceTitle,
-            String sourceType,
-            String sectionHeading,
-            Double score,
-            List<String> matchedTerms,
-            String supportingText
+    record FinalAssessmentPayload(
+            String concernText,
+            int topK,
+            RagReviewSummary reviewSummary
     ) {
     }
 }

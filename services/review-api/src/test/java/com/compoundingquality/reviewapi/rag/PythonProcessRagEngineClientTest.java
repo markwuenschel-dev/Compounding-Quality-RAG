@@ -1,24 +1,23 @@
 package com.compoundingquality.reviewapi.rag;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-
-import java.nio.file.Path;
-import java.time.Duration;
-import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+
 class PythonProcessRagEngineClientTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
     @TempDir
-    private Path tempDir;
+    Path workingDirectory;
 
     @Test
     void createChecklistSendsBridgeRequestAndMapsSuccessfulResponse() throws Exception {
@@ -36,12 +35,12 @@ class PythonProcessRagEngineClientTest {
                 new RagChecklistRequest("My dog vomited after a flavored oral liquid.", 3)
         );
 
-        JsonNode requestJson = objectMapper.readTree(processExecutor.stdinJson());
+        JsonNode requestJson = jsonMapper.readTree(processExecutor.stdinJson());
 
-        assertEquals("checklist", requestJson.path("command").asText());
+        assertEquals("checklist", requestJson.path("command").asString());
         assertEquals(
                 "My dog vomited after a flavored oral liquid.",
-                requestJson.path("payload").path("concernText").asText()
+                requestJson.path("payload").path("concernText").asString()
         );
         assertEquals(3, requestJson.path("payload").path("topK").asInt());
 
@@ -86,7 +85,9 @@ class PythonProcessRagEngineClientTest {
 
         RagEngineException exception = assertThrows(
                 RagEngineException.class,
-                () -> client.createChecklist(new RagChecklistRequest("Check the real batch record.", 5))
+                () -> client.createChecklist(
+                        new RagChecklistRequest("Check the real batch record.", 5)
+                )
         );
 
         assertEquals("REFUSED", exception.code());
@@ -123,11 +124,7 @@ class PythonProcessRagEngineClientTest {
     @Test
     void createChecklistRejectsInvalidStdout() {
         FakeProcessExecutor processExecutor = new FakeProcessExecutor(
-                new PythonProcessRagEngineClient.ProcessResult(
-                        0,
-                        "not-json",
-                        ""
-                )
+                new PythonProcessRagEngineClient.ProcessResult(0, "not-json", "")
         );
 
         PythonProcessRagEngineClient client = newClient(processExecutor);
@@ -143,11 +140,7 @@ class PythonProcessRagEngineClientTest {
     @Test
     void createChecklistRejectsEmptyStdout() {
         FakeProcessExecutor processExecutor = new FakeProcessExecutor(
-                new PythonProcessRagEngineClient.ProcessResult(
-                        0,
-                        "",
-                        ""
-                )
+                new PythonProcessRagEngineClient.ProcessResult(0, "", "")
         );
 
         PythonProcessRagEngineClient client = newClient(processExecutor);
@@ -220,7 +213,7 @@ class PythonProcessRagEngineClientTest {
                 IllegalArgumentException.class,
                 () -> new PythonProcessRagEngineProperties(
                         List.of(),
-                        tempDir,
+                        workingDirectory,
                         Duration.ofSeconds(1)
                 )
         );
@@ -229,7 +222,7 @@ class PythonProcessRagEngineClientTest {
                 IllegalArgumentException.class,
                 () -> new PythonProcessRagEngineProperties(
                         List.of("python", ""),
-                        tempDir,
+                        workingDirectory,
                         Duration.ofSeconds(1)
                 )
         );
@@ -238,7 +231,7 @@ class PythonProcessRagEngineClientTest {
                 IllegalArgumentException.class,
                 () -> new PythonProcessRagEngineProperties(
                         List.of("python"),
-                        tempDir.resolve("missing"),
+                        workingDirectory.resolve("missing"),
                         Duration.ofSeconds(1)
                 )
         );
@@ -247,21 +240,9 @@ class PythonProcessRagEngineClientTest {
                 IllegalArgumentException.class,
                 () -> new PythonProcessRagEngineProperties(
                         List.of("python"),
-                        tempDir,
+                        workingDirectory,
                         Duration.ZERO
                 )
-        );
-    }
-
-    private PythonProcessRagEngineClient newClient(FakeProcessExecutor processExecutor) {
-        return new PythonProcessRagEngineClient(
-                objectMapper,
-                new PythonProcessRagEngineProperties(
-                        List.of("python", "-m", "app.api_runner"),
-                        tempDir,
-                        Duration.ofSeconds(1)
-                ),
-                processExecutor
         );
     }
 
@@ -332,5 +313,21 @@ class PythonProcessRagEngineClientTest {
         private String stdinJson() {
             return stdinJson;
         }
+    }
+
+    private PythonProcessRagEngineClient newClient(
+            PythonProcessRagEngineClient.ProcessExecutor executor
+    ) {
+        PythonProcessRagEngineProperties properties = new PythonProcessRagEngineProperties(
+                List.of("python", "-m", "app.api_runner"),
+                workingDirectory,
+                Duration.ofSeconds(10)
+        );
+
+        return new PythonProcessRagEngineClient(
+                jsonMapper,
+                properties,
+                executor
+        );
     }
 }

@@ -4,20 +4,33 @@ import json
 import re
 import sys
 import traceback
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from pydantic import ValidationError
+
 from app.checklist import build_intake_checklist
 from app.checklist_models import EvidenceCitation, ChecklistItem, IntakeChecklist
+from app.final_assessment import build_final_assessment
 from app.refusal import evaluate_refusal
-from app.schemas import ConcernType, RefusalResult, RiskLane
+from app.retrieval import SearchResult, retrieve
+from app.schemas import (
+    ConcernType,
+    RefusalResult,
+    ReviewSummary,
+    RiskLane,
+    SourceType,
+)
 
 
 EXIT_SUCCESS = 0
 EXIT_UNEXPECTED_FAILURE = 1
 
 COMMAND_CHECKLIST = "checklist"
+COMMAND_RETRIEVE = "retrieve"
+COMMAND_FINAL_ASSESSMENT = "final_assessment"
 
 CHECK_KEYS_BY_NAME = {
     "Record review": "record_review",
@@ -28,6 +41,8 @@ CHECK_KEYS_BY_NAME = {
     "Device administration context": "device_administration_context",
     "BUD field review": "bud_field_review",
 }
+
+_CAMEL_BOUNDARY_RE = re.compile(r"(?<!^)(?=[A-Z])")
 
 
 @dataclass(frozen=True)
@@ -88,7 +103,7 @@ def run_bridge(raw_input: str) -> BridgeResult:
     except Exception:
         response = error_response(
             code="ENGINE_FAILURE",
-            message="Checklist engine failed while processing the request.",
+            message="RAG engine failed while processing the request.",
         )
         return BridgeResult(
             stdout=encode_response(response),
@@ -106,6 +121,12 @@ def handle_request(raw_input: str) -> dict[str, Any]:
     if command == COMMAND_CHECKLIST:
         return success_response(handle_checklist(payload))
 
+    if command == COMMAND_RETRIEVE:
+        return success_response(handle_retrieve(payload))
+
+    if command == COMMAND_FINAL_ASSESSMENT:
+        return success_response(handle_final_assessment(payload))
+
     raise BridgeRequestError(
         "UNKNOWN_COMMAND",
         f"Unsupported command: {command}",
@@ -116,19 +137,72 @@ def handle_checklist(payload: dict[str, Any]) -> dict[str, Any]:
     concern_text = require_string(payload, "concernText", "payload.concernText")
     top_k = optional_positive_int(payload, "topK", "payload.topK", default=5)
 
-    clean_text = concern_text.strip()
-    if not clean_text:
-        raise BridgeRequestError(
-            "INVALID_REQUEST",
-            "payload.concernText must not be blank",
-        )
+    clean_text = require_non_blank_text(
+        concern_text,
+        "payload.concernText must not be blank",
+    )
 
-    refusal = evaluate_refusal(clean_text)
-    if refusal.refused:
-        raise refusal_error(refusal)
+    enforce_refusal_boundary(clean_text)
 
     checklist = build_intake_checklist(clean_text, top_k=top_k)
     return checklist_to_api_result(checklist)
+
+
+def handle_retrieve(payload: dict[str, Any]) -> dict[str, Any]:
+    query_text = require_string(payload, "queryText", "payload.queryText")
+    top_k = optional_positive_int(payload, "topK", "payload.topK", default=5)
+
+    clean_text = require_non_blank_text(
+        query_text,
+        "payload.queryText must not be blank",
+    )
+
+    enforce_refusal_boundary(clean_text)
+
+    search_results = retrieve(
+        query=clean_text,
+        top_k=top_k,
+        source_type=SourceType.SOP.value,
+    )
+
+    return {
+        "queryText": clean_text,
+        "topK": top_k,
+        "evidence": [
+            search_result_to_api_item(result)
+            for result in search_results
+        ],
+    }
+
+
+def handle_final_assessment(payload: dict[str, Any]) -> dict[str, Any]:
+    concern_text = require_string(payload, "concernText", "payload.concernText")
+    top_k = optional_positive_int(payload, "topK", "payload.topK", default=5)
+    review_summary_payload = require_object(
+        payload,
+        "reviewSummary",
+        "payload.reviewSummary",
+    )
+
+    clean_text = require_non_blank_text(
+        concern_text,
+        "payload.concernText must not be blank",
+    )
+
+    enforce_refusal_boundary(clean_text)
+
+    review_summary = review_summary_from_api_payload(review_summary_payload)
+    checklist = build_intake_checklist(clean_text, top_k=top_k)
+
+    final_assessment = build_final_assessment(
+        checklist=checklist,
+        review_summary=review_summary,
+    )
+
+    return convert_keys(
+        final_assessment.model_dump(mode="json"),
+        to_camel_case,
+    )
 
 
 def checklist_to_api_result(checklist: IntakeChecklist) -> dict[str, Any]:
@@ -176,6 +250,36 @@ def evidence_to_api_item(citation: EvidenceCitation) -> dict[str, Any]:
     }
 
 
+def search_result_to_api_item(result: SearchResult) -> dict[str, Any]:
+    chunk = result["chunk"]
+
+    return {
+        "chunkId": chunk["chunk_id"],
+        "sourceId": chunk["source_id"],
+        "sourceTitle": chunk["source_title"],
+        "sourceType": chunk["source_type"],
+        "sectionHeading": chunk["section_heading"],
+        "score": float(result["score"]),
+        "matchedTerms": list(result["matched_terms"]),
+        "supportingText": chunk["text"],
+    }
+
+
+def review_summary_from_api_payload(payload: dict[str, Any]) -> ReviewSummary:
+    snake_case_payload = convert_keys(payload, to_snake_case)
+
+    try:
+        return ReviewSummary.model_validate(snake_case_payload)
+    except ValidationError as exc:
+        raise BridgeRequestError(
+            "INVALID_REQUEST",
+            "payload.reviewSummary did not match the review summary contract",
+            details={
+                "errors": exc.errors(include_url=False),
+            },
+        ) from exc
+
+
 def derive_review_scope(checklist: IntakeChecklist) -> str:
     if checklist.likely_risk_lane == RiskLane.LIFE_THREATENING_OR_LEGAL:
         return "escalation_review"
@@ -194,6 +298,13 @@ def build_initial_takeaway(checklist: IntakeChecklist) -> str:
         f"Initial screen suggests {concern_type} with {risk_lane} risk lane. "
         "Final routing depends on review findings and confirmed escalation triggers."
     )
+
+
+def enforce_refusal_boundary(text: str) -> None:
+    refusal = evaluate_refusal(text)
+
+    if refusal.refused:
+        raise refusal_error(refusal)
 
 
 def refusal_error(refusal: RefusalResult) -> BridgeRequestError:
@@ -265,6 +376,18 @@ def require_string(
     return value
 
 
+def require_non_blank_text(value: str, message: str) -> str:
+    clean_value = value.strip()
+
+    if not clean_value:
+        raise BridgeRequestError(
+            "INVALID_REQUEST",
+            message,
+        )
+
+    return clean_value
+
+
 def optional_positive_int(
     source: dict[str, Any],
     field_name: str,
@@ -321,6 +444,38 @@ def error_response(
 
 def encode_response(response: dict[str, Any]) -> str:
     return json.dumps(response, ensure_ascii=False, separators=(",", ":"))
+
+
+def convert_keys(
+    value: Any,
+    key_converter: Callable[[str], str],
+) -> Any:
+    if isinstance(value, dict):
+        return {
+            key_converter(str(key)): convert_keys(item, key_converter)
+            for key, item in value.items()
+        }
+
+    if isinstance(value, list):
+        return [
+            convert_keys(item, key_converter)
+            for item in value
+        ]
+
+    return value
+
+
+def to_snake_case(value: str) -> str:
+    return _CAMEL_BOUNDARY_RE.sub("_", value).lower()
+
+
+def to_camel_case(value: str) -> str:
+    parts = value.split("_")
+
+    if len(parts) == 1:
+        return value
+
+    return parts[0] + "".join(part.capitalize() for part in parts[1:])
 
 
 def enum_value_or_none(value: Enum | None) -> str | None:
