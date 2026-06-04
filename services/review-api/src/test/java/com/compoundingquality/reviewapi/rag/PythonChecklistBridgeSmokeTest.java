@@ -3,7 +3,7 @@ package com.compoundingquality.reviewapi.rag;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.compoundingquality.reviewapi.config.RagEngineConfiguration;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -98,7 +98,7 @@ class PythonChecklistBridgeSmokeTest {
         String pythonExecutable = System.getProperty("python.executable", "python");
 
         return new ApplicationContextRunner()
-                .withBean(ObjectMapper.class, ObjectMapper::new)
+                .withBean(JsonMapper.class, () -> JsonMapper.builder().build())
                 .withUserConfiguration(RagEngineConfiguration.class)
                 .withPropertyValues(
                         "rag.python.command[0]=" + pythonExecutable,

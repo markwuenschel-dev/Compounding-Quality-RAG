@@ -224,7 +224,7 @@ def test_unexpected_exception_returns_json_and_nonzero_exit_code(monkeypatch) ->
         "ok": False,
         "error": {
             "code": "ENGINE_FAILURE",
-            "message": "Checklist engine failed while processing the request.",
+            "message": "RAG engine failed while processing the request.",
         },
     }
     assert "RuntimeError: boom" in result.stderr

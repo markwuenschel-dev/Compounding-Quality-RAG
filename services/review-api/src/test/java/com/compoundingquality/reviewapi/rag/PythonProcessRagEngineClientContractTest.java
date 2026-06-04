@@ -2,18 +2,19 @@ package com.compoundingquality.reviewapi.rag;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+
 class PythonProcessRagEngineClientContractTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
     @TempDir
     Path workingDirectory;
@@ -34,12 +35,12 @@ class PythonProcessRagEngineClientContractTest {
                 new RagChecklistRequest("Dog vomited after flavored oral liquid.", 4)
         );
 
-        JsonNode requestJson = objectMapper.readTree(executor.stdinJson());
+        JsonNode requestJson = jsonMapper.readTree(executor.stdinJson());
 
-        assertThat(requestJson.path("command").asText())
+        assertThat(requestJson.path("command").asString())
                 .isEqualTo("checklist");
 
-        assertThat(requestJson.path("payload").path("concernText").asText())
+        assertThat(requestJson.path("payload").path("concernText").asString())
                 .isEqualTo("Dog vomited after flavored oral liquid.");
 
         assertThat(requestJson.path("payload").path("topK").asInt())
@@ -157,18 +158,21 @@ class PythonProcessRagEngineClientContractTest {
         PythonProcessRagEngineClient client = client(executor);
 
         assertThatThrownBy(() -> client.createChecklist(
-                new RagChecklistRequest("Dog vomited after administration.", 5)
-        ))
-                .isInstanceOf(RagEngineException.class)
-                .satisfies(error -> {
-                    RagEngineException ragError = (RagEngineException) error;
+        new RagChecklistRequest("Dog vomited after administration.", 5)
+))
+        .isInstanceOf(RagEngineException.class)
+        .satisfies(error -> {
+            RagEngineException ragError = (RagEngineException) error;
 
-                    assertThat(ragError.code())
-                            .isEqualTo("ENGINE_RESPONSE_MAPPING");
+            assertThat(ragError.code())
+                    .isEqualTo("ENGINE_RESPONSE_MAPPING");
 
-                    assertThat(ragError.getCause())
-                            .isInstanceOf(IllegalArgumentException.class);
-                });
+            assertThat(ragError)
+                    .hasRootCauseInstanceOf(IllegalArgumentException.class);
+
+            assertThat(ragError)
+                    .hasRootCauseMessage("sectionHeading must not be blank");
+        });
     }
 
     @Test
@@ -243,7 +247,7 @@ class PythonProcessRagEngineClientContractTest {
                 Duration.ofSeconds(10)
         );
 
-        return new PythonProcessRagEngineClient(objectMapper, properties, executor);
+        return new PythonProcessRagEngineClient(jsonMapper, properties, executor);
     }
 
     private static String validChecklistResponse() {
