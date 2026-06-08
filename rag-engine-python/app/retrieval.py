@@ -4,7 +4,7 @@ import json
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, Protocol, TypedDict
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -76,6 +76,36 @@ class SearchResult(TypedDict):
     chunk: ChunkRecord
     score: float
     matched_terms: list[str]
+
+
+class Retriever(Protocol):
+    def search(
+        self,
+        query: str,
+        *,
+        top_k: int = 5,
+        source_type: str | None = None,
+    ) -> list[SearchResult]:
+        ...
+
+
+class KeywordRetriever:
+    def __init__(self, chunks: list[ChunkRecord]) -> None:
+        self._chunks = chunks
+
+    def search(
+        self,
+        query: str,
+        *,
+        top_k: int = 5,
+        source_type: str | None = None,
+    ) -> list[SearchResult]:
+        return score_keyword_results(
+            query=query,
+            chunks=self._chunks,
+            top_k=top_k,
+            source_type=source_type,
+        )
 
 
 def load_chunks(chunks_path: Path = DEFAULT_CHUNKS_PATH) -> list[ChunkRecord]:
@@ -152,15 +182,32 @@ def retrieve(
     source_type: str | None = None,
 ) -> list[SearchResult]:
     chunks = load_chunks(chunks_path)
-    return retrieve_from_chunks(
+    retriever = KeywordRetriever(chunks)
+
+    return retriever.search(
         query=query,
-        chunks=chunks,
         top_k=top_k,
         source_type=source_type,
     )
 
 
 def retrieve_from_chunks(
+    query: str,
+    chunks: list[ChunkRecord],
+    *,
+    top_k: int = 5,
+    source_type: str | None = None,
+) -> list[SearchResult]:
+    retriever = KeywordRetriever(chunks)
+
+    return retriever.search(
+        query=query,
+        top_k=top_k,
+        source_type=source_type,
+    )
+
+
+def score_keyword_results(
     query: str,
     chunks: list[ChunkRecord],
     *,

@@ -4,7 +4,12 @@ import json
 from pathlib import Path
 from typing import Any, TypedDict
 
-from app.retrieval import DEFAULT_CHUNKS_PATH, retrieve
+from app.retrieval import (
+    DEFAULT_CHUNKS_PATH,
+    KeywordRetriever,
+    Retriever,
+    load_chunks,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -108,6 +113,7 @@ def evaluate_retrieval_questions(
     *,
     chunks_path: Path = DEFAULT_CHUNKS_PATH,
     top_k: int = 5,
+    retriever: Retriever | None = None,
 ) -> RetrievalEvaluationResult:
     if top_k < 1:
         raise ValueError("top_k must be at least 1")
@@ -115,11 +121,13 @@ def evaluate_retrieval_questions(
     if not questions:
         raise ValueError("questions must contain at least one retrieval question")
 
+    active_retriever = retriever or KeywordRetriever(load_chunks(chunks_path))
+
     question_results = [
         evaluate_retrieval_question(
             question,
-            chunks_path=chunks_path,
             top_k=top_k,
+            retriever=active_retriever,
         )
         for question in questions
     ]
@@ -145,10 +153,15 @@ def evaluate_retrieval_question(
     *,
     chunks_path: Path = DEFAULT_CHUNKS_PATH,
     top_k: int = 5,
+    retriever: Retriever | None = None,
 ) -> RetrievalQuestionResult:
-    search_results = retrieve(
+    if top_k < 1:
+        raise ValueError("top_k must be at least 1")
+
+    active_retriever = retriever or KeywordRetriever(load_chunks(chunks_path))
+
+    search_results = active_retriever.search(
         query=question["query"],
-        chunks_path=chunks_path,
         top_k=top_k,
         source_type="sop",
     )
@@ -233,6 +246,7 @@ def load_and_evaluate_retrieval_questions(
     questions_path: Path = DEFAULT_RETRIEVAL_QUESTIONS_PATH,
     chunks_path: Path = DEFAULT_CHUNKS_PATH,
     top_k: int = 5,
+    retriever: Retriever | None = None,
 ) -> RetrievalEvaluationResult:
     questions = load_retrieval_questions(questions_path)
 
@@ -240,6 +254,7 @@ def load_and_evaluate_retrieval_questions(
         questions,
         chunks_path=chunks_path,
         top_k=top_k,
+        retriever=retriever,
     )
 
 
