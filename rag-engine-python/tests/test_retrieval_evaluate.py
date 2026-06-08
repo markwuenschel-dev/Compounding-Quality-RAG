@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from app.retrieval import ChunkRecord, SearchResult
 from app.retrieval_evaluate import (
     DEFAULT_RETRIEVAL_QUESTIONS_PATH,
     RetrievalQuestion,
@@ -20,6 +21,28 @@ from app.retrieval_evaluate import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CHUNKS_PATH = PROJECT_ROOT / "data" / "index" / "chunks.jsonl"
+
+
+class StubRetriever:
+    def __init__(self, results: list[SearchResult]) -> None:
+        self.calls: list[dict[str, object]] = []
+        self._results = results
+
+    def search(
+        self,
+        query: str,
+        *,
+        top_k: int = 5,
+        source_type: str | None = None,
+    ) -> list[SearchResult]:
+        self.calls.append(
+            {
+                "query": query,
+                "top_k": top_k,
+                "source_type": source_type,
+            }
+        )
+        return self._results[:top_k]
 
 
 def test_retrieval_questions_file_exists() -> None:
@@ -160,6 +183,63 @@ def test_evaluate_retrieval_question_returns_result() -> None:
     assert 0 <= result["reciprocal_rank"] <= 1
 
 
+def test_evaluate_retrieval_question_accepts_retriever_injection() -> None:
+    retriever = StubRetriever(
+        [
+            search_result("SOP-999", score=4.0),
+            search_result("SOP-002", score=3.0),
+        ]
+    )
+    question: RetrievalQuestion = {
+        "question_id": "RET-STUB",
+        "query": "stub query",
+        "expected_source_ids": ["SOP-002"],
+    }
+
+    result = evaluate_retrieval_question(
+        question,
+        top_k=5,
+        retriever=retriever,
+    )
+
+    assert result["retrieved_source_ids"] == ["SOP-999", "SOP-002"]
+    assert result["hit"] is True
+    assert result["reciprocal_rank"] == 0.5
+    assert retriever.calls == [
+        {
+            "query": "stub query",
+            "top_k": 5,
+            "source_type": "sop",
+        }
+    ]
+
+
+def test_evaluate_retrieval_questions_reuses_injected_retriever() -> None:
+    retriever = StubRetriever([search_result("SOP-001", score=4.0)])
+    questions: list[RetrievalQuestion] = [
+        {
+            "question_id": "RET-001",
+            "query": "query one",
+            "expected_source_ids": ["SOP-001"],
+        },
+        {
+            "question_id": "RET-002",
+            "query": "query two",
+            "expected_source_ids": ["SOP-001"],
+        },
+    ]
+
+    result = evaluate_retrieval_questions(
+        questions,
+        top_k=5,
+        retriever=retriever,
+    )
+
+    assert result["hit_rate_at_k"] == 1.0
+    assert result["mean_reciprocal_rank"] == 1.0
+    assert [call["query"] for call in retriever.calls] == ["query one", "query two"]
+
+
 def test_evaluate_retrieval_questions_returns_metrics() -> None:
     questions = load_retrieval_questions(DEFAULT_RETRIEVAL_QUESTIONS_PATH)
 
@@ -186,6 +266,19 @@ def test_load_and_evaluate_retrieval_questions_runs_end_to_end() -> None:
     assert result["total_questions"] > 0
     assert 0 <= result["hit_rate_at_k"] <= 1
     assert 0 <= result["mean_reciprocal_rank"] <= 1
+
+
+def test_load_and_evaluate_retrieval_questions_accepts_retriever_injection() -> None:
+    retriever = StubRetriever([search_result("SOP-001", score=4.0)])
+
+    result = load_and_evaluate_retrieval_questions(
+        questions_path=DEFAULT_RETRIEVAL_QUESTIONS_PATH,
+        top_k=5,
+        retriever=retriever,
+    )
+
+    assert result["total_questions"] > 0
+    assert retriever.calls
 
 
 def test_evaluate_retrieval_questions_rejects_empty_questions() -> None:
@@ -222,3 +315,48 @@ def test_evaluation_reports_failed_question_ids_for_impossible_expected_source()
     assert result["hit_rate_at_k"] == 0
     assert result["mean_reciprocal_rank"] == 0
     assert result["failed_question_ids"] == ["RET-IMPOSSIBLE"]
+
+
+def test_seeded_debug_bug_reciprocal_rank_expectation_with_injected_retriever() -> None:
+    retriever = StubRetriever(
+        [
+            search_result("SOP-999", score=9.0),
+            search_result("SOP-002", score=8.0),
+        ]
+    )
+    question: RetrievalQuestion = {
+        "question_id": "RET-SEEDED",
+        "query": "seeded debug query",
+        "expected_source_ids": ["SOP-002"],
+    }
+
+    result = evaluate_retrieval_question(
+        question,
+        top_k=5,
+        retriever=retriever,
+    )
+
+    # SEEDED DEBUG BUG: this assertion is intentionally wrong.
+    assert result["reciprocal_rank"] == 0.5
+
+
+def search_result(source_id: str, *, score: float) -> SearchResult:
+    chunk: ChunkRecord = {
+        "chunk_id": f"{source_id}::section",
+        "source_id": source_id,
+        "source_file": f"{source_id.lower()}.md",
+        "source_title": f"{source_id} Title",
+        "source_type": "sop",
+        "section_heading": "Section",
+        "process_area": "compounding_quality",
+        "version": "1.0",
+        "effective_date": "2025-01-01",
+        "synthetic": True,
+        "text": "Synthetic chunk text.",
+    }
+
+    return {
+        "chunk": chunk,
+        "score": score,
+        "matched_terms": ["synthetic"],
+    }

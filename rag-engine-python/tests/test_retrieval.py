@@ -4,6 +4,7 @@ import pytest
 
 from app.retrieval import (
     ChunkRecord,
+    KeywordRetriever,
     load_chunks,
     retrieve,
     retrieve_from_chunks,
@@ -123,7 +124,76 @@ def test_retrieve_rejects_invalid_top_k() -> None:
 
 
 def test_retrieve_from_chunks_can_filter_by_source_type() -> None:
-    chunks: list[ChunkRecord] = [
+    chunks = sample_chunks()
+
+    results = retrieve_from_chunks(
+        query="flavor refusal",
+        chunks=chunks,
+        source_type="sop",
+    )
+
+    assert len(results) == 1
+    assert results[0]["chunk"]["source_id"] == "SOP-TEST-001"
+
+
+def test_keyword_retriever_matches_retrieve_from_chunks() -> None:
+    chunks = load_chunks(CHUNKS_PATH)
+    retriever = KeywordRetriever(chunks)
+
+    direct_results = retrieve_from_chunks(
+        query="flavor refusal oral liquid palatability",
+        chunks=chunks,
+        top_k=5,
+        source_type="sop",
+    )
+    retriever_results = retriever.search(
+        query="flavor refusal oral liquid palatability",
+        top_k=5,
+        source_type="sop",
+    )
+
+    assert retriever_results == direct_results
+
+
+def test_keyword_retriever_respects_top_k() -> None:
+    chunks = load_chunks(CHUNKS_PATH)
+    retriever = KeywordRetriever(chunks)
+
+    results = retriever.search(
+        query="flavor refusal oral liquid palatability",
+        top_k=2,
+        source_type="sop",
+    )
+
+    assert len(results) <= 2
+
+
+def test_keyword_retriever_can_filter_by_source_type() -> None:
+    retriever = KeywordRetriever(sample_chunks())
+
+    results = retriever.search(
+        query="flavor refusal",
+        source_type="synthetic_inquiry",
+    )
+
+    assert len(results) == 1
+    assert results[0]["chunk"]["source_id"] == "INQ-TEST-001"
+
+
+def test_seeded_debug_bug_keyword_retriever_filter_expectation() -> None:
+    retriever = KeywordRetriever(sample_chunks())
+
+    results = retriever.search(
+        query="flavor refusal",
+        source_type="sop",
+    )
+
+    # SEEDED DEBUG BUG: this assertion is intentionally wrong.
+    assert results[0]["chunk"]["source_id"] == "SOP-TEST-001"
+
+
+def sample_chunks() -> list[ChunkRecord]:
+    return [
         {
             "chunk_id": "SOP-TEST-001::purpose",
             "source_id": "SOP-TEST-001",
@@ -151,12 +221,3 @@ def test_retrieve_from_chunks_can_filter_by_source_type() -> None:
             "text": "Flavor refusal example.",
         },
     ]
-
-    results = retrieve_from_chunks(
-        query="flavor refusal",
-        chunks=chunks,
-        source_type="sop",
-    )
-
-    assert len(results) == 1
-    assert results[0]["chunk"]["source_id"] == "SOP-TEST-001"
