@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 import json
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TypedDict
-
-from collections.abc import Mapping
 
 from app.retrieval import (
     DEFAULT_CHUNKS_PATH,
@@ -14,6 +13,7 @@ from app.retrieval import (
     Retriever,
     load_chunks,
 )
+from app.retrieval_embedding import EmbeddingRetriever, HashingEmbeddingModel
 from app.retrieval_evaluate import (
     DEFAULT_RETRIEVAL_QUESTIONS_PATH,
     RetrievalEvaluationResult,
@@ -54,6 +54,22 @@ def build_keyword_baseline_retrievers(
 
     return {
         "keyword": KeywordRetriever(chunks),
+    }
+
+
+def build_keyword_and_embedding_retrievers(
+    *,
+    chunks_path: Path = DEFAULT_CHUNKS_PATH,
+    embedding_dimensions: int = 128,
+) -> dict[str, Retriever]:
+    chunks = load_chunks(chunks_path)
+
+    return {
+        "keyword": KeywordRetriever(chunks),
+        "embedding": EmbeddingRetriever(
+            chunks=chunks,
+            embedding_model=HashingEmbeddingModel(dimensions=embedding_dimensions),
+        ),
     }
 
 
@@ -147,6 +163,26 @@ def load_and_compare_keyword_baseline(
     )
 
 
+def load_and_compare_keyword_and_embedding_baselines(
+    *,
+    questions_path: Path = DEFAULT_RETRIEVAL_QUESTIONS_PATH,
+    chunks_path: Path = DEFAULT_CHUNKS_PATH,
+    top_k: int = 5,
+    embedding_dimensions: int = 128,
+) -> RetrievalComparisonResult:
+    questions = load_retrieval_questions(questions_path)
+    retrievers = build_keyword_and_embedding_retrievers(
+        chunks_path=chunks_path,
+        embedding_dimensions=embedding_dimensions,
+    )
+
+    return compare_retrievers(
+        questions=questions,
+        retrievers=retrievers,
+        top_k=top_k,
+    )
+
+
 def format_retrieval_comparison_markdown(
     result: RetrievalComparisonResult,
 ) -> str:
@@ -219,7 +255,7 @@ def utc_timestamp() -> str:
 
 
 def main() -> None:
-    result = load_and_compare_keyword_baseline()
+    result = load_and_compare_keyword_and_embedding_baselines()
     write_retrieval_comparison_report(result)
     print(comparison_result_to_json(result))
 
