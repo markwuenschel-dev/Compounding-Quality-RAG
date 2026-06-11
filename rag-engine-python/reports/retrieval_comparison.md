@@ -1,6 +1,6 @@
 # Retrieval Comparison Report
 
-Generated: `2026-06-11T16:47:58Z`
+Generated: `2026-06-11T17:29:09Z`
 Top K: `5`
 Question count: `12`
 
@@ -8,9 +8,9 @@ Question count: `12`
 
 | Retriever | Hit Rate | MRR | Failed IDs | Latency Seconds |
 |---|---:|---:|---|---:|
-| keyword | 0.833 | 0.750 | RET-007, RET-009 | 0.011371 |
-| embedding | 0.917 | 0.812 | RET-007 | 0.019838 |
-| hybrid | 0.833 | 0.750 | RET-007, RET-009 | 0.031663 |
+| keyword | 0.833 | 0.750 | RET-007, RET-009 | 0.011519 |
+| embedding | 0.917 | 0.812 | RET-007 | 0.020831 |
+| hybrid | 0.833 | 0.750 | RET-007, RET-009 | 0.032977 |
 
 ## Qualitative Notes
 

@@ -193,3 +193,14 @@ This log captures implementation failures found while building the synthetic Com
 **Fix:** Imported `GlobalExceptionHandlerTest.TestController` alongside `GlobalExceptionHandler`, restored real MockMvc assertions for the validation test, and replaced the diagnostic generic handler with a normal `buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected server error", request, List.of())` path. The full `services/review-api` clean test run now passes.
 
 **Prevention:** Keep diagnostic assertions temporary and remove them once the failing path is identified. For `@WebMvcTest`, explicitly import nested test controllers or use a top-level controller fixture when the test depends on custom routes. Keep a targeted `GlobalExceptionHandlerTest` class covering validation, malformed JSON, response-status errors, and generic fallback behavior.
+
+
+### 15. Retrieval comparison baseline left keyword misses unresolved
+
+**Symptom:** Retrieval comparison showed known missed questions for the default keyword path. Keyword retrieval returned hit_rate@5 0.8333 and MRR 0.7500, missing `RET-007` and `RET-009`. Hybrid retrieval showed the same misses. The local deterministic embedding baseline performed better on this small evaluation set, with hit_rate@5 0.9167 and MRR 0.8125, missing only `RET-007`.
+
+**Root cause:** The synthetic corpus and keyword scoring still lack enough lexical support for two boundary cases: low-star customer reviews with no review text, and unsupported product-specific stability guidance outside the limited temperature-excursion window. The embedding baseline can recover one of those cases better, but the result comes from a small synthetic evaluation set and does not justify changing the default retrieval path.
+
+**Fix:** Documented the retrieval comparison baseline and kept `KeywordRetriever` as the default API/checklist retrieval path. Preserved `EmbeddingRetriever` and `HybridRetriever` as evaluation baselines only, not production semantic search.
+
+**Prevention:** Do not promote a retriever based on one small eval run. Keep retrieval comparisons visible in `reports/retrieval_comparison.md`, preserve known miss IDs in the baseline docs, and only change the default retrieval path after a deliberate evaluation-backed decision.
