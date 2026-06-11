@@ -43,9 +43,9 @@
 - Updated Spring MVC tests to distinguish controller registration failures from actual exception-handler failures.
 - Removed temporary diagnostic assertions from the global exception-handler path after the handler behavior was confirmed.
 
-## Phase 4 Retrieval Closeout
+## Retrieval Closeout
 
-Phase 4 retrieval work is functionally complete.
+Retrieval comparison work is functionally complete.
 
 The project now includes:
 
@@ -75,7 +75,3 @@ Known retrieval misses:
 
 - `RET-007`: low-star customer review with no review text should retrieve SOP-006.
 - `RET-009`: temperature-excursion unsupported product-specific stability boundary should retrieve SOP-005/SOP-006.
-
-These misses are documented evaluation gaps, not blockers for Phase 5.
-
-Next implementation phase: Phase 5 React/TypeScript review UI after documentation and PR cleanup.
