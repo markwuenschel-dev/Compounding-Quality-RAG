@@ -3,63 +3,29 @@
 ## 2026-05-04 — Project boundary
 
 ### Decision
-This project will be a source-grounded RAG workbench for synthetic pharmacy/compounding SOP-style documents and synthetic inquiry records.
+Build a source-grounded RAG workbench for synthetic pharmacy/compounding SOP-style documents and synthetic inquiry records.
 
 ### Reason
-Synthetic documents are safe to publish and let me control the document structure, expected answers, review states, and evaluation cases. The public project can model the workflow shape without exposing proprietary records, internal SOP text, customer information, PHI, PII, or licensed drug-information content.
-
-### Alternatives considered
-- Public pharmacy/regulatory documents
-- Internal documents
-- Generic legal/compliance documents
+Synthetic documents are safe to publish and let the project control document structure, expected answers, review states, and evaluation cases without exposing proprietary records, internal SOP text, customer information, PHI, PII, or licensed drug-information content.
 
 ### Tradeoff
-Synthetic documents are safer but less realistic than real regulatory, operational, or customer-review material.
+Synthetic documents are safer but less realistic than real operational material.
 
 ### Revisit when
-The ingestion, chunking, retrieval, and evaluation loop works on the synthetic corpus.
+A private/internal prototype is approved and read-only integration requirements are known.
 
 ---
 
-## 2026-05-04 — Initial document schema
+## 2026-05-04 — Explicit model contracts
 
 ### Decision
-The first core objects are `SourceDocument` and `DocumentChunk`, followed by more specific objects for SOP documents and synthetic inquiry records.
+Use explicit model contracts for source documents, chunks, inquiry records, review summaries, derived assessments, refusals, and bridge payloads.
 
 ### Reason
-The RAG system needs a clear boundary between a full source document, a synthetic inquiry record, and the smaller chunks used for retrieval.
-
-### Alternatives considered
-- Use raw dictionaries: simplest method, but there is no validation or enforced structure. Misspellings in keys or missing fields will not fail early and can cause runtime errors later.
-- Use dataclasses: dataclasses provide structured objects and type hints, but they do not enforce validation by default. Additional validation would need to be implemented manually, which recreates functionality already provided by Pydantic.
-- Delay schema design until ingestion is built.
+The system needs clear boundaries between source truth, retrieved evidence, reviewer findings, and generated outputs.
 
 ### Tradeoff
-Pydantic introduces runtime validation overhead when creating objects, but early validation is worth it for an accuracy-sensitive RAG system because malformed SOPs or inquiry records should fail before they can enter retrieval.
-
-### Revisit when
-The first loader and chunker are working.
-
----
-
-## 2026-05-04 — Testing approach
-
-### Decision
-Start with small pytest tests for model validation.
-
-### Reason
-The immediate goal is to learn the pytest pattern and prove that invalid chunks, SOPs, and inquiry records fail early.
-
-### Alternatives considered
-- No tests until retrieval works
-- Only manual testing
-- Larger integration tests immediately
-
-### Tradeoff
-These tests are simple and do not prove the RAG system works yet.
-
-### Revisit when
-The loader and chunker exist.
+Schema validation adds overhead, but early failure is valuable in an accuracy-sensitive workflow.
 
 ---
 
@@ -69,16 +35,10 @@ The loader and chunker exist.
 Separate formal QRE classification from operational handling path.
 
 ### Reason
-The formal QRE/general-question label and QRE category/subcategory are documentation concepts. They do not always determine the Technical Services workflow. A submission can arrive through the same form but require different review depth depending on concern type, risk lane, missing information, and escalation triggers.
+Formal category/subcategory values are documentation concepts. Handling path describes what Technical Services does next.
 
 ### Consequence
-Synthetic inquiry records will store formal classification separately from concern type, risk lane, review scope, investigation requirements, handling path, and resolution options.
-
-### Tradeoff
-This makes the schema more verbose, but prevents a single overloaded `disposition` field from mixing documentation category, workflow action, escalation state, and customer-facing resolution.
-
-### Revisit when
-Evaluation questions show the model is confusing classification, handling path, and resolution.
+Synthetic outputs separately represent formal classification, concern type, risk lane, review scope, investigation requirements, handling path, and resolution options.
 
 ---
 
@@ -87,46 +47,13 @@ Evaluation questions show the model is confusing classification, handling path, 
 ### Decision
 Use `risk_lane` as a severity and escalation guide separate from formal category and handling path.
 
-### Reason
-The real workflow behaves like a risk-tiered investigation. Expected/self-limiting concerns require less aggressive review than unexpected or life-threatening/legal concerns, even when they arrive through the same intake channel.
-
 ### Allowed values
 - `expected_self_limiting`
 - `unexpected_non_life_threatening`
 - `life_threatening_or_legal`
 
-### Consequence
-Synthetic inquiries can model different investigation paths without pretending every concern has a clean final disposition at intake.
-
-### Tradeoff
-Risk lane is a derived assessment, not a raw intake field. In intake-only records it should usually be null until enough information exists to support it.
-
-### Revisit when
-The first intake/checklist mode produces useful missing-information outputs.
-
----
-
-## 2026-05-09 — Carry-forward inquiry schema
-
-### Decision
-Use one carry-forward schema for synthetic inquiries rather than two unrelated sets of records.
-
 ### Reason
-A real inquiry changes state over time. At intake, only raw form or review information may be available. After Technical Services review, the record can carry review-summary findings. After assessment, it can carry derived classification, risk lane, handling path, and rationale.
-
-### Consequence
-Synthetic inquiry records include `workflow_stage`:
-- `intake_only`
-- `review_summary_complete`
-- `finalized`
-
-For `intake_only` records, `review_summary` and `derived_assessment` may be null. Later versions of the same record can fill those sections in.
-
-### Tradeoff
-The YAML files are not meant to be the real user interface. They are a portfolio-friendly stand-in for a database record, form, or review note interface.
-
-### Revisit when
-Loaders and validation make the carry-forward shape feel too complex or too permissive.
+The workflow behaves like a risk-tiered investigation.
 
 ---
 
@@ -136,10 +63,9 @@ Loaders and validation make the carry-forward shape feel too complex or too perm
 Do not model frontline pharmacist questions as a separate intake source.
 
 ### Reason
-Frontline pharmacist questions arrive through the QRE/general-question submission form. They differ by submitter role, submission purpose, and review scope, not by ingestion channel.
+Frontline questions arrive through the QRE/general-question form. They differ by submitter role, submission purpose, and review scope.
 
-### Consequence
-Synthetic inquiry records use:
+### Canonical representation
 
 ```yaml
 intake_source: qre_general_question_form
@@ -147,14 +73,6 @@ submitter_role: frontline_pharmacist
 submission_purpose: frontline_pharmacist_question
 review_scope: guidance_only
 ```
-
-These records usually do not require compounding-record review, lot/batch review, inventory inspection, trend scan, or customer outreach unless the narrative alleges a product quality issue, ADE, dispensing error, or escalation trigger.
-
-### Tradeoff
-This adds fields, but preserves the real workflow and still allows tracking the volume of frontline pharmacist questions.
-
-### Revisit when
-Analytics or validation shows `submission_purpose` and `review_scope` are redundant.
 
 ---
 
@@ -164,16 +82,10 @@ Analytics or validation shows `submission_purpose` and `review_scope` are redund
 The public project will not pretend the RAG system has access to compounding records, lot-tracing systems, customer histories, inventory, Snowflake, or external drug-information resources.
 
 ### Reason
-The public portfolio project must be synthetic and safe. Real-world integrations would require approved data access, governance, security review, and system-specific API design.
+The public project must be synthetic and safe.
 
 ### Consequence
-Synthetic inquiry records may include a `review_summary` object that represents human-entered or synthetic findings after review. The RAG system can use those summaries, but it should not claim it directly inspected real operational systems.
-
-### Tradeoff
-This is less impressive than direct integration, but more accurate and safer. It also keeps the first portfolio version focused on retrieval, validation, citation, and workflow reasoning.
-
-### Revisit when
-A private/internal prototype is approved and read-only integration requirements are known.
+Synthetic records may include `review_summary` as human-entered or synthetic findings. The RAG system can use those summaries, but it must not claim it directly inspected real operational systems.
 
 ---
 
@@ -183,24 +95,9 @@ A private/internal prototype is approved and read-only integration requirements 
 Keep customer-facing resolution options separate from operational handling path.
 
 ### Reason
-Handling path describes what Technical Services does next. Resolution options describe possible case-closure or customer-facing actions such as counseling, replacement/reship review, refund/concession review, or alternate dosage form discussion.
+Handling path describes what TS does next. Resolution options describe possible case-closure/customer-facing actions.
 
-### Consequence
-Synthetic inquiry records may include:
-
-```yaml
-handling_path: technical_services_customer_outreach
-resolution_review_required: true
-resolution_options:
-  - alternate_dosage_form_discussion
-  - refund_or_concession_review
-```
-
-### Tradeoff
-This avoids overloading `handling_path`, but it requires answer rules to clearly distinguish workflow action from customer resolution.
-
-### Revisit when
-Synthetic inquiries and evaluation questions reveal duplicate or confusing resolution values.
+---
 
 ## 2026-05-18 — Structured severe escalation triggers
 
@@ -208,98 +105,222 @@ Synthetic inquiries and evaluation questions reveal duplicate or confusing resol
 Use `review_summary.severe_triggers_observed` as the structured source of truth for severe escalation routing.
 
 ### Reason
-Free-text reviewer summaries can contain negated severe terms such as “no hospitalization,” “no death,” “no legal threat,” or “no wrong medication concern.” Keyword scanning can misread those phrases as positive escalation evidence.
+Free text can contain negated severe terms such as “no hospitalization” or “no wrong medication concern.” Keyword scanning can misread them as positive escalation evidence.
 
 ### Consequence
-Final risk-lane logic escalates to `life_threatening_or_legal` when `severe_triggers_observed` is non-empty. Negated free-text statements do not independently trigger escalation. The reviewer or future extraction layer must explicitly populate the structured trigger list.
-
-### Tradeoff
-This requires one additional structured reviewer field, but it is safer and easier to validate than brittle free-text parsing.
-
-### Revisit when
-The LLM review-summary extraction layer is added and must map normal English reviewer notes into `ReviewSummary`.
-
+Final routing escalates to `life_threatening_or_legal` only when structured severe triggers are supplied.
 
 ---
 
 ## 2026-05-30 — Python process bridge contract
 
 ### Decision
-Add `app/api_runner.py` as a JSON stdin/stdout process bridge between the Spring Boot API and the existing Python checklist engine.
+Add `app/api_runner.py` as a JSON stdin/stdout process bridge between Spring Boot and the Python engine.
 
 ### Reason
-The Python package already owns the tested RAG/checklist behavior. The Java/Spring layer should wrap that behavior behind a stable API boundary instead of rewriting it. A process bridge gives Spring Boot a narrow integration point now while keeping the option to replace the subprocess with FastAPI or another HTTP service later.
+Python owns the tested RAG behavior. Java/Spring should wrap it rather than rewrite it.
 
 ### Contract
-The bridge accepts one JSON request object from stdin:
 
 ```json
-{
-  "command": "checklist",
-  "payload": {
-    "concernText": "..."
-  }
-}
+{"command":"checklist","payload":{"concernText":"...","topK":5}}
 ```
 
-It returns one JSON response object on stdout:
+Success:
 
 ```json
-{
-  "ok": true,
-  "result": {}
-}
+{"ok":true,"result":{}}
 ```
 
-or:
+Handled error:
 
 ```json
-{
-  "ok": false,
-  "error": {
-    "code": "INVALID_REQUEST",
-    "message": "payload.concernText must not be blank"
-  }
-}
+{"ok":false,"error":{"code":"REFUSED","message":"..."}}
 ```
 
 ### Consequence
-Java can treat `ok:false` as a handled engine/application response and treat nonzero process exit, timeout, or invalid stdout as bridge/process failure.
-
-### Tradeoff
-A subprocess bridge is simpler than running a separate Python web service, but it requires strict stdout discipline, timeout handling, and careful error translation in the future Java client.
-
-### Revisit when
-The Spring Boot `RagEngineClient` interface and `PythonProcessRagEngineClient` are implemented, or when the bridge needs to become a long-running Python service.
+stdout is machine-readable JSON only. stderr is diagnostics only.
 
 ---
 
-## 2026-06-01 — Centralized Spring API error response contract
+## 2026-05-31 — Java `RagEngineClient` interface
 
 ### Decision
-Use `GlobalExceptionHandler` and `ApiErrorResponse` as the centralized Spring Boot error boundary for the review API.
+Hide the Python subprocess implementation behind a Java `RagEngineClient` interface.
 
 ### Reason
-The API needs predictable HTTP semantics and a stable JSON shape before the Java layer starts calling the Python RAG bridge. Validation failures, malformed request bodies, explicit `ResponseStatusException`s, and unexpected exceptions should all return the same top-level shape so clients and tests do not need one-off parsing paths.
+Controllers and services should depend on a stable domain-facing client, not process-management details.
 
-### Contract
-The response includes `timestamp`, `status`, `error`, `message`, `path`, `requestId`, and `fieldErrors`.
+### Current methods
 
-Current mappings:
-
-| Failure case | Status | Rule |
-|---|---:|---|
-| Invalid request body validation | `400` | Return `Validation failed` with field errors. |
-| Handler-method validation | `400` | Return `Validation failed`; field errors may be empty until mapped. |
-| Malformed JSON request body | `400` | Return the centralized bad-request shape. |
-| `ResponseStatusException` | Exception status | Preserve the explicit HTTP status and provide a non-empty message. |
-| Unexpected exception | `500` | Return a generic message without leaking the internal exception detail. |
-
-### Consequence
-`GlobalExceptionHandlerTest` now covers invalid body validation, malformed JSON, response-status errors, and generic fallback errors. `ChecklistControllerTest` also confirms checklist validation failures use the same global error shape and preserve incoming `X-Request-Id` values.
-
-### Tradeoff
-The handler-method validation branch currently returns an empty `fieldErrors` list. That is acceptable for the current API shell because request-body validation is the active contract being exercised, but it can be expanded later if method-parameter validation becomes user-facing.
+```java
+RagChecklistResult createChecklist(RagChecklistRequest request);
+RagRetrieveResult retrieve(RagRetrieveRequest request);
+RagFinalAssessmentResult createFinalAssessment(RagFinalAssessmentRequest request);
+```
 
 ### Revisit when
-The API adds query/path parameter validation, the Python bridge maps engine errors to HTTP responses, or the React UI starts consuming field-level validation errors directly.
+The subprocess bridge is replaced by FastAPI or another deployable Python service.
+
+---
+
+## 2026-06-05 — Backend workflow endpoint expansion
+
+### Decision
+Add Spring endpoints for retrieval and final assessment instead of stopping at checklist generation.
+
+### Reason
+Checklist-only integration proved the bridge worked, but did not demonstrate the full review workflow. Retrieval and final assessment create a realistic backend slice.
+
+### Endpoints
+- `POST /api/checklist`
+- `POST /api/retrieve`
+- `POST /api/final-assessment`
+
+### Consequence
+The Java/Spring service now exercises multiple Python bridge commands and maps nested structures across the process boundary.
+
+---
+
+## 2026-06-05 — Spring owns HTTP; Python owns RAG/domain behavior
+
+### Decision
+Keep domain routing, retrieval, refusal, checklist, and final-assessment logic in Python. Keep HTTP routes, DTO validation, structured errors, OpenAPI, configuration, and orchestration in Spring.
+
+### Architecture
+
+```text
+HTTP client
+  -> Spring controller
+  -> Spring application service
+  -> RagEngineClient
+  -> PythonProcessRagEngineClient
+  -> app.api_runner.py
+  -> Python workflow logic
+```
+
+### Tradeoff
+Local development must configure both Java and Python correctly, and failures can occur at the serialization/process boundary.
+
+---
+
+## 2026-06-05 — Jackson 3 alignment for Spring Boot 4
+
+### Decision
+Use Jackson 3 `tools.jackson.databind.json.JsonMapper` consistently at the Spring/Python bridge boundary.
+
+### Reason
+Spring Boot 4 defaults to the Jackson 3 stack. Mixing Jackson 2 `ObjectMapper` and Jackson 3 `JsonMapper` caused application-context and test-context mismatch.
+
+### Consequence
+The bridge/config boundary and related tests now use Jackson 3 consistently.
+
+---
+
+## 2026-06-05 — Bind `rag.python.working-directory` as string
+
+### Decision
+Bind `rag.python.working-directory` as a string and convert it with `Path.of(...)` at the client-properties boundary.
+
+### Reason
+Direct Spring binding to `Path` treated `../../rag-engine-python` as a resource-style path and rejected it after normalization.
+
+### Consequence
+The YAML can keep a relative local path while the app starts successfully.
+
+---
+
+## 2026-06-05 — Engine errors mapped explicitly to HTTP statuses
+
+### Decision
+Map `RagEngineException` to structured HTTP responses instead of letting downstream bridge failures fall through generic 500 handling.
+
+### Mapping
+- `INVALID_REQUEST`, `REFUSED` -> 422.
+- `ENGINE_TIMEOUT` -> 504.
+- `ENGINE_INTERRUPTED` -> 503.
+- `ENGINE_REQUEST_ENCODING` -> 500.
+- process/stdout/response/mapping/engine failures -> 502.
+
+### Consequence
+`ApiErrorResponse` has optional `code` for engine errors.
+
+---
+
+## 2026-06-09 — Preserve keyword retrieval as baseline
+
+### Decision
+Keep keyword retrieval as the transparent baseline behind `KeywordRetriever`.
+
+### Reason
+Keyword retrieval is interpretable, auditable, and useful for exact SOP/process terms. It provides a stable comparison point before adding vector or hybrid retrieval.
+
+### Consequence
+New retrieval strategies must be compared against keyword rather than replacing it silently.
+
+---
+
+## 2026-06-09 — Add local deterministic vector baseline before production semantic search
+
+### Decision
+Add a local deterministic hashing-vector `EmbeddingRetriever` before introducing external embedding models or a vector database.
+
+### Reason
+The project needs testable vector retrieval plumbing and comparison infrastructure before adding model downloads, external APIs, persistence, or infrastructure.
+
+### Tradeoff
+The hashing-vector model is not true semantic search. It does not understand synonyms such as `emesis` and `vomiting` unless lexical overlap or hash collision creates similarity.
+
+### Consequence
+The current vector baseline must be described as local vector retrieval plumbing, not production semantic retrieval.
+
+---
+
+## 2026-06-09 — Add hybrid retrieval with normalized component scores
+
+### Decision
+Add `HybridRetriever` that combines normalized keyword and vector scores with configurable weights.
+
+### Reason
+Keyword and cosine-similarity scores are on different scales. Normalization is required before weighted combination.
+
+### Default weights
+- keyword: `0.65`
+- vector: `0.35`
+
+### Consequence
+Hybrid retrieval can be evaluated alongside keyword and vector retrieval without changing the public `SearchResult` contract.
+
+---
+
+## 2026-06-09 — Generate retrieval comparison report before quality claims
+
+### Decision
+Generate `reports/retrieval_comparison.md` comparing keyword, vector, and hybrid retrieval.
+
+### Report fields
+- hit_rate@k
+- mean reciprocal rank
+- failed question IDs
+- latency seconds
+- qualitative notes
+- interpretation guardrails
+
+### Reason
+Retrieval quality should be measured before claiming improvement.
+
+### Consequence
+The project can discuss retrieval tradeoffs using evidence from the synthetic evaluation set while avoiding unsupported claims that vector or hybrid retrieval is generally superior.
+
+---
+
+## 2026-06-09 — Defer vector database and persisted vector store
+
+### Decision
+Do not add a vector database or persisted vector store during the local retrieval baseline.
+
+### Reason
+The corpus is small and the current hashing-vector model is not the final semantic model. Persisting this index would add infrastructure before it proves value.
+
+### Revisit when
+A real embedding model is added, corpus size grows, retrieval latency becomes a measurable problem, or deployment requires persistent precomputed vectors.

@@ -1,195 +1,324 @@
 # Failure Log
 
-This log captures implementation failures found while building the synthetic Compounding Quality RAG proof of concept. Each entry records what failed, why it mattered, how it was fixed, and what should prevent the same issue from returning.
+This log captures implementation failures found while building the synthetic Compounding Quality RAG proof of concept. Each entry records what failed, why it mattered, how it was fixed, and what should prevent recurrence.
 
-## Current status
+## Current Status
 
-- Test suite is passing.
-- `./gradlew clean test` passes from `services/review-api`.
-- The project now has schemas, expected outputs, synthetic SOP corpus, ingestion, retrieval, retrieval evaluation, a stubbed pipeline, structured evaluation, checklist generation, final assessment generation, reporting, a two-phase CLI workflow, and OpenAI-backed review-summary extraction.
-- The current demo boundary remains synthetic only: no real customer data, patient data, pharmacy records, inventory, customer history, or external drug references.
+- Python deterministic workflow is implemented for ingestion, retrieval, evaluation, checklist generation, refusal behavior, final assessment, reporting, CLI workflow, optional review-summary extraction, and JSON bridge execution.
+- Spring Boot `review-api` loads successfully with the local Python engine configuration and exposes checklist, retrieve, and final-assessment endpoints.
+- Retrieval evaluation now includes retriever abstraction, keyword baseline wrapper, local deterministic vector retrieval, hybrid retrieval, comparison scaffold, and generated report output.
+- Public demo boundary remains synthetic only.
 
-## Failures
+## 1. Stale import referenced old module
 
-### 1. Stale `test_models.py` import referenced `rag_doc_models`
+**Symptom:** Tests failed during import.
 
-**Symptom:** Tests failed during import because `test_models.py` still referenced an old module name.
+**Root cause:** Tests referenced a renamed module.
 
-**Root cause:** Model/schema files were renamed or reorganized, but the test import was not updated with the code structure.
+**Fix:** Updated imports to current schema/model modules.
 
-**Fix:** Updated the stale test import to reference the current schema/model modules.
+**Prevention:** Run full tests immediately after file/module renames.
 
-**Prevention:** Keep schema import tests focused on the current public model surface. When files are renamed, update imports and run the full test suite immediately.
+## 2. Pipeline hardcoded `top_k=5`
 
----
+**Symptom:** Retrieval count could not be controlled.
 
-### 2. Pipeline hardcoded `top_k=5`
+**Root cause:** Fixed value instead of caller-provided parameter.
 
-**Symptom:** Retrieval behavior could not be controlled from tests or higher-level pipeline calls.
+**Fix:** Exposed `top_k` and passed it through.
 
-**Root cause:** The pipeline used a fixed retrieval count instead of passing a configurable `top_k` argument through to retrieval.
+**Prevention:** Keep tests proving caller-supplied `top_k` is honored.
 
-**Fix:** Exposed `top_k` as a parameter and passed it into retrieval.
+## 3. Brittle exact error-message assertion
 
-**Prevention:** Add or preserve tests proving that caller-supplied retrieval settings affect the number of evidence chunks returned.
+**Symptom:** Correct exception failed test due to wording mismatch.
 
----
+**Root cause:** Test asserted exact incidental prose.
 
-### 3. `FileNotFoundError` message mismatch
+**Fix:** Assert stable substrings or contract fields.
 
-**Symptom:** A test failed even though the expected exception type was raised.
+**Prevention:** Exact message assertions only when wording is public contract.
 
-**Root cause:** The test expected an exact error-message string, but the implementation returned different wording.
+## 4. Retrieval tests expected stale SOP IDs
 
-**Fix:** Aligned the message expectation with the implementation, or adjusted the assertion to check the stable, meaningful part of the message instead of the entire sentence.
+**Symptom:** Retrieval eval failed after corpus/ID changes.
 
-**Prevention:** For error-message tests, prefer checking useful substrings unless exact wording is part of the user-facing contract.
+**Root cause:** Expected IDs were not updated with source changes.
 
----
+**Fix:** Synced expectations with corpus.
 
-### 4. Retrieval tests expected stale SOP IDs
+**Prevention:** Treat retrieval expectations as source-aligned contract fixtures.
 
-**Symptom:** Retrieval evaluation failed because expected SOP IDs no longer matched the synthetic corpus.
+## 5. Negated severe term triggered escalation
 
-**Root cause:** SOP fixtures or generated IDs changed, but retrieval test expectations still referenced older IDs.
+**Symptom:** “No hospitalization” still escalated.
 
-**Fix:** Updated expected retrieval outputs to match the current synthetic SOP corpus.
+**Root cause:** Keyword matching without negation handling.
 
-**Prevention:** Keep canonical retrieval expectations near the corpus fixtures, and update them whenever source IDs or source titles change.
+**Fix:** Severe routing moved toward structured review-summary triggers.
 
----
+**Prevention:** Keep tests for negated hospitalization, death, legal threat, contamination, wrong-medication, and wrong-patient language.
 
-### 5. `no hospitalization` triggered escalation due to naive keyword matching
+## 6. Refusal matching used exact match instead of substring detection
 
-**Symptom:** A review summary saying the pet had `no hospitalization` still triggered the life-threatening/legal risk lane.
+**Symptom:** Unsupported record/reference/clinical requests were not refused.
 
-**Root cause:** The risk classifier matched severe keywords like `hospitalization` without understanding negation.
+**Root cause:** Matching helper compared term to whole input.
 
-**Fix:** Added/updated logic and tests so routine vomiting cases without actual severe triggers route to follow-up rather than automatic escalation.
+**Fix:** Detect contained normalized terms.
 
-**Prevention:** Add explicit negated-trigger test cases for hospitalization, death, legal threat, contamination, veterinarian allegation, wrong medication, and wrong patient language. Longer term, prefer structured reviewer findings over free-text keyword matching for escalation-critical facts.
+**Prevention:** Keep explicit refusal tests.
 
----
+## 7. Severe escalation originally depended on free-text scanning
 
-### 6. `TypedDict` fixtures needed explicit `list[RetrievalQuestionResult]`
+**Symptom:** Free-text negations could be misread.
 
-**Symptom:** Type checks or tests failed because fixture lists of dictionaries were inferred too loosely.
+**Root cause:** Final risk-lane logic scanned prose instead of structured reviewer findings.
 
-**Root cause:** `TypedDict` list inference did not preserve the expected structured type without an explicit annotation.
+**Fix:** Added `severe_triggers_observed` and made it authoritative.
 
-**Fix:** Added explicit `list[RetrievalQuestionResult]` annotations to the fixtures.
+**Prevention:** Escalation-critical facts should be structured.
 
-**Prevention:** Type structured fixtures at declaration time, especially when they contain nested dictionaries or TypedDict values.
+## 8. Coordinated negation scope failed
 
-### 7. Refusal matching failed because exact-match logic was used instead of substring detection
+**Symptom:** Lists like “No hospitalization, death, legal threat, contamination, or wrong medication” could preserve false triggers.
 
-**Symptom:** External-reference, internal-record, and clinical/legal refusal tests failed because unsupported questions were not refused.
+**Root cause:** Negation detection window was too short.
 
-**Root cause:** The matching helper compared each term to the entire input string instead of checking whether the term appeared inside the input.
+**Fix:** Expanded coordinated-negation handling and added overcorrection tests.
 
-**Fix:** Changed matching logic to detect terms contained within the normalized concern text and restored correct refusal reasons/messages.
+**Prevention:** Keep separate tests for negated lists and later affirmative trigger statements.
 
-**Prevention:** Keep refusal tests for external references, internal record access, and clinical/legal conclusions. Avoid compact matching helpers unless their behavior is covered by tests.
+## 9. Retrieval misses exposed corpus wording gaps
 
-### 8. Severe escalation routing originally depended on free-text keyword scanning
+**Symptom:** Retrieval missed blank-review and temperature-excursion boundary cases.
 
-**Symptom:** Negated reviewer statements like “no hospitalization” or “no wrong medication concern” could be misread as positive severe triggers.
+**Root cause:** Source corpus did not contain enough explicit lexical support.
 
-**Root cause:** Final risk-lane logic scanned free-text reviewer summaries for severe terms instead of using structured reviewer findings.
+**Fix:** Added explicit SOP language.
 
-**Fix:** Added `severe_triggers_observed` to `ReviewSummary` and updated final assessment logic to escalate only when a structured severe trigger is supplied.
+**Prevention:** Fix source-truth gaps before expecting vector retrieval to compensate.
 
-**Prevention:** Keep tests proving that negated severe-trigger language does not escalate, while explicit structured triggers still do.
+## 10. Spring MVC validation test returned 404
 
-## Follow-up lessons
+**Symptom:** Expected validation error, got route not found.
 
-- Tests are most valuable when they protect workflow behavior, not incidental implementation wording.
-- Retrieval expectations should be treated as contract fixtures and updated intentionally with corpus changes.
-- Safety-critical routing should avoid bare substring matching when negation is likely.
-- Demo quality now depends more on the printed report than on additional architecture.
-- The project should keep repeating the synthetic-data boundary in CLI output, reports, and demo scripts.
+**Root cause:** Test controller was not registered in the WebMvc slice.
 
----
+**Fix:** Imported/registered the test controller.
 
-### 9. Coordinated negation scope caused false severe-trigger extraction
+**Prevention:** Confirm test route registration before diagnosing validation behavior.
 
-**Symptom:** Review-summary extraction could incorrectly preserve or infer `wrong_patient_or_wrong_medication` when a reviewer note used a negated list such as “No hospitalization, death, legal threat, contamination, wrong medication concern, or veterinarian allegation was reported.”
+## 11. Bridge stdout pollution caused invalid stdout
 
-**Root cause:** The severe-trigger grounding logic checked only a short local prefix near the trigger term. In a coordinated list, the negation word appeared earlier in the sentence and fell outside that local window. A wrong-medication special case then made the false positive easier to preserve.
+**Symptom:** Java client classified bridge output as `ENGINE_INVALID_STDOUT`.
 
-**Fix:** Expanded negation handling to recognize coordinated negation scope across severe-trigger lists, including patterns such as “No A, B, C, or D was reported” and “Reviewer has not confirmed A, B, C, or D.” Added an overcorrection test to confirm that a later affirmative sentence such as “Reviewer confirmed possible wrong medication” still creates the structured severe trigger.
+**Root cause:** Stub printed debug text to stdout before JSON.
 
-**Prevention:** Keep explicit tests for negated severe-trigger lists and separate tests for confirmed severe triggers after unrelated negated triggers. Escalation-critical extraction should prefer structured, affirmative findings over bare keyword presence.
+**Fix:** Keep stdout JSON-only; diagnostics to stderr.
 
----
+**Prevention:** Preserve stdout-pollution tests.
 
-### 10. Retrieval misses for blank review and temperature-excursion boundary
+## 12. Jackson mapping wrapped domain constructor failure
 
-**Symptom:** Retrieval evaluation returned `hit_rate@5 = 0.833` and `MRR = 0.750`, with misses on `RET-007` and `RET-009`.
+**Symptom:** Test expected direct `IllegalArgumentException`; actual direct cause was Jackson wrapper.
 
-**RET-007 query:** `two star customer review with no review text should be documented`
+**Root cause:** Generic `treeToValue(...)` mapping wraps record-constructor failures.
 
-**RET-007 expected source:** `SOP-006`
+**Fix:** Assert public `ENGINE_RESPONSE_MAPPING` and root cause.
 
-**RET-007 root cause:** `SOP-006` contained the general concept that low-star reviews with no text do not automatically require outreach, but it did not contain enough explicit wording for one-star, two-star, three-star-with-no-text, document-only, or no-Technical-Services-outreach cases. Keyword retrieval therefore lacked direct lexical hooks.
+**Prevention:** Test public contract, not incidental exception wrapping.
 
-**RET-007 fix:** Added explicit `SOP-006` language for low-star reviews with no review text. The updated SOP states that one-star and two-star reviews, and three-star reviews with no review text, may be documented without Technical Services outreach when no quality concern, safety concern, suspected ADE, product defect, dispensing error, contamination, or escalation trigger is identified.
+## 13. Mixed Jackson 2 / Jackson 3 broke Spring Boot 4 runtime
 
-**RET-009 query:** `temperature excursion outside limited guidance window unsupported product specific stability`
+**Symptom:** App failed to start because no Jackson 2 `ObjectMapper` bean existed.
 
-**RET-009 expected source:** `SOP-005` for unsupported product-specific stability. `SOP-006` may also be expected only when the query or test is explicitly checking frontline guidance, document-only handling, or no Technical Services outreach.
+**Root cause:** Production requested Jackson 2 while tests/config used Jackson 3.
 
-**RET-009 root cause:** Temperature-excursion guidance was under-specified in the corpus. The intended rule was that the synthetic corpus supports only a limited 72-hour room-temperature excursion; product-specific stability outside that limited window is unsupported and should not be inferred.
+**Fix:** Migrated bridge/config boundary to Jackson 3 `JsonMapper`.
 
-**RET-009 fix:** Added explicit `SOP-005` language for the temperature-excursion boundary. The updated SOP states that the assistant must not infer product-specific stability outside the limited 72-hour room-temperature window or differentiate by dosage form, storage condition, refrigeration requirement, formulation, medication, API, or product-specific stability profile unless supported synthetic source text is present. Added `SOP-006` language for document-only and frontline guidance handling when Technical Services outreach is not supported.
+**Prevention:** Keep one JSON generation at a boundary.
 
-**Prevention:** Retrieval eval questions should only expect sources that actually contain the supporting policy concept. When a query combines unsupported-evidence boundaries with routing behavior, either split the query or include all expected source concepts in the query text. Fix corpus/source-truth gaps before using embeddings to compensate for poor source coverage.
+## 14. Missing `@Bean` for `RagEngineClient`
 
+**Symptom:** No `RagEngineClient` bean in Spring context.
 
----
+**Root cause:** Configuration method lacked `@Bean` after refactor.
 
-### 11. Expected-output tests became brittle around enum casing
+**Fix:** Restored `@Bean`.
 
-**Symptom:** Tests failed after schema values such as QRE/ADE casing were treated as implementation mistakes even though `app/schemas.py` was the intended source of truth.
+**Prevention:** Config tests should assert `hasNotFailed()` and `hasSingleBean(RagEngineClient.class)`.
 
-**Root cause:** Tests validated fixture literals too directly and made the expected-output JSON files act like a competing schema definition.
+## 15. Interface/implementation drift
 
-**Fix:** Added test helper normalization so expected-output fixtures are normalized to current schema enum values at test load time. Evaluation and pipeline tests now test behavior against the schema instead of forcing fixture casing to drive production enums.
+**Symptom:** Compile failed because `PythonProcessRagEngineClient` did not implement `retrieve(...)` or `createFinalAssessment(...)`.
 
-**Prevention:** Treat `app/schemas.py` as the controlled source of truth. Fixture normalization is acceptable in tests, but production schema values should not be changed just to satisfy brittle fixture literals.
+**Root cause:** Interface expansion and implementation update drifted.
 
----
+**Fix:** Replaced both files with matching signatures and implementations.
 
-### 12. CLI and reporting tests overfit incidental formatting
+**Prevention:** Expand interface and implementation in one commit; run `compileJava` before moving on.
 
-**Symptom:** Tests failed when headings, capitalization, or report wording changed even though the workflow behavior still worked.
+## 16. Jackson 3 `JsonNode` compared directly to string
 
-**Root cause:** Tests asserted presentation copy instead of stable behavior and contract-level structure.
+**Symptom:** Test failed comparing string to `JsonNode` object.
 
-**Fix:** Updated CLI/reporting tests to check stable signals: phase labels, boundary text, evidence visibility, absence of debug scores by default, and generated review checks.
+**Root cause:** Assertion missed `.asString()`.
 
-**Prevention:** Exact-match public prose only when that prose is itself the contract. Otherwise prefer structural assertions and key concepts.
+**Fix:** Extract scalar string value before comparison.
 
----
+**Prevention:** Compare JSON scalar values, not node objects.
 
-### 13. API runner needed clear stdout/stderr and exit-code rules
+## 17. `HttpStatus.UNPROCESSABLE_ENTITY` deprecation
 
-**Symptom:** The bridge needed to be safe for future Java process parsing, but ordinary Python logging or tracebacks on stdout would break JSON parsing.
+**Symptom:** Compile warning.
 
-**Root cause:** A subprocess bridge creates two contracts at once: process-level behavior and application-level JSON behavior. Without explicit rules, those concerns blur.
+**Root cause:** Spring Framework 7 deprecated the enum constant.
 
-**Fix:** Added `app/api_runner.py` with a request envelope, success/error response envelopes, stdout-only JSON, stderr diagnostics, handled errors with exit code 0, and unexpected failures with a nonzero exit code plus JSON error output.
+**Fix:** Use `UNPROCESSABLE_CONTENT` while preserving HTTP 422.
 
-**Prevention:** Keep `tests/test_api_runner.py` focused on bridge invariants: stdout is valid JSON, handled errors return `ok:false`, refusal returns structured details, and unexpected exceptions do not leak tracebacks into stdout.
+**Prevention:** Fix mechanical deprecations during framework upgrades.
 
----
+## 18. Spring failed to bind working directory directly to `Path`
 
-### 14. Spring error-handler tests were obscured by test-slice setup and diagnostic code
+**Symptom:** App failed to bind `../../rag-engine-python` to `Path`.
 
-**Symptom:** `GlobalExceptionHandlerTest` first failed with a `404` for `/test/validate`, then later the generic-error test surfaced a `ServletException`/`AssertionError` instead of the intended centralized JSON response.
+**Root cause:** Spring treated the relative path as resource-style path and rejected normalization.
 
-**Root cause:** The nested `TestController` was not registered in the `@WebMvcTest` slice until it was explicitly imported. Temporary diagnostic code also remained in the test and generic exception handler, so the diagnostics proved the handler path but deliberately crashed the test instead of returning the API error shape.
+**Fix:** Bind as `String`; convert with `Path.of(...)` at client properties boundary.
 
-**Fix:** Imported `GlobalExceptionHandlerTest.TestController` alongside `GlobalExceptionHandler`, restored real MockMvc assertions for the validation test, and replaced the diagnostic generic handler with a normal `buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected server error", request, List.of())` path. The full `services/review-api` clean test run now passes.
+**Prevention:** For relative filesystem paths in Spring config, prefer explicit conversion.
 
-**Prevention:** Keep diagnostic assertions temporary and remove them once the failing path is identified. For `@WebMvcTest`, explicitly import nested test controllers or use a top-level controller fixture when the test depends on custom routes. Keep a targeted `GlobalExceptionHandlerTest` class covering validation, malformed JSON, response-status errors, and generic fallback behavior.
+## 19. `checkAll` did not exist from `services/review-api`
+
+**Symptom:** Gradle task not found.
+
+**Root cause:** Command was run in module root where lifecycle task is `check`, not repo-level `checkAll`.
+
+**Fix:** Use `./gradlew check` from `services/review-api`.
+
+**Prevention:** Document commands relative to working directory.
+
+## 20. Retriever abstraction tests imported names before production file was updated
+
+**Symptom:** Tests or type checker reported that `app.retrieval` had no `KeywordRetriever` or `Retriever` attribute.
+
+**Root cause:** Test files referenced the new abstraction while the active imported `app/retrieval.py` was still the old implementation or the environment was importing a different copy.
+
+**Fix:** Confirmed `app.retrieval.__file__`, replaced the active production file, and verified `KeywordRetriever`, `Retriever`, and `retrieve` existed in the same imported module.
+
+**Prevention:** When adding public symbols, verify the active import path and production file before debugging test logic.
+
+## 21. Hit-rate was confused with recall
+
+**Symptom:** A comparison test expected `hit_rate_at_k = 0.5` when one of two expected sources was found.
+
+**Root cause:** The test interpreted hit-rate as “fraction of expected sources found.” The evaluator defines hit-rate as a per-question binary value: at least one expected source in top-k.
+
+**Fix:** Corrected the expected hit-rate to `1.0` when any expected source appears in top-k.
+
+**Prevention:** Keep metric definitions in the taxonomy and data dictionary. Use separate recall@k only if that metric is intentionally added.
+
+## 22. MRR was confused with additive source credit
+
+**Symptom:** A test expected reciprocal-rank credit to combine across multiple expected sources.
+
+**Root cause:** MRR measures the first relevant retrieved result only. Multiple expected sources are alternatives, not additive credits.
+
+**Fix:** Assert reciprocal rank from the first expected source found in retrieved order.
+
+**Prevention:** For metric tests, write out `retrieved_source_ids`, `expected_source_ids`, and the first matching rank.
+
+## 23. Local hashing vector model was mistaken for semantic embedding
+
+**Symptom:** A test expected query text containing `emesis` to retrieve a chunk containing `vomiting` even without lexical overlap.
+
+**Root cause:** `HashingEmbeddingModel` is a deterministic hashed token-vector baseline. It does not know synonyms unless overlap or hash collision creates similarity.
+
+**Fix:** Updated the expectation to match the implemented model behavior and documented that the local vector baseline is vector plumbing, not true semantic retrieval.
+
+**Prevention:** Do not call the local hashing baseline production semantic search. Add real semantic embeddings behind `EmbeddingModel` before claiming synonym behavior.
+
+## 24. Comparison test assumed keyword must beat vector retrieval
+
+**Symptom:** End-to-end comparison failed because local vector hit-rate exceeded keyword hit-rate on the current retrieval-question set.
+
+**Root cause:** The test encoded a performance ordering assumption instead of verifying the comparison contract.
+
+**Fix:** Asserted that both retrievers run and produce valid metric ranges, leaving the report to show which retriever performs better.
+
+**Prevention:** On full corpus/eval tests, measure performance instead of asserting the desired winner. Use tiny controlled fixtures for deterministic ranking claims.
+
+## 25. Top-k summary assertion expected a default instead of the caller value
+
+**Symptom:** A comparison result called with `top_k=3` was asserted to contain `top_k=5`.
+
+**Root cause:** The test expected the default value instead of the value passed by the caller.
+
+**Fix:** Asserted the caller-supplied `top_k` value.
+
+**Prevention:** Keep pass-through tests for caller-controlled evaluation settings.
+
+## 26. Tie handling was lost in comparison notes
+
+**Symptom:** A test expected only `embedding` as the best hit-rate retriever even though `embedding` and `hybrid` had equal hit_rate@k.
+
+**Root cause:** The assertion assumed a single winner instead of preserving all tied best retrievers.
+
+**Fix:** Return and assert all retrievers tied for the best metric value.
+
+**Prevention:** Comparison reports should not collapse ties unless a deterministic tie-breaking rule is explicitly part of the contract.
+
+## 27. Hybrid top-k propagation test expected the default instead of caller value
+
+**Symptom:** A comparison result called with `top_k=3` was asserted to contain `top_k=5`.
+
+**Root cause:** The test expected the default instead of the caller-supplied value.
+
+**Fix:** Asserted that every summary preserves `result["top_k"]`.
+
+**Prevention:** Pass-through tests should compare downstream values to the caller-provided value, not to defaults.
+
+## 28. Hybrid scoring initially treated keyword score as a float-only value
+
+**Symptom:** Type checking reported tuple/float mismatches in `HybridRetriever`.
+
+**Root cause:** Existing `score_chunk(...)` returns both score and matched terms: `tuple[float, list[str]]`.
+
+**Fix:** Unpacked `keyword_score, keyword_matched_terms` and combined keyword and vector matched terms for the final `SearchResult`.
+
+**Prevention:** Reuse existing function contracts carefully when composing new retrieval strategies.
+
+## 29. Hybrid candidate scoring returned inside the candidate loop
+
+**Symptom:** Hybrid retrieval only considered the first eligible candidate.
+
+**Root cause:** `return score_hybrid_candidates(...)` was indented inside the loop that builds candidates.
+
+**Fix:** Moved the return after the loop so all candidates are collected before normalization and ranking.
+
+**Prevention:** Ranking code should include tests where the best candidate is not first in input order.
+
+## 30. Comparison report could imply quality claims without guardrails
+
+**Symptom:** Keyword, vector, and hybrid metrics could be read as proof that a retriever is generally superior.
+
+**Root cause:** The report measured local synthetic eval performance, but not production semantic quality.
+
+**Fix:** Added qualitative notes and interpretation guardrails explaining that hashing vectors are local deterministic retrieval baselines, not production semantic search.
+
+**Prevention:** Retrieval comparison artifacts should separate measured results from claims about general retrieval quality.
+
+## Follow-up Lessons
+
+- Do not stack new features on a failing compile or failing application context.
+- Cross-language contracts need tests for request JSON, response JSON, error envelopes, process failures, and stdout discipline.
+- Configuration tests must not hide production missing-bean problems.
+- Retrieval expectations are contract fixtures.
+- Safety-critical routing should prefer structured reviewer-confirmed facts.
+- Retrieval metrics need explicit definitions before interpreting results.
+- Local vector retrieval plumbing is not the same thing as production semantic retrieval.
+- Comparison reports should measure retrievers, not justify a preferred result.
+- Comparison reports should preserve metric ties instead of forcing a single winner.
+- Hybrid retrieval must normalize component scores before weighted combination.
+- Pass-through tests should assert caller-provided values, not defaults.

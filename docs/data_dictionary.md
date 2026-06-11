@@ -1,9 +1,9 @@
 # Compounding Quality RAG Data Dictionary
 
 
-Version: 0.6 — Spring API error contract update  
+Version: 0.3 — v8 schema-synced  
 Project: Compounding Quality Inquiry Evidence Assistant  
-Data boundary: demo-only public learning artifact
+Data boundary: synthetic public learning artifact only
 
 
 ## 1. Purpose
@@ -18,11 +18,6 @@ This data dictionary is synchronized with `app/schemas.py` v8. It defines contro
 - Expected-output JSON files are hand-written gold labels, not generated answers.
 - Synthetic inquiry examples are inputs/test cases and must not override SOP guidance.
 - Final escalation routing uses reviewer-confirmed `review_summary.severe_triggers_observed`, not raw free-text keyword matching.
-- Phase 1 can use `IntakeUnderstanding` to structure facts already present in the concern before checklist generation.
-- `RefusalReason` and `RefusalResult` are schema-level contracts; `app/refusal.py` owns the detection logic.
-- `app/api_runner.py` is a process bridge for Java/Spring integration. It accepts one JSON request from stdin and returns one JSON response on stdout.
-- Bridge stdout must remain valid JSON only; diagnostics and tracebacks belong on stderr.
-- The Spring Boot API exposes a centralized `ApiErrorResponse` contract for validation errors, malformed JSON, explicit response-status errors, and generic fallback errors.
 - The current `ExpectedStructuredOutput` does not use `workflow_stage`; workflow stage is represented operationally by Phase 1 checklist output and Phase 2 reviewer findings.
 
 
@@ -251,14 +246,6 @@ This data dictionary is synchronized with `app/schemas.py` v8. It defines contro
 | `rare_regulatory_or_compliance_concern` |  |
 
 
-## 17A. Boundary / Refusal Reason Values
-
-| Value | Notes |
-|---|---|
-| `internal_record_access` | The request asks for real order status, inventory, customer history, compounding records, patient records, order pages, or internal-system data not available in the public demo. |
-| `external_drug_reference` | The request asks for medication-specific claims requiring Plumb's, package inserts, drug handbooks, dose ranges, contraindications, interactions, toxicity, or published adverse-effect references. |
-| `clinical_or_legal_conclusion` | The request asks the system to determine causality, safety, diagnosis, liability, death causation, legal advice, or another final clinical/legal conclusion. |
-
 ## 17. Species and Dosage Form Values
 
 ### Species
@@ -326,27 +313,6 @@ This data dictionary is synchronized with `app/schemas.py` v8. It defines contro
 | `bud_present` | boolean or null | Null when not accessed/known. |
 | `batch_lot_present` | boolean or null | Null when not accessed/known. |
 
-### `RefusalResult`
-
-| Field | Type | Notes |
-|---|---|---|
-| `refused` | boolean | Whether the request should stop before checklist/final assessment. |
-| `reason` | `RefusalReason` or null | Structured boundary reason when refused. |
-| `message` | string or null | User-facing refusal message. |
-| `matched_terms` | list of strings | Deterministic terms that matched, when applicable. |
-
-### `IntakeUnderstanding`
-
-| Field | Type | Notes |
-|---|---|---|
-| `raw_intake` | `RawIntake` | Original intake facts with `concern_narrative` copied verbatim. |
-| `product_context` | `ProductContext` | Species, dosage form, flavor/attribute, BUD presence, and batch/lot presence stated in the concern. |
-| `possible_boundary_issue` | `RefusalReason` or null | Semantic boundary issue extracted from the concern. This is not final refusal by itself until application logic handles it. |
-| `boundary_supporting_phrase` | string or null | Shortest supporting phrase from the concern when a boundary issue is present. |
-| `extracted_customer_context` | string or null | Neutral factual summary of customer-provided context, without clinical/legal conclusions. |
-| `facts_present` | list of strings | Atomic facts explicitly stated in the concern. Used to avoid asking for facts already supplied. |
-| `facts_missing` | list of strings | Relevant missing facts for review support; should not be a generic exhaustive checklist. |
-
 ### `InvestigationRequirements`
 
 All fields are boolean or null: `record_review_required`, `lot_batch_review_required`, `inventory_inspection_required`, `trend_scan_required`, `customer_outreach_required`, `frontline_guidance_lookup_required`, and `technical_services_response_required`.
@@ -385,78 +351,49 @@ All fields are boolean or null: `record_review_required`, `lot_batch_review_requ
 Wrapper with `raw_intake`, `product_context`, `investigation_requirements`, `review_summary`, and `derived_assessment`.
 
 
-### `ApiRunnerRequest`
 
-The Python process bridge reads exactly one JSON object from stdin.
+## Retrieval Strategy Contracts
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `command` | string | Yes | Currently supports `checklist`. |
-| `payload` | object | Yes | Command-specific payload. |
+### Retriever Contract
 
-Checklist payload:
+All retrievers expose the same search contract:
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `concernText` | string | Yes | Concern narrative passed from the Java API boundary. Must not be blank. |
-| `topK` | integer | No | Optional retrieval count. Defaults to 5. Must be at least 1. |
+```python
+search(query: str, *, top_k: int = 5, source_type: str | None = None) -> list[SearchResult]
+```
 
-### `ApiRunnerSuccessResponse`
+All retrievers return the same `SearchResult` shape:
 
-| Field | Type | Notes |
+| Field | Meaning |
+|---|---|
+| `chunk` | Retrieved chunk metadata and text. |
+| `score` | Retriever-specific score used for ranking within that retriever. |
+| `matched_terms` | Lexical terms that overlap between query and chunk when available. |
+
+### Retrieval Strategies
+
+| Strategy | Purpose | Current meaning |
 |---|---|---|
-| `ok` | literal `true` | Indicates the bridge handled the command and returned a usable result. |
-| `result` | object | API-facing checklist result with camelCase keys for Java/Spring consumption. |
+| `keyword` | Transparent lexical baseline. | Stable baseline for exact SOP/process-term matching. |
+| `embedding` | Local deterministic hashing-vector baseline. | Vector plumbing only; not production semantic search. |
+| `hybrid` | Weighted combination of normalized keyword and vector scores. | Local comparison baseline. |
 
-### `ApiRunnerErrorResponse`
+### Retrieval Metrics
 
-| Field | Type | Notes |
-|---|---|---|
-| `ok` | literal `false` | Indicates the bridge handled the request but did not return a usable result, or returned a safe error envelope for an unexpected failure. |
-| `error.code` | string | Stable machine-readable error code such as `INVALID_JSON`, `INVALID_REQUEST`, `UNKNOWN_COMMAND`, `REFUSED`, or `ENGINE_FAILURE`. |
-| `error.message` | string | Human-readable error message suitable for Java-side translation. |
-| `error.details` | object | Optional structured detail map, used for refusal reason and matched terms when available. |
+| Metric | Meaning |
+|---|---|
+| `hit_rate_at_k` | Fraction of questions where at least one expected source appears in top-k. |
+| `mean_reciprocal_rank` | Average reciprocal rank of the first expected source retrieved. |
+| `failed_question_ids` | Retrieval question IDs where no expected source appeared in top-k. |
+| `latency_seconds` | Wall-clock evaluation time for a retriever. |
 
-Bridge exit-code rule:
+### Metric Invariants
 
-| Case | Exit code | stdout |
-|---|---:|---|
-| Success | `0` | `{"ok":true,"result":{...}}` |
-| Handled request/refusal error | `0` | `{"ok":false,"error":{...}}` |
-| Unexpected bridge/engine failure | nonzero | `{"ok":false,"error":{"code":"ENGINE_FAILURE",...}}` |
-
-### `ApiErrorResponse`
-
-The Spring Boot API returns this centralized JSON error shape for handled API failures.
-
-| Field | Type | Notes |
-|---|---|---|
-| `timestamp` | ISO-8601 string | Time the API error response was built. |
-| `status` | integer | HTTP status code such as `400`, `404`, or `500`. |
-| `error` | string | HTTP reason phrase such as `Bad Request` or `Internal Server Error`. |
-| `message` | string | Stable user-facing message. Generic fallback errors must not leak implementation details. |
-| `path` | string | Request path, such as `/api/checklist` or `/test/validate`. |
-| `requestId` | string | Incoming `X-Request-Id` when present, otherwise a generated identifier. |
-| `fieldErrors` | list | Validation errors. Empty for non-validation failures. |
-
-`fieldErrors` entries use this shape:
-
-| Field | Type | Notes |
-|---|---|---|
-| `field` | string | Field name that failed validation. |
-| `rejectedValue` | any or null | Rejected value when safe to return. |
-| `message` | string | Validation message. |
-
-Spring API error mapping:
-
-| Failure case | Expected status | Message rule |
-|---|---:|---|
-| Request-body validation failure | `400` | `Validation failed` with field errors. |
-| Handler-method validation failure | `400` | `Validation failed`; field errors may be empty until mapped. |
-| Malformed JSON body | `400` | Stable bad-request message with the centralized error shape. |
-| `ResponseStatusException` | Exception status | Preserve status and provide non-empty message. |
-| Unexpected exception | `500` | Generic message only; do not expose internal exception text. |
-
+- Hit-rate is binary per question; it is not recall.
+- MRR uses the first expected source found in retrieved order.
+- Multiple expected sources are acceptable alternatives, not additive credit.
+- Raw scores should not be compared directly across retriever types.
+- Hybrid scores normalize keyword and vector components before weighting.
 
 ## 19. Citation Metadata Contract
 
@@ -508,6 +445,4 @@ Keep these in sync whenever either file changes:
 - `EvidenceCitation` fields in `app/checklist_models.py` and any backward-compatible copy in `app/schemas.py`.
 - Expected-output JSON keys and `ExpectedStructuredOutput` fields.
 - Retrieval citation metadata and README citation language.
-- `app/api_runner.py` bridge envelope and `tests/test_api_runner.py`.
-- Spring `ApiErrorResponse`, `GlobalExceptionHandler`, and `GlobalExceptionHandlerTest` expected error shapes.
 - Failure log prevention rules and actual tests.
