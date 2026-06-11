@@ -42,3 +42,36 @@
 - Updated reporting assertions to check stable behavior instead of incidental capitalization or exact report prose.
 - Updated Spring MVC tests to distinguish controller registration failures from actual exception-handler failures.
 - Removed temporary diagnostic assertions from the global exception-handler path after the handler behavior was confirmed.
+
+## Retrieval Closeout
+
+Retrieval comparison work is functionally complete.
+
+The project now includes:
+
+- `KeywordRetriever`
+- local deterministic `EmbeddingRetriever`
+- `HybridRetriever`
+- shared retrieval comparison
+- `reports/retrieval_comparison.md`
+
+`KeywordRetriever` remains the default retrieval path for API/checklist behavior.
+
+Embedding and hybrid retrieval are evaluation baselines only. They are not currently promoted as production semantic search and are not the default behavior.
+
+Current retrieval comparison baseline:
+
+| Retriever | hit_rate@5 | MRR | Failed question IDs |
+|---|---:|---:|---|
+| Keyword | 0.8333 | 0.7500 | `RET-007`, `RET-009` |
+| Embedding | 0.9167 | 0.8125 | `RET-007` |
+| Hybrid | 0.8333 | 0.7500 | `RET-007`, `RET-009` |
+
+Interpretation:
+
+Embedding outperformed keyword and hybrid on this small synthetic evaluation set, but this does not establish production semantic-search superiority. The embedding implementation remains a deterministic local baseline for comparison. Keyword retrieval remains the default because it is transparent, predictable, and already integrated into the API/checklist path.
+
+Known retrieval misses:
+
+- `RET-007`: low-star customer review with no review text should retrieve SOP-006.
+- `RET-009`: temperature-excursion unsupported product-specific stability boundary should retrieve SOP-005/SOP-006.

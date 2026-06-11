@@ -54,3 +54,11 @@ The Java client will parse stdout. If logs or tracebacks are mixed into stdout, 
 ### How does this map to production design?
 
 The current bridge is a local integration adapter. The production-shaped decision is the separation of concerns: controller → service/client interface → Python adapter. That keeps subprocess details out of the controller and makes the integration replaceable later.
+
+## Retrieval/RAG talking points
+
+### Why keep keyword retrieval as the default if embedding scored higher?
+
+The embedding baseline performed better on the small synthetic retrieval comparison, but I did not promote it to the default path because this project is accuracy- and review-support-oriented. Keyword retrieval is transparent, predictable, and easier to debug when a reviewer asks why evidence was returned.
+
+The embedding and hybrid retrievers are intentionally kept as evaluation baselines. That lets me compare lexical, semantic, and combined retrieval behavior without quietly changing production behavior based on one small eval run.
