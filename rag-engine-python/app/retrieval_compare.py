@@ -5,7 +5,7 @@ import json
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 from app.retrieval import (
     DEFAULT_CHUNKS_PATH,
@@ -21,6 +21,7 @@ from app.retrieval_evaluate import (
     evaluate_retrieval_questions,
     load_retrieval_questions,
 )
+from app.retrieval_hybrid import HybridRetriever
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -63,12 +64,38 @@ def build_keyword_and_embedding_retrievers(
     embedding_dimensions: int = 128,
 ) -> dict[str, Retriever]:
     chunks = load_chunks(chunks_path)
+    embedding_model = HashingEmbeddingModel(dimensions=embedding_dimensions)
 
     return {
         "keyword": KeywordRetriever(chunks),
         "embedding": EmbeddingRetriever(
             chunks=chunks,
-            embedding_model=HashingEmbeddingModel(dimensions=embedding_dimensions),
+            embedding_model=embedding_model,
+        ),
+    }
+
+
+def build_phase4_retrievers(
+    *,
+    chunks_path: Path = DEFAULT_CHUNKS_PATH,
+    embedding_dimensions: int = 128,
+    hybrid_keyword_weight: float = 0.65,
+    hybrid_embedding_weight: float = 0.35,
+) -> dict[str, Retriever]:
+    chunks = load_chunks(chunks_path)
+    embedding_model = HashingEmbeddingModel(dimensions=embedding_dimensions)
+
+    return {
+        "keyword": KeywordRetriever(chunks),
+        "embedding": EmbeddingRetriever(
+            chunks=chunks,
+            embedding_model=embedding_model,
+        ),
+        "hybrid": HybridRetriever(
+            chunks=chunks,
+            embedding_model=embedding_model,
+            keyword_weight=hybrid_keyword_weight,
+            embedding_weight=hybrid_embedding_weight,
         ),
     }
 
@@ -183,6 +210,30 @@ def load_and_compare_keyword_and_embedding_baselines(
     )
 
 
+def load_and_compare_phase4_retrievers(
+    *,
+    questions_path: Path = DEFAULT_RETRIEVAL_QUESTIONS_PATH,
+    chunks_path: Path = DEFAULT_CHUNKS_PATH,
+    top_k: int = 5,
+    embedding_dimensions: int = 128,
+    hybrid_keyword_weight: float = 0.65,
+    hybrid_embedding_weight: float = 0.35,
+) -> RetrievalComparisonResult:
+    questions = load_retrieval_questions(questions_path)
+    retrievers = build_phase4_retrievers(
+        chunks_path=chunks_path,
+        embedding_dimensions=embedding_dimensions,
+        hybrid_keyword_weight=hybrid_keyword_weight,
+        hybrid_embedding_weight=hybrid_embedding_weight,
+    )
+
+    return compare_retrievers(
+        questions=questions,
+        retrievers=retrievers,
+        top_k=top_k,
+    )
+
+
 def format_retrieval_comparison_markdown(
     result: RetrievalComparisonResult,
 ) -> str:
@@ -212,17 +263,123 @@ def format_retrieval_comparison_markdown(
     lines.extend(
         [
             "",
-            "## Interpretation Notes",
+            "## Qualitative Notes",
+            "",
+            *format_qualitative_notes(result),
+            "",
+            "## Interpretation Guardrails",
             "",
             "- Keyword retrieval remains the transparent baseline.",
+            "- Hashing embeddings are a local deterministic vector baseline, not production semantic search.",
+            "- Hybrid retrieval combines normalized keyword and embedding scores; it does not prove quality by itself.",
             "- This report does not claim semantic retrieval superiority.",
-            "- Embedding and hybrid retrievers should be added only after the baseline is captured.",
             "- Corpus text should not be changed merely to improve retrieval metrics.",
             "",
         ]
     )
 
     return "\n".join(lines)
+
+
+def format_qualitative_notes(result: RetrievalComparisonResult) -> list[str]:
+    summaries = result["summaries"]
+
+    if not summaries:
+        return ["- No retriever summaries were available."]
+
+    best_hit_rate_names = best_retriever_names(
+        summaries,
+        metric_name="hit_rate_at_k",
+    )
+    best_mrr_names = best_retriever_names(
+        summaries,
+        metric_name="mean_reciprocal_rank",
+    )
+
+    lines = [
+        f"- Best hit_rate@k: {', '.join(best_hit_rate_names)}.",
+        f"- Best MRR: {', '.join(best_mrr_names)}.",
+    ]
+
+    keyword = find_summary(summaries, "keyword")
+    embedding = find_summary(summaries, "embedding")
+    hybrid = find_summary(summaries, "hybrid")
+
+    if keyword and embedding:
+        keyword_only_failures = sorted(
+            set(keyword["failed_question_ids"]) - set(embedding["failed_question_ids"])
+        )
+        embedding_only_failures = sorted(
+            set(embedding["failed_question_ids"]) - set(keyword["failed_question_ids"])
+        )
+
+        lines.append(
+            "- Keyword failed questions not failed by embedding: "
+            f"{format_failed_ids(keyword_only_failures)}."
+        )
+        lines.append(
+            "- Embedding failed questions not failed by keyword: "
+            f"{format_failed_ids(embedding_only_failures)}."
+        )
+
+    if hybrid and keyword:
+        hybrid_new_failures = sorted(
+            set(hybrid["failed_question_ids"]) - set(keyword["failed_question_ids"])
+        )
+        hybrid_resolved_keyword_failures = sorted(
+            set(keyword["failed_question_ids"]) - set(hybrid["failed_question_ids"])
+        )
+
+        lines.append(
+            "- Hybrid failures not present in keyword baseline: "
+            f"{format_failed_ids(hybrid_new_failures)}."
+        )
+        lines.append(
+            "- Keyword failures resolved by hybrid: "
+            f"{format_failed_ids(hybrid_resolved_keyword_failures)}."
+        )
+
+    return lines
+
+
+MetricName = Literal["hit_rate_at_k", "mean_reciprocal_rank"]
+
+
+def best_retriever_names(
+    summaries: list[RetrieverComparisonSummary],
+    *,
+    metric_name: MetricName,
+) -> list[str]:
+    if not summaries:
+        return []
+
+    best_value = max(metric_value(summary, metric_name) for summary in summaries)
+
+    return [
+        summary["retriever_name"]
+        for summary in summaries
+        if metric_value(summary, metric_name) == best_value
+    ]
+
+
+def metric_value(
+    summary: RetrieverComparisonSummary,
+    metric_name: MetricName,
+) -> float:
+    if metric_name == "hit_rate_at_k":
+        return summary["hit_rate_at_k"]
+
+    return summary["mean_reciprocal_rank"]
+
+def find_summary(
+    summaries: list[RetrieverComparisonSummary],
+    retriever_name: str,
+) -> RetrieverComparisonSummary | None:
+    for summary in summaries:
+        if summary["retriever_name"] == retriever_name:
+            return summary
+
+    return None
 
 
 def write_retrieval_comparison_report(
@@ -255,7 +412,7 @@ def utc_timestamp() -> str:
 
 
 def main() -> None:
-    result = load_and_compare_keyword_and_embedding_baselines()
+    result = load_and_compare_phase4_retrievers()
     write_retrieval_comparison_report(result)
     print(comparison_result_to_json(result))
 
