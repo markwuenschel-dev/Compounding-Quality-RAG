@@ -13,6 +13,7 @@ import { ChecklistPanel } from "./components/ChecklistPanel";
 import { ConcernInputForm } from "./components/ConcernInputForm";
 import { FinalAssessmentPanel } from "./components/FinalAssessmentPanel";
 import { ReviewSummaryForm } from "./components/ReviewSummaryForm";
+import { WorkflowProgress } from "./components/WorkflowProgress";
 
 type ChecklistState =
   | { status: "idle" }
@@ -75,56 +76,133 @@ export function App() {
   }
 
   return (
-    <main>
-      <h1>Compounding Quality Review</h1>
-      <p>
-        Enter a synthetic concern narrative to generate a review-support
-        checklist, then summarize reviewer findings to produce a final
-        assessment.
-      </p>
+    <div className="app-shell">
+      <header className="topbar">
+        <div className="brand-lockup">
+          <div className="brand-mark" aria-hidden="true">
+            CQ
+          </div>
+          <div>
+            <p className="brand-name">Compounding Quality</p>
+            <p className="brand-subtitle">Review Support Workbench</p>
+          </div>
+        </div>
+        <span className="environment-pill">Synthetic demo</span>
+      </header>
 
-      <ConcernInputForm
-        isSubmitting={checklistState.status === "loading"}
-        onSubmit={handleChecklistSubmit}
-      />
+      <main className="page-shell">
+        <section className="hero">
+          <div>
+            <p className="eyebrow">Human-in-the-loop workflow</p>
+            <h1>Compounding Quality Review</h1>
+            <p className="hero-copy">
+              Turn a synthetic concern narrative into a grounded checklist,
+              capture reviewer findings, and produce a structured final
+              assessment without hiding the evidence or review boundary.
+            </p>
+          </div>
+        </section>
 
-      {checklistState.status === "idle" ? (
-        <p>No checklist generated yet.</p>
-      ) : null}
+        <WorkflowProgress
+          checklistStatus={checklistState.status}
+          finalAssessmentStatus={finalAssessmentState.status}
+        />
 
-      {checklistState.status === "loading" ? (
-        <p role="status">Generating checklist...</p>
-      ) : null}
-
-      {checklistState.status === "error" ? (
-        <p role="alert">{checklistState.message}</p>
-      ) : null}
-
-      {checklistState.status === "success" ? (
-        <>
-          <ChecklistPanel checklist={checklistState.checklist} />
-
-          <ReviewSummaryForm
-            isSubmitting={finalAssessmentState.status === "loading"}
-            onSubmit={handleFinalAssessmentSubmit}
-          />
-
-          {finalAssessmentState.status === "loading" ? (
-            <p role="status">Generating final assessment...</p>
-          ) : null}
-
-          {finalAssessmentState.status === "error" ? (
-            <p role="alert">{finalAssessmentState.message}</p>
-          ) : null}
-
-          {finalAssessmentState.status === "success" ? (
-            <FinalAssessmentPanel
-              assessment={finalAssessmentState.assessment}
+        <div className="content-grid">
+          <section className="workflow-column" aria-label="Review workflow">
+            <ConcernInputForm
+              isSubmitting={checklistState.status === "loading"}
+              onSubmit={handleChecklistSubmit}
             />
-          ) : null}
-        </>
-      ) : null}
-    </main>
+
+            {checklistState.status === "idle" ? (
+              <div className="status-banner status-neutral">
+                No checklist generated yet.
+              </div>
+            ) : null}
+
+            {checklistState.status === "loading" ? (
+              <div className="status-banner status-loading" role="status">
+                <span className="spinner" aria-hidden="true" />
+                Generating checklist...
+              </div>
+            ) : null}
+
+            {checklistState.status === "error" ? (
+              <div className="status-banner status-error" role="alert">
+                {checklistState.message}
+              </div>
+            ) : null}
+
+            {checklistState.status === "success" ? (
+              <>
+                <ChecklistPanel checklist={checklistState.checklist} />
+
+                <ReviewSummaryForm
+                  isSubmitting={finalAssessmentState.status === "loading"}
+                  onSubmit={handleFinalAssessmentSubmit}
+                />
+
+                {finalAssessmentState.status === "loading" ? (
+                  <div className="status-banner status-loading" role="status">
+                    <span className="spinner" aria-hidden="true" />
+                    Generating final assessment...
+                  </div>
+                ) : null}
+
+                {finalAssessmentState.status === "error" ? (
+                  <div className="status-banner status-error" role="alert">
+                    {finalAssessmentState.message}
+                  </div>
+                ) : null}
+
+                {finalAssessmentState.status === "success" ? (
+                  <FinalAssessmentPanel
+                    assessment={finalAssessmentState.assessment}
+                  />
+                ) : null}
+              </>
+            ) : null}
+          </section>
+
+          <aside className="sidebar" aria-label="Demo context">
+            <section className="card sidebar-card">
+              <p className="eyebrow">Demo boundary</p>
+              <h2>Synthetic data only</h2>
+              <p>
+                This public workbench does not access real customer records,
+                prescriptions, compounding records, inventory systems, or
+                licensed drug-information sources.
+              </p>
+            </section>
+
+            <section className="card sidebar-card">
+              <p className="eyebrow">Workflow ownership</p>
+              <h2>Human review stays central</h2>
+              <ul className="sidebar-list">
+                <li>Evidence supports the checklist.</li>
+                <li>Reviewer findings drive final routing.</li>
+                <li>Unsupported record-access requests are refused.</li>
+                <li>The final decision remains with the pharmacist reviewer.</li>
+              </ul>
+            </section>
+
+            <section className="card sidebar-card accent-card">
+              <p className="eyebrow">Current retrieval path</p>
+              <h2>Keyword retrieval</h2>
+              <p>
+                Keyword retrieval remains the default application path.
+                Embedding and hybrid retrieval remain evaluation baselines.
+              </p>
+            </section>
+          </aside>
+        </div>
+      </main>
+
+      <footer className="footer">
+        Synthetic learning artifact · Not production policy or clinical advice
+      </footer>
+    </div>
   );
 }
 

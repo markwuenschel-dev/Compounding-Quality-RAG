@@ -8,58 +8,62 @@ export function FinalAssessmentPanel({ assessment }: FinalAssessmentPanelProps) 
   const derivedAssessment = assessment.derivedAssessment;
 
   return (
-    <section aria-label="Final assessment result">
-      <h2>Final assessment result</h2>
+    <section
+      className="card workflow-card final-card"
+      aria-label="Final assessment result"
+    >
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Step 4</p>
+          <h2>Final assessment result</h2>
+          <p>
+            Structured review-support output derived from the concern,
+            retrieved evidence, and reviewer-confirmed findings.
+          </p>
+        </div>
+        <span className="success-pill">Assessment ready</span>
+      </div>
 
       {derivedAssessment ? (
         <>
-          <dl>
+          <div className="assessment-banner">
             <div>
-              <dt>Reviewer assigned classification</dt>
-              <dd>
-                {derivedAssessment.reviewerAssignedClassification ??
-                  "Not provided"}
-              </dd>
+              <span>Recommended handling path</span>
+              <strong>
+                {derivedAssessment.handlingPath ?? "Not provided"}
+              </strong>
             </div>
             <div>
-              <dt>Reviewer assigned category</dt>
-              <dd>
-                {derivedAssessment.reviewerAssignedCategory ?? "Not provided"}
-              </dd>
+              <span>Resolution review required</span>
+              <strong>
+                {formatBoolean(derivedAssessment.resolutionReviewRequired)}
+              </strong>
             </div>
-            <div>
-              <dt>Reviewer assigned subcategory</dt>
-              <dd>
-                {derivedAssessment.reviewerAssignedSubcategory ??
-                  "Not provided"}
-              </dd>
-            </div>
-            <div>
-              <dt>Concern type</dt>
-              <dd>{derivedAssessment.concernType ?? "Not provided"}</dd>
-            </div>
-            <div>
-              <dt>Risk lane</dt>
-              <dd>{derivedAssessment.riskLane ?? "Not provided"}</dd>
-            </div>
-            <div>
-              <dt>Review scope</dt>
-              <dd>{derivedAssessment.reviewScope ?? "Not provided"}</dd>
-            </div>
-            <div>
-              <dt>Handling path</dt>
-              <dd>{derivedAssessment.handlingPath ?? "Not provided"}</dd>
-            </div>
-            <div>
-              <dt>Resolution review required</dt>
-              <dd>{formatBoolean(derivedAssessment.resolutionReviewRequired)}</dd>
-            </div>
-          </dl>
+          </div>
+
+          <div className="metric-grid">
+            <Metric
+              label="Classification"
+              value={derivedAssessment.reviewerAssignedClassification}
+            />
+            <Metric
+              label="Category"
+              value={derivedAssessment.reviewerAssignedCategory}
+            />
+            <Metric
+              label="Subcategory"
+              value={derivedAssessment.reviewerAssignedSubcategory}
+            />
+            <Metric label="Concern type" value={derivedAssessment.concernType} />
+            <Metric label="Risk lane" value={derivedAssessment.riskLane} />
+            <Metric label="Review scope" value={derivedAssessment.reviewScope} />
+          </div>
 
           <ListSection
             label="Escalation triggers"
             emptyMessage="No escalation triggers returned."
             items={derivedAssessment.escalationTriggers}
+            tone="warning"
           />
 
           <ListSection
@@ -69,16 +73,30 @@ export function FinalAssessmentPanel({ assessment }: FinalAssessmentPanelProps) 
           />
 
           {derivedAssessment.rationale ? (
-            <section aria-label="Rationale">
+            <section className="callout rationale-card" aria-label="Rationale">
               <h3>Rationale</h3>
               <p>{derivedAssessment.rationale}</p>
             </section>
           ) : null}
         </>
       ) : (
-        <p>No derived assessment returned.</p>
+        <p className="empty-state">No derived assessment returned.</p>
       )}
     </section>
+  );
+}
+
+type MetricProps = {
+  label: string;
+  value: string | null;
+};
+
+function Metric({ label, value }: MetricProps) {
+  return (
+    <div className="metric-card">
+      <span>{label}</span>
+      <strong>{value ?? "Not provided"}</strong>
+    </div>
   );
 }
 
@@ -86,16 +104,28 @@ type ListSectionProps = {
   label: string;
   emptyMessage: string;
   items: string[];
+  tone?: "default" | "warning";
 };
 
-function ListSection({ label, emptyMessage, items }: ListSectionProps) {
+function ListSection({
+  label,
+  emptyMessage,
+  items,
+  tone = "default",
+}: ListSectionProps) {
   return (
-    <section aria-label={label}>
-      <h3>{label}</h3>
+    <section
+      className={`result-section result-section-${tone}`}
+      aria-label={label}
+    >
+      <div className="result-section-heading">
+        <h3>{label}</h3>
+        <span>{items.length}</span>
+      </div>
       {items.length === 0 ? (
-        <p>{emptyMessage}</p>
+        <p className="empty-state">{emptyMessage}</p>
       ) : (
-        <ul>
+        <ul className="compact-list">
           {items.map((item) => (
             <li key={item}>{item}</li>
           ))}
