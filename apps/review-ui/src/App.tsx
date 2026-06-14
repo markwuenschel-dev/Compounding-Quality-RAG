@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   createChecklist,
   createFinalAssessment,
+  getReviewApiErrorMessage,
   ReviewApiError,
 } from "./api/reviewApi";
 import type {
@@ -9,6 +10,7 @@ import type {
   FinalAssessmentResponse,
   ReviewSummaryRequest,
 } from "./api/types";
+import { BackendStatus } from "./components/BackendStatus";
 import { ChecklistPanel } from "./components/ChecklistPanel";
 import { ConcernInputForm } from "./components/ConcernInputForm";
 import { DemoToolbar } from "./components/DemoToolbar";
@@ -20,21 +22,31 @@ import {
   getDemoCase,
   type DemoCaseId,
 } from "./demo/demoCases";
+import { useBackendReadiness } from "./hooks/useBackendReadiness";
 import "./demoControls.css";
+import "./readiness.css";
+
+type WorkflowError = {
+  message: string;
+  retryable: boolean;
+};
 
 type ChecklistState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "success"; checklist: ChecklistResponse }
-  | { status: "error"; message: string };
+  | { status: "error"; error: WorkflowError };
 
 type FinalAssessmentState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "success"; assessment: FinalAssessmentResponse }
-  | { status: "error"; message: string };
+  | { status: "error"; error: WorkflowError };
 
 export function App() {
+  const readiness = useBackendReadiness();
+  const backendReady = readiness.status === "ready";
+
   const [selectedDemoCaseId, setSelectedDemoCaseId] =
     useState<DemoCaseId>(DEFAULT_DEMO_CASE_ID);
   const [workflowVersion, setWorkflowVersion] = useState(0);
@@ -42,10 +54,12 @@ export function App() {
   const [draftConcernText, setDraftConcernText] = useState("");
   const [reviewSummarySeed, setReviewSummarySeed] =
     useState<ReviewSummaryRequest>();
-  const [submittedConcernText, setSubmittedConcernText] = useState("");
-  const [checklistState, setChecklistState] = useState<ChecklistState>({
-    status: "idle",
-  });
+  const [submittedConcernText, setSubmittedConcernText] =
+    useState("");
+  const [lastReviewSummary, setLastReviewSummary] =
+    useState<ReviewSummaryRequest>();
+  const [checklistState, setChecklistState] =
+    useState<ChecklistState>({ status: "idle" });
   const [finalAssessmentState, setFinalAssessmentState] =
     useState<FinalAssessmentState>({ status: "idle" });
 
@@ -54,7 +68,11 @@ export function App() {
       draftConcernText.trim().length > 0 ||
       checklistState.status !== "idle" ||
       finalAssessmentState.status !== "idle",
-    [draftConcernText, checklistState.status, finalAssessmentState.status],
+    [
+      draftConcernText,
+      checklistState.status,
+      finalAssessmentState.status,
+    ],
   );
 
   function handleLoadDemoCase() {
@@ -64,6 +82,7 @@ export function App() {
     setDraftConcernText(demoCase.concernText);
     setReviewSummarySeed(demoCase.reviewSummary);
     setSubmittedConcernText("");
+    setLastReviewSummary(undefined);
     setChecklistState({ status: "idle" });
     setFinalAssessmentState({ status: "idle" });
     setWorkflowVersion((version) => version + 1);
@@ -75,12 +94,17 @@ export function App() {
     setDraftConcernText("");
     setReviewSummarySeed(undefined);
     setSubmittedConcernText("");
+    setLastReviewSummary(undefined);
     setChecklistState({ status: "idle" });
     setFinalAssessmentState({ status: "idle" });
     setWorkflowVersion((version) => version + 1);
   }
 
   async function handleChecklistSubmit(concernText: string) {
+    if (!backendReady) {
+      return;
+    }
+
     setSubmittedConcernText(concernText);
     setChecklistState({ status: "loading" });
     setFinalAssessmentState({ status: "idle" });
@@ -91,7 +115,10 @@ export function App() {
     } catch (error) {
       setChecklistState({
         status: "error",
-        message: getWorkflowErrorMessage(error, "Unable to generate checklist."),
+        error: toWorkflowError(
+          error,
+          "Unable to generate checklist.",
+        ),
       });
     }
   }
@@ -99,6 +126,11 @@ export function App() {
   async function handleFinalAssessmentSubmit(
     reviewSummary: ReviewSummaryRequest,
   ) {
+    if (!backendReady) {
+      return;
+    }
+
+    setLastReviewSummary(reviewSummary);
     setFinalAssessmentState({ status: "loading" });
 
     try {
@@ -108,16 +140,38 @@ export function App() {
         reviewSummary,
       });
 
-      setFinalAssessmentState({ status: "success", assessment });
+      setFinalAssessmentState({
+        status: "success",
+        assessment,
+      });
     } catch (error) {
       setFinalAssessmentState({
         status: "error",
-        message: getWorkflowErrorMessage(
+        error: toWorkflowError(
           error,
           "Unable to generate final assessment.",
         ),
       });
     }
+  }
+
+  function handleRetryChecklist() {
+    if (
+      submittedConcernText.length === 0 ||
+      !backendReady
+    ) {
+      return;
+    }
+
+    void handleChecklistSubmit(submittedConcernText);
+  }
+
+  function handleRetryFinalAssessment() {
+    if (!lastReviewSummary || !backendReady) {
+      return;
+    }
+
+    void handleFinalAssessmentSubmit(lastReviewSummary);
   }
 
   return (
@@ -128,25 +182,36 @@ export function App() {
             CQ
           </div>
           <div>
-            <p className="brand-name">Compounding Quality</p>
-            <p className="brand-subtitle">Review Support Workbench</p>
+            <p className="brand-name">
+              Compounding Quality
+            </p>
+            <p className="brand-subtitle">
+              Review Support Workbench
+            </p>
           </div>
         </div>
-        <span className="environment-pill">Synthetic demo</span>
+        <span className="environment-pill">
+          Synthetic demo
+        </span>
       </header>
 
       <main className="page-shell">
         <section className="hero">
           <div>
-            <p className="eyebrow">Human-in-the-loop workflow</p>
+            <p className="eyebrow">
+              Human-in-the-loop workflow
+            </p>
             <h1>Compounding Quality Review</h1>
             <p className="hero-copy">
-              Turn a synthetic concern narrative into a grounded checklist,
-              capture reviewer findings, and produce a structured final
-              assessment without hiding the evidence or review boundary.
+              Turn a synthetic concern narrative into a
+              grounded checklist, capture reviewer findings,
+              and produce a structured final assessment
+              without hiding the evidence or review boundary.
             </p>
           </div>
         </section>
+
+        <BackendStatus readiness={readiness} />
 
         <WorkflowProgress
           checklistStatus={checklistState.status}
@@ -154,7 +219,10 @@ export function App() {
         />
 
         <div className="content-grid">
-          <section className="workflow-column" aria-label="Review workflow">
+          <section
+            className="workflow-column"
+            aria-label="Review workflow"
+          >
             <DemoToolbar
               selectedDemoCaseId={selectedDemoCaseId}
               onSelectedDemoCaseChange={setSelectedDemoCaseId}
@@ -166,6 +234,7 @@ export function App() {
             <ConcernInputForm
               key={`concern-${workflowVersion}`}
               isSubmitting={checklistState.status === "loading"}
+              isSubmissionDisabled={!backendReady}
               onSubmit={handleChecklistSubmit}
               initialConcernText={concernSeed}
               onConcernTextChange={setDraftConcernText}
@@ -178,79 +247,143 @@ export function App() {
             ) : null}
 
             {checklistState.status === "loading" ? (
-              <div className="status-banner status-loading" role="status">
-                <span className="spinner" aria-hidden="true" />
+              <div
+                className="status-banner status-loading"
+                role="status"
+              >
+                <span
+                  className="spinner"
+                  aria-hidden="true"
+                />
                 Generating checklist...
               </div>
             ) : null}
 
             {checklistState.status === "error" ? (
-              <div className="status-banner status-error" role="alert">
-                {checklistState.message}
+              <div
+                className="status-banner status-error"
+                role="alert"
+              >
+                <span>{checklistState.error.message}</span>
+                {checklistState.error.retryable ? (
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    onClick={handleRetryChecklist}
+                    disabled={!backendReady}
+                  >
+                    Retry checklist
+                  </button>
+                ) : null}
               </div>
             ) : null}
 
             {checklistState.status === "success" ? (
               <>
-                <ChecklistPanel checklist={checklistState.checklist} />
+                <ChecklistPanel
+                  checklist={checklistState.checklist}
+                />
 
                 <ReviewSummaryForm
                   key={`review-${workflowVersion}`}
-                  isSubmitting={finalAssessmentState.status === "loading"}
+                  isSubmitting={
+                    finalAssessmentState.status === "loading"
+                  }
+                  isSubmissionDisabled={!backendReady}
                   onSubmit={handleFinalAssessmentSubmit}
                   initialValues={reviewSummarySeed}
                 />
 
                 {finalAssessmentState.status === "loading" ? (
-                  <div className="status-banner status-loading" role="status">
-                    <span className="spinner" aria-hidden="true" />
+                  <div
+                    className="status-banner status-loading"
+                    role="status"
+                  >
+                    <span
+                      className="spinner"
+                      aria-hidden="true"
+                    />
                     Generating final assessment...
                   </div>
                 ) : null}
 
                 {finalAssessmentState.status === "error" ? (
-                  <div className="status-banner status-error" role="alert">
-                    {finalAssessmentState.message}
+                  <div
+                    className="status-banner status-error"
+                    role="alert"
+                  >
+                    <span>
+                      {finalAssessmentState.error.message}
+                    </span>
+                    {finalAssessmentState.error.retryable ? (
+                      <button
+                        className="ghost-button"
+                        type="button"
+                        onClick={handleRetryFinalAssessment}
+                        disabled={!backendReady}
+                      >
+                        Retry final assessment
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
 
                 {finalAssessmentState.status === "success" ? (
                   <FinalAssessmentPanel
-                    assessment={finalAssessmentState.assessment}
+                    assessment={
+                      finalAssessmentState.assessment
+                    }
                   />
                 ) : null}
               </>
             ) : null}
           </section>
 
-          <aside className="sidebar" aria-label="Demo context">
+          <aside
+            className="sidebar"
+            aria-label="Demo context"
+          >
             <section className="card sidebar-card">
               <p className="eyebrow">Demo boundary</p>
               <h2>Synthetic data only</h2>
               <p>
-                This public workbench does not access real customer records,
-                prescriptions, compounding records, inventory systems, or
-                licensed drug-information sources.
+                This public workbench does not access real
+                customer records, prescriptions, compounding
+                records, inventory systems, or licensed
+                drug-information sources.
               </p>
             </section>
 
             <section className="card sidebar-card">
-              <p className="eyebrow">Workflow ownership</p>
+              <p className="eyebrow">
+                Workflow ownership
+              </p>
               <h2>Human review stays central</h2>
               <ul className="sidebar-list">
                 <li>Evidence supports the checklist.</li>
-                <li>Reviewer findings drive final routing.</li>
-                <li>Unsupported record-access requests are refused.</li>
-                <li>The final decision remains with the pharmacist reviewer.</li>
+                <li>
+                  Reviewer findings drive final routing.
+                </li>
+                <li>
+                  Unsupported record-access requests are
+                  refused.
+                </li>
+                <li>
+                  The final decision remains with the
+                  pharmacist reviewer.
+                </li>
               </ul>
             </section>
 
             <section className="card sidebar-card accent-card">
-              <p className="eyebrow">Current retrieval path</p>
+              <p className="eyebrow">
+                Current retrieval path
+              </p>
               <h2>Keyword retrieval</h2>
               <p>
-                Keyword retrieval remains the default application path.
-                Embedding and hybrid retrieval remain evaluation baselines.
+                Keyword retrieval remains the default
+                application path. Embedding and hybrid
+                retrieval remain evaluation baselines.
               </p>
             </section>
           </aside>
@@ -258,20 +391,33 @@ export function App() {
       </main>
 
       <footer className="footer">
-        Synthetic learning artifact · Not production policy or clinical advice
+        Synthetic learning artifact · Not production policy or
+        clinical advice
       </footer>
     </div>
   );
 }
 
-function getWorkflowErrorMessage(error: unknown, fallbackMessage: string): string {
+function toWorkflowError(
+  error: unknown,
+  fallbackMessage: string,
+): WorkflowError {
   if (error instanceof ReviewApiError) {
-    return error.message;
+    return {
+      message: getReviewApiErrorMessage(error, fallbackMessage),
+      retryable: error.retryable,
+    };
   }
 
   if (error instanceof Error) {
-    return error.message;
+    return {
+      message: error.message,
+      retryable: false,
+    };
   }
 
-  return fallbackMessage;
+  return {
+    message: fallbackMessage,
+    retryable: false,
+  };
 }

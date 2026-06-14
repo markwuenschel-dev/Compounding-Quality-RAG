@@ -5,6 +5,7 @@ type ReviewSummaryFormProps = {
   isSubmitting: boolean;
   onSubmit: (reviewSummary: ReviewSummaryRequest) => Promise<void>;
   initialValues?: ReviewSummaryRequest;
+  isSubmissionDisabled?: boolean;
 };
 
 const EMPTY_REVIEW_SUMMARY: ReviewSummaryRequest = {
@@ -22,6 +23,7 @@ export function ReviewSummaryForm({
   isSubmitting,
   onSubmit,
   initialValues = EMPTY_REVIEW_SUMMARY,
+  isSubmissionDisabled = false,
 }: ReviewSummaryFormProps) {
   const [recordReviewResult, setRecordReviewResult] = useState(
     initialValues.recordReviewResult,
@@ -54,7 +56,10 @@ export function ReviewSummaryForm({
     inventoryInspectionResult.trim().length > 0 &&
     apiReferenceReviewResult.trim().length > 0;
 
-  const canSubmit = requiredFieldsComplete && !isSubmitting;
+  const canSubmit =
+    requiredFieldsComplete &&
+    !isSubmitting &&
+    !isSubmissionDisabled;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

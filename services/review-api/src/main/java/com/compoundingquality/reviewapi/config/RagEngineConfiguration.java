@@ -16,45 +16,45 @@ import tools.jackson.databind.json.JsonMapper;
 @EnableConfigurationProperties(RagEngineConfiguration.PythonRagEngineSettings.class)
 public class RagEngineConfiguration {
 
-    @Bean
-    public RagEngineClient ragEngineClient(
-            JsonMapper jsonMapper,
-            PythonRagEngineSettings settings
-    ) {
-        return new PythonProcessRagEngineClient(
-                jsonMapper,
-                settings.toClientProperties()
-        );
-    }
-
-    @ConfigurationProperties(prefix = "rag.python")
-    public record PythonRagEngineSettings(
-            List<String> command,
-            String workingDirectory,
-            Duration timeout
-    ) {
-        private static final List<String> DEFAULT_COMMAND =
-                List.of("python", "-m", "app.api_runner");
-        private static final String DEFAULT_WORKING_DIRECTORY =
-                "../../rag-engine-python";
-        private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(10);
-
-        public PythonRagEngineSettings {
-            command = command == null || command.isEmpty()
-                    ? DEFAULT_COMMAND
-                    : List.copyOf(command);
-            workingDirectory = workingDirectory == null || workingDirectory.isBlank()
-                    ? DEFAULT_WORKING_DIRECTORY
-                    : workingDirectory;
-            timeout = timeout == null ? DEFAULT_TIMEOUT : timeout;
+        @Bean
+        public PythonProcessRagEngineProperties pythonProcessRagEngineProperties(
+                        PythonRagEngineSettings settings) {
+                return settings.toClientProperties();
         }
 
-        PythonProcessRagEngineProperties toClientProperties() {
-            return new PythonProcessRagEngineProperties(
-                    command,
-                    Path.of(workingDirectory),
-                    timeout
-            );
+        @Bean
+        public RagEngineClient ragEngineClient(
+                        JsonMapper jsonMapper,
+                        PythonProcessRagEngineProperties properties) {
+                return new PythonProcessRagEngineClient(
+                                jsonMapper,
+                                properties);
         }
-    }
+
+        @ConfigurationProperties(prefix = "rag.python")
+        public record PythonRagEngineSettings(
+                        List<String> command,
+                        String workingDirectory,
+                        Duration timeout) {
+                private static final List<String> DEFAULT_COMMAND = List.of("python", "-m", "app.api_runner");
+                private static final String DEFAULT_WORKING_DIRECTORY = "../../rag-engine-python";
+                private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(10);
+
+                public PythonRagEngineSettings {
+                        command = command == null || command.isEmpty()
+                                        ? DEFAULT_COMMAND
+                                        : List.copyOf(command);
+                        workingDirectory = workingDirectory == null || workingDirectory.isBlank()
+                                        ? DEFAULT_WORKING_DIRECTORY
+                                        : workingDirectory;
+                        timeout = timeout == null ? DEFAULT_TIMEOUT : timeout;
+                }
+
+                PythonProcessRagEngineProperties toClientProperties() {
+                        return new PythonProcessRagEngineProperties(
+                                        command,
+                                        Path.of(workingDirectory),
+                                        timeout);
+                }
+        }
 }

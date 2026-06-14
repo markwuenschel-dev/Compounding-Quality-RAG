@@ -145,3 +145,17 @@ export type ApiFieldErrorDetail = {
   rejectedValue?: unknown;
   code?: string | null;
 };
+
+export type ReadinessStatus = "READY" | "NOT_READY";
+
+export type ReadinessCheck = {
+  name: string;
+  status: "UP" | "DOWN";
+  detail: string;
+};
+
+export type ReadinessResponse = {
+  status: ReadinessStatus;
+  checks: ReadinessCheck[];
+  timestamp: string;
+};

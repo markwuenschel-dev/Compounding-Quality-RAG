@@ -19,9 +19,9 @@ import type {
 } from "./api/types";
 import { FinalAssessmentPanel } from "./components/FinalAssessmentPanel";
 
-vi.mock("./api/reviewApi", async () => {
+vi.mock("./api/reviewApi", async (importOriginal) => {
   const actual =
-    await vi.importActual<typeof import("./api/reviewApi")>("./api/reviewApi");
+    await importOriginal<typeof import("./api/reviewApi")>();
 
   return {
     ...actual,
@@ -29,6 +29,20 @@ vi.mock("./api/reviewApi", async () => {
     createFinalAssessment: vi.fn(),
   };
 });
+
+vi.mock("./hooks/useBackendReadiness", () => ({
+  useBackendReadiness: () => ({
+    status: "ready",
+    response: {
+      status: "READY",
+      checks: [],
+      timestamp: "2026-06-14T12:00:00Z",
+    },
+    message: "Backend ready",
+    isRefreshing: false,
+    refresh: async () => {},
+  }),
+}));
 
 const createChecklistMock = vi.mocked(createChecklist);
 const createFinalAssessmentMock = vi.mocked(createFinalAssessment);
@@ -93,7 +107,7 @@ describe("App", () => {
     const user = userEvent.setup();
 
     createChecklistMock.mockImplementationOnce(
-      () => new Promise<ChecklistResponse>(() => {}),
+      () => new Promise<ChecklistResponse>(() => { }),
     );
 
     render(<App />);
@@ -115,16 +129,22 @@ describe("App", () => {
     const user = userEvent.setup();
 
     createChecklistMock.mockRejectedValueOnce(
-      new ReviewApiError("concernText must not be blank", 400, {
-        timestamp: "2026-06-11T20:00:00Z",
-        status: 400,
-        error: "Bad Request",
-        message: "concernText must not be blank",
-        path: "/api/checklist",
-        requestId: "req-1",
-        fieldErrors: [],
-        code: "VALIDATION_ERROR",
-      }),
+      new ReviewApiError(
+        "concernText must not be blank",
+        "validation",
+        400,
+        {
+          timestamp: "2026-06-11T20:00:00Z",
+          status: 400,
+          error: "Bad Request",
+          message: "concernText must not be blank",
+          path: "/api/checklist",
+          requestId: null,
+          fieldErrors: [],
+          code: "VALIDATION_ERROR",
+        },
+        false,
+      )
     );
 
     render(<App />);
@@ -310,16 +330,22 @@ describe("App", () => {
 
     createChecklistMock.mockResolvedValueOnce(buildChecklistResponse());
     createFinalAssessmentMock.mockRejectedValueOnce(
-      new ReviewApiError("reviewSummary is required", 400, {
-        timestamp: "2026-06-11T20:00:00Z",
-        status: 400,
-        error: "Bad Request",
-        message: "reviewSummary is required",
-        path: "/api/final-assessment",
-        requestId: "req-2",
-        fieldErrors: [],
-        code: "VALIDATION_ERROR",
-      }),
+      new ReviewApiError(
+        "reviewSummary is required",
+        "validation",
+        400,
+        {
+          timestamp: "2026-06-11T20:00:00Z",
+          status: 400,
+          error: "Bad Request",
+          message: "reviewSummary is required",
+          path: "/api/final-assessment",
+          requestId: null,
+          fieldErrors: [],
+          code: "VALIDATION_ERROR",
+        },
+        false,
+      )
     );
 
     render(<App />);

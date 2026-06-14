@@ -1,0 +1,56 @@
+.backend-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  background: var(--surface);
+}
+
+.backend-status strong {
+  display: block;
+  margin-bottom: 0.15rem;
+  color: var(--navy);
+}
+
+.backend-status p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.backend-status-ready {
+  border-color: rgba(21, 115, 71, 0.28);
+  background: var(--green-soft);
+}
+
+.backend-status-checking {
+  border-color: rgba(8, 127, 140, 0.25);
+  background: var(--teal-soft);
+}
+
+.backend-status-unavailable {
+  border-color: rgba(180, 35, 24, 0.25);
+  background: var(--red-soft);
+}
+
+.status-banner {
+  justify-content: space-between;
+}
+
+@media (max-width: 640px) {
+  .backend-status,
+  .status-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .backend-status button,
+  .status-banner button {
+    width: 100%;
+  }
+}
