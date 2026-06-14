@@ -2,19 +2,23 @@ import { useMemo, useState } from "react";
 import {
   createChecklist,
   createFinalAssessment,
+  extractReviewSummary,
   getReviewApiErrorMessage,
   ReviewApiError,
 } from "./api/reviewApi";
 import type {
   ChecklistResponse,
   FinalAssessmentResponse,
+  ReviewSummaryExtractResponse,
   ReviewSummaryRequest,
 } from "./api/types";
 import { BackendStatus } from "./components/BackendStatus";
 import { ChecklistPanel } from "./components/ChecklistPanel";
 import { ConcernInputForm } from "./components/ConcernInputForm";
 import { DemoToolbar } from "./components/DemoToolbar";
+import { ExtractedFindingsPanel } from "./components/ExtractedFindingsPanel";
 import { FinalAssessmentPanel } from "./components/FinalAssessmentPanel";
+import { InvestigationNotesForm } from "./components/InvestigationNotesForm";
 import { ReviewSummaryForm } from "./components/ReviewSummaryForm";
 import { WorkflowProgress } from "./components/WorkflowProgress";
 import {
@@ -24,6 +28,7 @@ import {
 } from "./demo/demoCases";
 import { useBackendReadiness } from "./hooks/useBackendReadiness";
 import "./demoControls.css";
+import "./extraction.css";
 import "./readiness.css";
 
 type WorkflowError = {
@@ -34,56 +39,105 @@ type WorkflowError = {
 type ChecklistState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "success"; checklist: ChecklistResponse }
+  | {
+      status: "success";
+      checklist: ChecklistResponse;
+    }
+  | { status: "error"; error: WorkflowError };
+
+type ExtractionState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | {
+      status: "success";
+      extraction: ReviewSummaryExtractResponse;
+    }
   | { status: "error"; error: WorkflowError };
 
 type FinalAssessmentState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "success"; assessment: FinalAssessmentResponse }
+  | {
+      status: "success";
+      assessment: FinalAssessmentResponse;
+    }
   | { status: "error"; error: WorkflowError };
 
 export function App() {
   const readiness = useBackendReadiness();
   const backendReady = readiness.status === "ready";
 
-  const [selectedDemoCaseId, setSelectedDemoCaseId] =
-    useState<DemoCaseId>(DEFAULT_DEMO_CASE_ID);
-  const [workflowVersion, setWorkflowVersion] = useState(0);
+  const [
+    selectedDemoCaseId,
+    setSelectedDemoCaseId,
+  ] = useState<DemoCaseId>(DEFAULT_DEMO_CASE_ID);
+  const [workflowVersion, setWorkflowVersion] =
+    useState(0);
+  const [extractionVersion, setExtractionVersion] =
+    useState(0);
   const [concernSeed, setConcernSeed] = useState("");
-  const [draftConcernText, setDraftConcernText] = useState("");
-  const [reviewSummarySeed, setReviewSummarySeed] =
-    useState<ReviewSummaryRequest>();
-  const [submittedConcernText, setSubmittedConcernText] =
+  const [draftConcernText, setDraftConcernText] =
     useState("");
-  const [lastReviewSummary, setLastReviewSummary] =
-    useState<ReviewSummaryRequest>();
+  const [
+    pharmacistNotesSeed,
+    setPharmacistNotesSeed,
+  ] = useState("");
+  const [
+    draftPharmacistNotes,
+    setDraftPharmacistNotes,
+  ] = useState("");
+  const [
+    lastExtractedNotes,
+    setLastExtractedNotes,
+  ] = useState("");
+  const [
+    submittedConcernText,
+    setSubmittedConcernText,
+  ] = useState("");
+  const [
+    lastReviewSummary,
+    setLastReviewSummary,
+  ] = useState<ReviewSummaryRequest>();
   const [checklistState, setChecklistState] =
     useState<ChecklistState>({ status: "idle" });
-  const [finalAssessmentState, setFinalAssessmentState] =
-    useState<FinalAssessmentState>({ status: "idle" });
+  const [extractionState, setExtractionState] =
+    useState<ExtractionState>({ status: "idle" });
+  const [
+    finalAssessmentState,
+    setFinalAssessmentState,
+  ] = useState<FinalAssessmentState>({
+    status: "idle",
+  });
 
   const canStartOver = useMemo(
     () =>
       draftConcernText.trim().length > 0 ||
+      draftPharmacistNotes.trim().length > 0 ||
       checklistState.status !== "idle" ||
+      extractionState.status !== "idle" ||
       finalAssessmentState.status !== "idle",
     [
       draftConcernText,
+      draftPharmacistNotes,
       checklistState.status,
+      extractionState.status,
       finalAssessmentState.status,
     ],
   );
 
   function handleLoadDemoCase() {
     const demoCase = getDemoCase(selectedDemoCaseId);
+    const notes = demoCase.pharmacistNotes ?? "";
 
     setConcernSeed(demoCase.concernText);
     setDraftConcernText(demoCase.concernText);
-    setReviewSummarySeed(demoCase.reviewSummary);
+    setPharmacistNotesSeed(notes);
+    setDraftPharmacistNotes(notes);
+    setLastExtractedNotes("");
     setSubmittedConcernText("");
     setLastReviewSummary(undefined);
     setChecklistState({ status: "idle" });
+    setExtractionState({ status: "idle" });
     setFinalAssessmentState({ status: "idle" });
     setWorkflowVersion((version) => version + 1);
   }
@@ -92,32 +146,91 @@ export function App() {
     setSelectedDemoCaseId(DEFAULT_DEMO_CASE_ID);
     setConcernSeed("");
     setDraftConcernText("");
-    setReviewSummarySeed(undefined);
+    setPharmacistNotesSeed("");
+    setDraftPharmacistNotes("");
+    setLastExtractedNotes("");
     setSubmittedConcernText("");
     setLastReviewSummary(undefined);
     setChecklistState({ status: "idle" });
+    setExtractionState({ status: "idle" });
     setFinalAssessmentState({ status: "idle" });
     setWorkflowVersion((version) => version + 1);
   }
 
-  async function handleChecklistSubmit(concernText: string) {
+  function handlePharmacistNotesChange(notes: string) {
+    setDraftPharmacistNotes(notes);
+
+    if (
+      extractionState.status === "success" &&
+      notes.trim() !== lastExtractedNotes
+    ) {
+      setExtractionState({ status: "idle" });
+      setLastReviewSummary(undefined);
+      setFinalAssessmentState({ status: "idle" });
+    }
+  }
+
+  async function handleChecklistSubmit(
+    concernText: string,
+  ) {
     if (!backendReady) {
       return;
     }
 
     setSubmittedConcernText(concernText);
     setChecklistState({ status: "loading" });
+    setExtractionState({ status: "idle" });
     setFinalAssessmentState({ status: "idle" });
 
     try {
-      const checklist = await createChecklist({ concernText });
-      setChecklistState({ status: "success", checklist });
+      const checklist = await createChecklist({
+        concernText,
+      });
+      setChecklistState({
+        status: "success",
+        checklist,
+      });
     } catch (error) {
       setChecklistState({
         status: "error",
         error: toWorkflowError(
           error,
           "Unable to generate checklist.",
+        ),
+      });
+    }
+  }
+
+  async function handleExtractionSubmit(
+    pharmacistNotes: string,
+  ) {
+    if (!backendReady) {
+      return;
+    }
+
+    setDraftPharmacistNotes(pharmacistNotes);
+    setLastExtractedNotes(pharmacistNotes);
+    setExtractionState({ status: "loading" });
+    setFinalAssessmentState({ status: "idle" });
+    setLastReviewSummary(undefined);
+
+    try {
+      const extraction = await extractReviewSummary({
+        concernText: submittedConcernText,
+        pharmacistNotes,
+      });
+
+      setExtractionState({
+        status: "success",
+        extraction,
+      });
+      setExtractionVersion((version) => version + 1);
+    } catch (error) {
+      setExtractionState({
+        status: "error",
+        error: toWorkflowError(
+          error,
+          "Unable to extract reviewer findings.",
         ),
       });
     }
@@ -134,11 +247,12 @@ export function App() {
     setFinalAssessmentState({ status: "loading" });
 
     try {
-      const assessment = await createFinalAssessment({
-        concernText: submittedConcernText,
-        topK: 3,
-        reviewSummary,
-      });
+      const assessment =
+        await createFinalAssessment({
+          concernText: submittedConcernText,
+          topK: 3,
+          reviewSummary,
+        });
 
       setFinalAssessmentState({
         status: "success",
@@ -166,6 +280,17 @@ export function App() {
     void handleChecklistSubmit(submittedConcernText);
   }
 
+  function handleRetryExtraction() {
+    if (
+      lastExtractedNotes.length === 0 ||
+      !backendReady
+    ) {
+      return;
+    }
+
+    void handleExtractionSubmit(lastExtractedNotes);
+  }
+
   function handleRetryFinalAssessment() {
     if (!lastReviewSummary || !backendReady) {
       return;
@@ -178,7 +303,10 @@ export function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-lockup">
-          <div className="brand-mark" aria-hidden="true">
+          <div
+            className="brand-mark"
+            aria-hidden="true"
+          >
             CQ
           </div>
           <div>
@@ -203,10 +331,10 @@ export function App() {
             </p>
             <h1>Compounding Quality Review</h1>
             <p className="hero-copy">
-              Turn a synthetic concern narrative into a
-              grounded checklist, capture reviewer findings,
-              and produce a structured final assessment
-              without hiding the evidence or review boundary.
+              Turn customer and pharmacist narratives into a
+              grounded checklist, reviewable structured
+              findings, and a final assessment without hiding
+              evidence or uncertainty.
             </p>
           </div>
         </section>
@@ -215,7 +343,9 @@ export function App() {
 
         <WorkflowProgress
           checklistStatus={checklistState.status}
-          finalAssessmentStatus={finalAssessmentState.status}
+          finalAssessmentStatus={
+            finalAssessmentState.status
+          }
         />
 
         <div className="content-grid">
@@ -225,7 +355,9 @@ export function App() {
           >
             <DemoToolbar
               selectedDemoCaseId={selectedDemoCaseId}
-              onSelectedDemoCaseChange={setSelectedDemoCaseId}
+              onSelectedDemoCaseChange={
+                setSelectedDemoCaseId
+              }
               onLoadDemoCase={handleLoadDemoCase}
               onStartOver={handleStartOver}
               canStartOver={canStartOver}
@@ -233,7 +365,9 @@ export function App() {
 
             <ConcernInputForm
               key={`concern-${workflowVersion}`}
-              isSubmitting={checklistState.status === "loading"}
+              isSubmitting={
+                checklistState.status === "loading"
+              }
               isSubmissionDisabled={!backendReady}
               onSubmit={handleChecklistSubmit}
               initialConcernText={concernSeed}
@@ -247,35 +381,16 @@ export function App() {
             ) : null}
 
             {checklistState.status === "loading" ? (
-              <div
-                className="status-banner status-loading"
-                role="status"
-              >
-                <span
-                  className="spinner"
-                  aria-hidden="true"
-                />
-                Generating checklist...
-              </div>
+              <LoadingBanner text="Generating checklist..." />
             ) : null}
 
             {checklistState.status === "error" ? (
-              <div
-                className="status-banner status-error"
-                role="alert"
-              >
-                <span>{checklistState.error.message}</span>
-                {checklistState.error.retryable ? (
-                  <button
-                    className="ghost-button"
-                    type="button"
-                    onClick={handleRetryChecklist}
-                    disabled={!backendReady}
-                  >
-                    Retry checklist
-                  </button>
-                ) : null}
-              </div>
+              <ErrorBanner
+                error={checklistState.error}
+                retryLabel="Retry checklist"
+                onRetry={handleRetryChecklist}
+                retryDisabled={!backendReady}
+              />
             ) : null}
 
             {checklistState.status === "success" ? (
@@ -284,56 +399,84 @@ export function App() {
                   checklist={checklistState.checklist}
                 />
 
-                <ReviewSummaryForm
-                  key={`review-${workflowVersion}`}
+                <InvestigationNotesForm
+                  key={`notes-${workflowVersion}`}
+                  initialNotes={pharmacistNotesSeed}
                   isSubmitting={
-                    finalAssessmentState.status === "loading"
+                    extractionState.status === "loading"
                   }
                   isSubmissionDisabled={!backendReady}
-                  onSubmit={handleFinalAssessmentSubmit}
-                  initialValues={reviewSummarySeed}
+                  onNotesChange={
+                    handlePharmacistNotesChange
+                  }
+                  onSubmit={handleExtractionSubmit}
                 />
 
-                {finalAssessmentState.status === "loading" ? (
-                  <div
-                    className="status-banner status-loading"
-                    role="status"
-                  >
-                    <span
-                      className="spinner"
-                      aria-hidden="true"
-                    />
-                    Generating final assessment...
-                  </div>
+                {extractionState.status === "loading" ? (
+                  <LoadingBanner text="Extracting reviewer findings..." />
                 ) : null}
 
-                {finalAssessmentState.status === "error" ? (
-                  <div
-                    className="status-banner status-error"
-                    role="alert"
-                  >
-                    <span>
-                      {finalAssessmentState.error.message}
-                    </span>
-                    {finalAssessmentState.error.retryable ? (
-                      <button
-                        className="ghost-button"
-                        type="button"
-                        onClick={handleRetryFinalAssessment}
-                        disabled={!backendReady}
-                      >
-                        Retry final assessment
-                      </button>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {finalAssessmentState.status === "success" ? (
-                  <FinalAssessmentPanel
-                    assessment={
-                      finalAssessmentState.assessment
-                    }
+                {extractionState.status === "error" ? (
+                  <ErrorBanner
+                    error={extractionState.error}
+                    retryLabel="Retry extraction"
+                    onRetry={handleRetryExtraction}
+                    retryDisabled={!backendReady}
                   />
+                ) : null}
+
+                {extractionState.status === "success" ? (
+                  <>
+                    <ExtractedFindingsPanel
+                      extraction={
+                        extractionState.extraction
+                      }
+                    />
+
+                    <ReviewSummaryForm
+                      key={`review-${workflowVersion}-${extractionVersion}`}
+                      isSubmitting={
+                        finalAssessmentState.status ===
+                        "loading"
+                      }
+                      isSubmissionDisabled={!backendReady}
+                      onSubmit={
+                        handleFinalAssessmentSubmit
+                      }
+                      initialValues={
+                        extractionState.extraction
+                          .reviewSummary
+                      }
+                    />
+
+                    {finalAssessmentState.status ===
+                    "loading" ? (
+                      <LoadingBanner text="Generating final assessment..." />
+                    ) : null}
+
+                    {finalAssessmentState.status ===
+                    "error" ? (
+                      <ErrorBanner
+                        error={
+                          finalAssessmentState.error
+                        }
+                        retryLabel="Retry final assessment"
+                        onRetry={
+                          handleRetryFinalAssessment
+                        }
+                        retryDisabled={!backendReady}
+                      />
+                    ) : null}
+
+                    {finalAssessmentState.status ===
+                    "success" ? (
+                      <FinalAssessmentPanel
+                        assessment={
+                          finalAssessmentState.assessment
+                        }
+                      />
+                    ) : null}
+                  </>
                 ) : null}
               </>
             ) : null}
@@ -360,13 +503,17 @@ export function App() {
               </p>
               <h2>Human review stays central</h2>
               <ul className="sidebar-list">
-                <li>Evidence supports the checklist.</li>
                 <li>
-                  Reviewer findings drive final routing.
+                  The model extracts; deterministic rules
+                  ground the result.
                 </li>
                 <li>
-                  Unsupported record-access requests are
-                  refused.
+                  The pharmacist confirms or corrects every
+                  structured finding.
+                </li>
+                <li>
+                  Structured severe triggers drive
+                  escalation.
                 </li>
                 <li>
                   The final decision remains with the
@@ -391,9 +538,55 @@ export function App() {
       </main>
 
       <footer className="footer">
-        Synthetic learning artifact · Not production policy or
-        clinical advice
+        Synthetic learning artifact · Not production policy
+        or clinical advice
       </footer>
+    </div>
+  );
+}
+
+function LoadingBanner({ text }: { text: string }) {
+  return (
+    <div
+      className="status-banner status-loading"
+      role="status"
+    >
+      <span
+        className="spinner"
+        aria-hidden="true"
+      />
+      {text}
+    </div>
+  );
+}
+
+function ErrorBanner({
+  error,
+  retryLabel,
+  onRetry,
+  retryDisabled,
+}: {
+  error: WorkflowError;
+  retryLabel: string;
+  onRetry: () => void;
+  retryDisabled: boolean;
+}) {
+  return (
+    <div
+      className="status-banner status-error"
+      role="alert"
+    >
+      <span>{error.message}</span>
+      {error.retryable ? (
+        <button
+          className="ghost-button"
+          type="button"
+          onClick={onRetry}
+          disabled={retryDisabled}
+        >
+          {retryLabel}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -404,7 +597,10 @@ function toWorkflowError(
 ): WorkflowError {
   if (error instanceof ReviewApiError) {
     return {
-      message: getReviewApiErrorMessage(error, fallbackMessage),
+      message: getReviewApiErrorMessage(
+        error,
+        fallbackMessage,
+      ),
       retryable: error.retryable,
     };
   }

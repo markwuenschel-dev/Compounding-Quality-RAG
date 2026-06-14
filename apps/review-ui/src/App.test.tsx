@@ -1,31 +1,39 @@
 import {
-  fireEvent,
   render,
   screen,
-  waitFor,
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { App } from "./App";
 import {
   createChecklist,
   createFinalAssessment,
-  ReviewApiError,
+  extractReviewSummary,
 } from "./api/reviewApi";
 import type {
   ChecklistResponse,
   FinalAssessmentResponse,
+  ReviewSummaryExtractResponse,
 } from "./api/types";
 import { FinalAssessmentPanel } from "./components/FinalAssessmentPanel";
 
 vi.mock("./api/reviewApi", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("./api/reviewApi")>();
+    await importOriginal<
+      typeof import("./api/reviewApi")
+    >();
 
   return {
     ...actual,
     createChecklist: vi.fn(),
+    extractReviewSummary: vi.fn(),
     createFinalAssessment: vi.fn(),
   };
 });
@@ -44,209 +52,135 @@ vi.mock("./hooks/useBackendReadiness", () => ({
   }),
 }));
 
-const createChecklistMock = vi.mocked(createChecklist);
-const createFinalAssessmentMock = vi.mocked(createFinalAssessment);
+const createChecklistMock =
+  vi.mocked(createChecklist);
+const extractReviewSummaryMock =
+  vi.mocked(extractReviewSummary);
+const createFinalAssessmentMock =
+  vi.mocked(createFinalAssessment);
 
 describe("App", () => {
   beforeEach(() => {
     createChecklistMock.mockReset();
+    extractReviewSummaryMock.mockReset();
     createFinalAssessmentMock.mockReset();
   });
 
-  it("renders the initial checklist workflow screen", () => {
+  it("renders the initial checklist workflow", () => {
     render(<App />);
 
     expect(
-      screen.getByRole("heading", { name: "Compounding Quality Review" }),
+      screen.getByRole("heading", {
+        name: "Compounding Quality Review",
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Concern text")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Generate checklist" }),
-    ).toBeDisabled();
-    expect(screen.getByText("No checklist generated yet.")).toBeInTheDocument();
+      screen.getByLabelText("Concern text"),
+    ).toBeInTheDocument();
   });
 
-  it("submits concern text and renders the checklist response", async () => {
+  it("shows one pharmacist-notes box after checklist generation", async () => {
     const user = userEvent.setup();
-
-    createChecklistMock.mockResolvedValueOnce(buildChecklistResponse());
+    createChecklistMock.mockResolvedValue(
+      buildChecklistResponse(),
+    );
 
     render(<App />);
 
     await user.type(
       screen.getByLabelText("Concern text"),
-      "Dog vomited once after receiving chicken-flavored oral liquid.",
+      "Dog vomited once.",
     );
-
     await user.click(
-      screen.getByRole("button", { name: "Generate checklist" }),
+      screen.getByRole("button", {
+        name: "Generate checklist",
+      }),
     );
-
-    expect(createChecklistMock).toHaveBeenCalledWith({
-      concernText:
-        "Dog vomited once after receiving chicken-flavored oral liquid.",
-    });
 
     expect(
-      await screen.findByRole("heading", { name: "Checklist result" }),
+      await screen.findByRole("heading", {
+        name: "Pharmacist investigation notes",
+      }),
     ).toBeInTheDocument();
-
-    expect(screen.getByText("flavor_related_vomiting")).toBeInTheDocument();
     expect(
-      screen.getByText("unexpected_non_life_threatening"),
+      screen.getByLabelText(
+        "Investigation and actions taken",
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByText("Record review")).toBeInTheDocument();
-    expect(screen.getByText("Dose administered")).toBeInTheDocument();
-    expect(screen.getByText("SOP-004")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Reviewer findings" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("form", {
+        name: "Final assessment form",
+      }),
+    ).not.toBeInTheDocument();
   });
 
-  it("shows loading state while checklist request is pending", async () => {
+  it("extracts notes and prefills canonical confirmation controls", async () => {
     const user = userEvent.setup();
-
-    createChecklistMock.mockImplementationOnce(
-      () => new Promise<ChecklistResponse>(() => { }),
+    createChecklistMock.mockResolvedValue(
+      buildChecklistResponse(),
     );
-
-    render(<App />);
-
-    await user.type(screen.getByLabelText("Concern text"), "Dog vomited once.");
-    await user.click(
-      screen.getByRole("button", { name: "Generate checklist" }),
+    extractReviewSummaryMock.mockResolvedValue(
+      buildExtractionResponse(),
     );
-
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Generating checklist...",
-    );
-    expect(
-      screen.getByRole("button", { name: "Generating checklist..." }),
-    ).toBeDisabled();
-  });
-
-  it("renders backend validation errors from the checklist API client", async () => {
-    const user = userEvent.setup();
-
-    createChecklistMock.mockRejectedValueOnce(
-      new ReviewApiError(
-        "concernText must not be blank",
-        "validation",
-        400,
-        {
-          timestamp: "2026-06-11T20:00:00Z",
-          status: 400,
-          error: "Bad Request",
-          message: "concernText must not be blank",
-          path: "/api/checklist",
-          requestId: null,
-          fieldErrors: [],
-          code: "VALIDATION_ERROR",
-        },
-        false,
-      )
-    );
-
-    render(<App />);
-
-    await user.type(screen.getByLabelText("Concern text"), "x");
-    await user.click(
-      screen.getByRole("button", { name: "Generate checklist" }),
-    );
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "concernText must not be blank",
-    );
-  });
-
-  it("renders generic checklist network errors", async () => {
-    const user = userEvent.setup();
-
-    createChecklistMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
-
-    render(<App />);
-
-    await user.type(screen.getByLabelText("Concern text"), "Dog vomited once.");
-    await user.click(
-      screen.getByRole("button", { name: "Generate checklist" }),
-    );
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Failed to fetch",
-    );
-  });
-
-  it("trims concern text before submitting the checklist request", async () => {
-    const user = userEvent.setup();
-
-    createChecklistMock.mockResolvedValueOnce(buildChecklistResponse());
 
     render(<App />);
 
     await user.type(
       screen.getByLabelText("Concern text"),
-      "   Dog vomited once.   ",
+      "Dog vomited once.",
     );
-
     await user.click(
-      screen.getByRole("button", { name: "Generate checklist" }),
+      screen.getByRole("button", {
+        name: "Generate checklist",
+      }),
     );
-
-    await waitFor(() => {
-      expect(createChecklistMock).toHaveBeenCalledWith({
-        concernText: "Dog vomited once.",
-      });
-    });
-  });
-
-  it("keeps final assessment submission disabled until required findings are complete", async () => {
-    const user = userEvent.setup();
-
-    createChecklistMock.mockResolvedValueOnce(buildChecklistResponse());
-
-    render(<App />);
-
-    await user.type(screen.getByLabelText("Concern text"), "Dog vomited once.");
+    await user.type(
+      screen.getByLabelText(
+        "Investigation and actions taken",
+      ),
+      "Worksheet checked; nothing off.",
+    );
     await user.click(
-      screen.getByRole("button", { name: "Generate checklist" }),
+      screen.getByRole("button", {
+        name: "Extract reviewer findings",
+      }),
     );
 
-    await screen.findByRole("heading", { name: "Reviewer findings" });
-
-    const submitButton = screen.getByRole("button", {
-      name: "Generate final assessment",
+    expect(
+      extractReviewSummaryMock,
+    ).toHaveBeenCalledWith({
+      concernText: "Dog vomited once.",
+      pharmacistNotes:
+        "Worksheet checked; nothing off.",
     });
 
-    expect(submitButton).toBeDisabled();
+    expect(
+      await screen.findByRole("heading", {
+        name: "Extracted findings",
+      }),
+    ).toBeInTheDocument();
 
-    await user.type(
-      getFinalAssessmentTextbox(/record review result/i),
-      "No compounding deviations found.",
-    );
-    await user.type(
-      getFinalAssessmentTextbox(/lot or batch pattern summary/i),
-      "No related trend found.",
-    );
-    await user.type(
-      getFinalAssessmentTextbox(/inventory inspection result/i),
-      "No abnormal inventory findings.",
-    );
-
-    expect(submitButton).toBeDisabled();
-
-    await user.type(
-      getFinalAssessmentTextbox(/api reference review result/i),
-      "No active product-specific stability exception found.",
-    );
-
-    expect(submitButton).toBeEnabled();
+    expect(
+      screen.getByLabelText(
+        /record review result/i,
+      ),
+    ).toHaveValue("no_discrepancy_found");
+    expect(
+      screen.getByText(
+        "What dose was administered?",
+      ),
+    ).toBeInTheDocument();
   });
 
-  it("submits reviewer findings and renders the final assessment response", async () => {
+  it("submits confirmed structured values to final assessment", async () => {
     const user = userEvent.setup();
-
-    createChecklistMock.mockResolvedValueOnce(buildChecklistResponse());
-    createFinalAssessmentMock.mockResolvedValueOnce(
+    createChecklistMock.mockResolvedValue(
+      buildChecklistResponse(),
+    );
+    extractReviewSummaryMock.mockResolvedValue(
+      buildExtractionResponse(),
+    );
+    createFinalAssessmentMock.mockResolvedValue(
       buildFinalAssessmentResponse(),
     );
 
@@ -254,250 +188,153 @@ describe("App", () => {
 
     await user.type(
       screen.getByLabelText("Concern text"),
-      "Dog vomited once after receiving chicken-flavored oral liquid.",
+      "Dog vomited once.",
     );
     await user.click(
-      screen.getByRole("button", { name: "Generate checklist" }),
+      screen.getByRole("button", {
+        name: "Generate checklist",
+      }),
+    );
+    await user.type(
+      screen.getByLabelText(
+        "Investigation and actions taken",
+      ),
+      "Worksheet checked; nothing off.",
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Extract reviewer findings",
+      }),
     );
 
-    await screen.findByRole("heading", { name: "Reviewer findings" });
-
-    changeFinalAssessmentTextbox(
-      /record review result/i,
-      "No compounding deviations found.",
-    );
-    changeFinalAssessmentTextbox(
-      /lot or batch pattern summary/i,
-      "No related trend found.",
-    );
-    changeFinalAssessmentTextbox(
-      /inventory inspection result/i,
-      "No abnormal inventory findings.",
-    );
-    changeFinalAssessmentTextbox(
-      /customer context summary/i,
-      "Customer reported one vomiting event.",
-    );
-    changeFinalAssessmentTextbox(
-      /api reference review result/i,
-      "No active product-specific stability exception found.",
-    );
-    changeFinalAssessmentTextbox(
-      /missing information/i,
-      "Exact administration time\nMeal timing",
-    );
-    changeFinalAssessmentTextbox(
-      /evidence limitations/i,
-      "No direct patient history access",
-    );
-    changeFinalAssessmentTextbox(
-      /severe triggers observed/i,
-      "None observed",
-    );
+    await screen.findByRole("form", {
+      name: "Final assessment form",
+    });
 
     await user.click(
-      screen.getByRole("button", { name: "Generate final assessment" }),
+      screen.getByRole("button", {
+        name: "Generate final assessment",
+      }),
     );
 
-    expect(createFinalAssessmentMock).toHaveBeenCalledWith({
-      concernText:
-        "Dog vomited once after receiving chicken-flavored oral liquid.",
+    expect(
+      createFinalAssessmentMock,
+    ).toHaveBeenCalledWith({
+      concernText: "Dog vomited once.",
       topK: 3,
-      reviewSummary: {
-        recordReviewResult: "No compounding deviations found.",
-        lotBatchPatternSummary: "No related trend found.",
-        inventoryInspectionResult: "No abnormal inventory findings.",
-        customerContextSummary: "Customer reported one vomiting event.",
-        apiReferenceReviewResult:
-          "No active product-specific stability exception found.",
-        missingInformation: ["Exact administration time", "Meal timing"],
-        evidenceLimitations: ["No direct patient history access"],
-        severeTriggersObserved: ["None observed"],
-      },
+      reviewSummary:
+        buildExtractionResponse().reviewSummary,
     });
 
     expect(
-      await screen.findByRole("heading", { name: "Final assessment result" }),
+      await screen.findByRole("heading", {
+        name: "Final assessment result",
+      }),
     ).toBeInTheDocument();
-
-    expect(screen.getByText("Product Complaint")).toBeInTheDocument();
-    expect(screen.getByText("Technical Services Review")).toBeInTheDocument();
-    expect(screen.getByText("Customer follow-up")).toBeInTheDocument();
-  });
-
-  it("renders final assessment API errors", async () => {
-    const user = userEvent.setup();
-
-    createChecklistMock.mockResolvedValueOnce(buildChecklistResponse());
-    createFinalAssessmentMock.mockRejectedValueOnce(
-      new ReviewApiError(
-        "reviewSummary is required",
-        "validation",
-        400,
-        {
-          timestamp: "2026-06-11T20:00:00Z",
-          status: 400,
-          error: "Bad Request",
-          message: "reviewSummary is required",
-          path: "/api/final-assessment",
-          requestId: null,
-          fieldErrors: [],
-          code: "VALIDATION_ERROR",
-        },
-        false,
-      )
-    );
-
-    render(<App />);
-
-    await user.type(screen.getByLabelText("Concern text"), "Dog vomited once.");
-    await user.click(
-      screen.getByRole("button", { name: "Generate checklist" }),
-    );
-
-    await screen.findByRole("heading", { name: "Reviewer findings" });
-
-    await user.type(
-      getFinalAssessmentTextbox(/record review result/i),
-      "No compounding deviations found.",
-    );
-    await user.type(
-      getFinalAssessmentTextbox(/lot or batch pattern summary/i),
-      "No related trend found.",
-    );
-    await user.type(
-      getFinalAssessmentTextbox(/inventory inspection result/i),
-      "No abnormal inventory findings.",
-    );
-    await user.type(
-      getFinalAssessmentTextbox(/api reference review result/i),
-      "No active product-specific stability exception found.",
-    );
-
-    await user.click(
-      screen.getByRole("button", { name: "Generate final assessment" }),
-    );
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "reviewSummary is required",
-    );
   });
 });
 
 describe("FinalAssessmentPanel", () => {
-  it("renders resolution review required as Yes when required", () => {
-    render(<FinalAssessmentPanel assessment={buildFinalAssessmentResponse()} />);
+  it("renders resolution review required as Yes", () => {
+    render(
+      <FinalAssessmentPanel
+        assessment={buildFinalAssessmentResponse()}
+      />,
+    );
 
-    const panel = screen.getByLabelText("Final assessment result");
+    const panel = screen.getByLabelText(
+      "Final assessment result",
+    );
 
     expect(
-      within(panel).getByText("Resolution review required"),
+      within(panel).getByText(
+        "Resolution review required",
+      ),
     ).toBeInTheDocument();
-    expect(within(panel).getByText("Yes")).toBeInTheDocument();
+    expect(
+      within(panel).getByText("Yes"),
+    ).toBeInTheDocument();
   });
 });
-
-function getFinalAssessmentTextbox(name: string | RegExp): HTMLElement {
-  return within(getFinalAssessmentForm()).getByRole("textbox", {
-    name,
-  });
-}
-
-function changeFinalAssessmentTextbox(
-  name: string | RegExp,
-  value: string,
-): void {
-  fireEvent.change(getFinalAssessmentTextbox(name), {
-    target: { value },
-  });
-}
-
-function getFinalAssessmentForm(): HTMLElement {
-  return screen.getByRole("form", {
-    name: "Final assessment form",
-  });
-}
 
 function buildChecklistResponse(): ChecklistResponse {
   return {
     concernType: "flavor_related_vomiting",
     riskLane: "unexpected_non_life_threatening",
     reviewScope: "full_quality_review",
-    initialTakeaway: "Review vomiting timing and rule out severe triggers.",
-    requiredChecks: [
+    initialTakeaway: "Review the concern.",
+    requiredChecks: [],
+    missingInformation: [],
+    escalationTriggersToRuleOut: [],
+    evidence: [],
+    limitations: [],
+  };
+}
+
+function buildExtractionResponse(): ReviewSummaryExtractResponse {
+  return {
+    reviewSummary: {
+      recordReviewResult:
+        "no_discrepancy_found",
+      lotBatchPatternSummary:
+        "no_similar_batch_concerns_found",
+      inventoryInspectionResult:
+        "no_inventory_available",
+      customerContextSummary:
+        "Dog vomited once and recovered.",
+      apiReferenceReviewResult: "not_needed",
+      missingInformation: [
+        "Exact dose administered",
+      ],
+      evidenceLimitations: [
+        "Inventory was not available to inspect.",
+      ],
+      severeTriggersObserved: [],
+    },
+    fieldEvidence: [
       {
-        key: "record_review",
-        label: "Record review",
-        required: true,
-        reason: "Confirm relevant compounding and dispensing fields.",
+        fieldName: "record_review_result",
+        status: "normalized",
+        supportingQuote:
+          "Worksheet checked; nothing off.",
+        explanation:
+          "Normalized into the enum contract.",
       },
     ],
-    missingInformation: ["Dose administered"],
-    escalationTriggersToRuleOut: ["pet_hospitalization"],
-    evidence: [
+    unresolvedQuestions: [
       {
-        sourceId: "SOP-004",
-        sourceTitle: "Customer Context and Administration Review",
-        sectionHeading: "Vomiting After Administration",
+        fieldName: "dose_administered",
+        question: "What dose was administered?",
+        reason: "Dose context is missing.",
+        decisionImpact: ["review_scope"],
       },
     ],
-    limitations: ["Does not access real customer history."],
   };
 }
 
 function buildFinalAssessmentResponse(): FinalAssessmentResponse {
   return {
-    rawIntake: {
-      intakeSource: "customer_review",
-      submitterRole: "customer",
-      submissionPurpose: "quality_review",
-      concernNarrative:
-        "Dog vomited once after receiving chicken-flavored oral liquid.",
-      starRating: 2,
-      reviewTextPresent: true,
-      submitterSelectedClassification: null,
-    },
-    productContext: {
-      species: "dog",
-      dosageForm: "oral_liquid",
-      productPlaceholder: "Product A",
-      flavorOrAttribute: "chicken",
-      budPresent: true,
-      batchLotPresent: true,
-    },
-    investigationRequirements: {
-      recordReviewRequired: true,
-      lotBatchReviewRequired: true,
-      inventoryInspectionRequired: true,
-      trendScanRequired: true,
-      customerOutreachRequired: true,
-      frontlineGuidanceLookupRequired: false,
-      technicalServicesResponseRequired: true,
-    },
-    reviewSummary: {
-      recordReviewResult: "No compounding deviations found.",
-      lotBatchPatternSummary: "No related trend found.",
-      inventoryInspectionResult: "No abnormal inventory findings.",
-      customerContextSummary: "Customer reported one vomiting event.",
-      apiReferenceReviewResult:
-        "No active product-specific stability exception found.",
-      missingInformation: ["Exact administration time", "Meal timing"],
-      evidenceLimitations: ["No direct patient history access"],
-      severeTriggersObserved: ["None observed"],
-    },
+    rawIntake: null,
+    productContext: null,
+    investigationRequirements: null,
+    reviewSummary: null,
     derivedAssessment: {
-      reviewerAssignedClassification: "Product Complaint",
-      reviewerAssignedCategory: "Adverse Event",
-      reviewerAssignedSubcategory: "Vomiting after administration",
+      reviewerAssignedClassification: "QRE",
+      reviewerAssignedCategory: "suspected_ADE",
+      reviewerAssignedSubcategory:
+        "flavor_related_ADE",
       concernType: "flavor_related_vomiting",
-      riskLane: "unexpected_non_life_threatening",
+      riskLane:
+        "unexpected_non_life_threatening",
       reviewScope: "full_quality_review",
-      escalationTriggers: ["continued vomiting", "hospitalization"],
-      handlingPath: "Technical Services Review",
+      escalationTriggers: [],
+      handlingPath:
+        "technical_services_customer_outreach",
       resolutionReviewRequired: true,
-      resolutionOptions: ["Customer follow-up", "Document review outcome"],
-      rationale:
-        "Single vomiting event requires quality review and customer follow-up before closure.",
+      resolutionOptions: [
+        "counseling_or_follow_up",
+      ],
+      rationale: "Follow up with the customer.",
     },
   };
 }

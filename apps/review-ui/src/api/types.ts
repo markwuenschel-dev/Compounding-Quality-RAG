@@ -60,6 +60,37 @@ export type ReviewSummaryRequest = {
   severeTriggersObserved: string[];
 };
 
+export type ReviewSummaryExtractRequest = {
+  concernText: string;
+  pharmacistNotes: string;
+};
+
+export type ExtractionEvidenceStatus =
+  | "explicit"
+  | "normalized"
+  | "ambiguous"
+  | "not_stated";
+
+export type ReviewSummaryFieldEvidence = {
+  fieldName: string;
+  status: ExtractionEvidenceStatus;
+  supportingQuote: string | null;
+  explanation: string | null;
+};
+
+export type UnresolvedReviewQuestion = {
+  fieldName: string;
+  question: string;
+  reason: string;
+  decisionImpact: string[];
+};
+
+export type ReviewSummaryExtractResponse = {
+  reviewSummary: ReviewSummaryRequest;
+  fieldEvidence: ReviewSummaryFieldEvidence[];
+  unresolvedQuestions: UnresolvedReviewQuestion[];
+};
+
 export type FinalAssessmentRequest = {
   concernText: string;
   topK?: number | null;

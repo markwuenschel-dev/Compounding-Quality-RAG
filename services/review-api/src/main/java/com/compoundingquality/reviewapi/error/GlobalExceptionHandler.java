@@ -23,15 +23,16 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException exception,
             HttpServletRequest request
     ) {
-        List<FieldErrorDetail> fieldErrors = exception.getBindingResult()
-                .getFieldErrors()
-                .stream()
-                .map(error -> new FieldErrorDetail(
-                        error.getField(),
-                        rejectedValue(error.getRejectedValue()),
-                        error.getDefaultMessage()
-                ))
-                .toList();
+        List<FieldErrorDetail> fieldErrors =
+                exception.getBindingResult()
+                        .getFieldErrors()
+                        .stream()
+                        .map(error -> new FieldErrorDetail(
+                                error.getField(),
+                                rejectedValue(error.getRejectedValue()),
+                                error.getDefaultMessage()
+                        ))
+                        .toList();
 
         return buildResponse(
                 HttpStatus.BAD_REQUEST,
@@ -46,14 +47,15 @@ public class GlobalExceptionHandler {
             ConstraintViolationException exception,
             HttpServletRequest request
     ) {
-        List<FieldErrorDetail> fieldErrors = exception.getConstraintViolations()
-                .stream()
-                .map(violation -> new FieldErrorDetail(
-                        violation.getPropertyPath().toString(),
-                        null,
-                        violation.getMessage()
-                ))
-                .toList();
+        List<FieldErrorDetail> fieldErrors =
+                exception.getConstraintViolations()
+                        .stream()
+                        .map(violation -> new FieldErrorDetail(
+                                violation.getPropertyPath().toString(),
+                                null,
+                                violation.getMessage()
+                        ))
+                        .toList();
 
         return buildResponse(
                 HttpStatus.BAD_REQUEST,
@@ -100,7 +102,12 @@ public class GlobalExceptionHandler {
                 ? "Request failed"
                 : exception.getReason();
 
-        return buildResponse(statusCode, message, request, List.of());
+        return buildResponse(
+                statusCode,
+                message,
+                request,
+                List.of()
+        );
     }
 
     @ExceptionHandler(ErrorResponseException.class)
@@ -131,16 +138,22 @@ public class GlobalExceptionHandler {
 
     private HttpStatus statusForRagEngineCode(String code) {
         return switch (code) {
-            case "INVALID_REQUEST", "REFUSED" -> HttpStatus.UNPROCESSABLE_CONTENT;
-            case "ENGINE_TIMEOUT" -> HttpStatus.GATEWAY_TIMEOUT;
-            case "ENGINE_INTERRUPTED" -> HttpStatus.SERVICE_UNAVAILABLE;
-            case "ENGINE_REQUEST_ENCODING" -> HttpStatus.INTERNAL_SERVER_ERROR;
+            case "INVALID_REQUEST", "REFUSED" ->
+                    HttpStatus.UNPROCESSABLE_CONTENT;
+            case "ENGINE_TIMEOUT" ->
+                    HttpStatus.GATEWAY_TIMEOUT;
+            case "ENGINE_INTERRUPTED" ->
+                    HttpStatus.SERVICE_UNAVAILABLE;
+            case "ENGINE_REQUEST_ENCODING" ->
+                    HttpStatus.INTERNAL_SERVER_ERROR;
             case "ENGINE_PROCESS_START",
                     "ENGINE_PROCESS_EXIT",
                     "ENGINE_INVALID_STDOUT",
                     "ENGINE_INVALID_RESPONSE",
                     "ENGINE_RESPONSE_MAPPING",
-                    "ENGINE_FAILURE" -> HttpStatus.BAD_GATEWAY;
+                    "ENGINE_FAILURE",
+                    "EXTRACTION_FAILURE" ->
+                    HttpStatus.BAD_GATEWAY;
             default -> HttpStatus.BAD_GATEWAY;
         };
     }

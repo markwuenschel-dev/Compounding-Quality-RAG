@@ -20,6 +20,8 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
     private static final String COMMAND_CHECKLIST = "checklist";
     private static final String COMMAND_RETRIEVE = "retrieve";
     private static final String COMMAND_FINAL_ASSESSMENT = "final_assessment";
+    private static final String COMMAND_EXTRACT_REVIEW_SUMMARY =
+            "extract_review_summary";
     private static final int STDERR_SUMMARY_LIMIT = 2_000;
 
     private final JsonMapper jsonMapper;
@@ -38,35 +40,56 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
             PythonProcessRagEngineProperties properties,
             ProcessExecutor processExecutor
     ) {
-        this.jsonMapper = Objects.requireNonNull(jsonMapper, "jsonMapper must not be null");
-        this.properties = Objects.requireNonNull(properties, "properties must not be null");
-        this.processExecutor = Objects.requireNonNull(processExecutor, "processExecutor must not be null");
+        this.jsonMapper = Objects.requireNonNull(
+                jsonMapper,
+                "jsonMapper must not be null"
+        );
+        this.properties = Objects.requireNonNull(
+                properties,
+                "properties must not be null"
+        );
+        this.processExecutor = Objects.requireNonNull(
+                processExecutor,
+                "processExecutor must not be null"
+        );
     }
 
     @Override
-    public RagChecklistResult createChecklist(RagChecklistRequest request) {
+    public RagChecklistResult createChecklist(
+            RagChecklistRequest request
+    ) {
         Objects.requireNonNull(request, "request must not be null");
 
         return executeCommand(
                 COMMAND_CHECKLIST,
-                new ChecklistPayload(request.concernText(), request.topK()),
+                new ChecklistPayload(
+                        request.concernText(),
+                        request.topK()
+                ),
                 RagChecklistResult.class
         );
     }
 
     @Override
-    public RagRetrieveResult retrieve(RagRetrieveRequest request) {
+    public RagRetrieveResult retrieve(
+            RagRetrieveRequest request
+    ) {
         Objects.requireNonNull(request, "request must not be null");
 
         return executeCommand(
                 COMMAND_RETRIEVE,
-                new RetrievePayload(request.queryText(), request.topK()),
+                new RetrievePayload(
+                        request.queryText(),
+                        request.topK()
+                ),
                 RagRetrieveResult.class
         );
     }
 
     @Override
-    public RagFinalAssessmentResult createFinalAssessment(RagFinalAssessmentRequest request) {
+    public RagFinalAssessmentResult createFinalAssessment(
+            RagFinalAssessmentRequest request
+    ) {
         Objects.requireNonNull(request, "request must not be null");
 
         return executeCommand(
@@ -80,25 +103,46 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
         );
     }
 
+    @Override
+    public RagReviewSummaryExtractResult extractReviewSummary(
+            RagReviewSummaryExtractRequest request
+    ) {
+        Objects.requireNonNull(request, "request must not be null");
+
+        return executeCommand(
+                COMMAND_EXTRACT_REVIEW_SUMMARY,
+                new ReviewSummaryExtractPayload(
+                        request.concernText(),
+                        request.pharmacistNotes()
+                ),
+                RagReviewSummaryExtractResult.class
+        );
+    }
+
     private <T> T executeCommand(
             String command,
             Object payload,
             Class<T> resultType
     ) {
-        String stdinJson = encodeBridgeRequest(new BridgeRequest(command, payload));
-        ProcessResult processResult = processExecutor.execute(properties, stdinJson);
+        String stdinJson = encodeBridgeRequest(
+                new BridgeRequest(command, payload)
+        );
+        ProcessResult processResult =
+                processExecutor.execute(properties, stdinJson);
 
         if (processResult.exitCode() != 0) {
             throw new RagEngineException(
                     "ENGINE_PROCESS_EXIT",
-                    "Python RAG engine exited with code %d. stderr: %s".formatted(
-                            processResult.exitCode(),
-                            summarize(processResult.stderr())
-                    )
+                    "Python RAG engine exited with code %d. stderr: %s"
+                            .formatted(
+                                    processResult.exitCode(),
+                                    summarize(processResult.stderr())
+                            )
             );
         }
 
-        BridgeResponse response = decodeBridgeResponse(processResult.stdout());
+        BridgeResponse response =
+                decodeBridgeResponse(processResult.stdout());
 
         if (response.ok() == null) {
             throw new RagEngineException(
@@ -112,21 +156,30 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
             String code = hasText(error == null ? null : error.code())
                     ? error.code()
                     : "ENGINE_ERROR";
-            String message = hasText(error == null ? null : error.message())
+            String message = hasText(
+                    error == null ? null : error.message()
+            )
                     ? error.message()
                     : "Python RAG engine returned an error.";
 
             throw new RagEngineException(code, message);
         }
 
-        if (response.result() == null || response.result().isNull()) {
+        if (
+                response.result() == null
+                        || response.result().isNull()
+        ) {
             throw new RagEngineException(
                     "ENGINE_INVALID_RESPONSE",
                     "Python RAG engine returned ok=true without a result."
             );
         }
 
-        return decodeBridgeResult(response.result(), resultType);
+        return decodeBridgeResult(
+                response.result(),
+                resultType,
+                command
+        );
     }
 
     private String encodeBridgeRequest(BridgeRequest request) {
@@ -150,7 +203,10 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
         }
 
         try {
-            return jsonMapper.readValue(stdout, BridgeResponse.class);
+            return jsonMapper.readValue(
+                    stdout,
+                    BridgeResponse.class
+            );
         } catch (JacksonException exc) {
             throw new RagEngineException(
                     "ENGINE_INVALID_STDOUT",
@@ -160,17 +216,66 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
         }
     }
 
-    private <T> T decodeBridgeResult(JsonNode result, Class<T> resultType) {
+    private <T> T decodeBridgeResult(
+            JsonNode result,
+            Class<T> resultType,
+            String command
+    ) {
         try {
             return jsonMapper.treeToValue(result, resultType);
         } catch (JacksonException exc) {
-            throw new RagEngineException(
-                    "ENGINE_RESPONSE_MAPPING",
-                    "Python RAG engine result did not match the Java %s contract."
-                            .formatted(resultType.getSimpleName()),
+            throw responseMappingException(
+                    command,
+                    resultType,
+                    result,
+                    exc
+            );
+        } catch (RuntimeException exc) {
+            throw responseMappingException(
+                    command,
+                    resultType,
+                    result,
                     exc
             );
         }
+    }
+
+    private RagEngineException responseMappingException(
+            String command,
+            Class<?> resultType,
+            JsonNode result,
+            Exception cause
+    ) {
+        return new RagEngineException(
+                "ENGINE_RESPONSE_MAPPING",
+                "Python RAG engine result for command '%s' did not match the Java %s contract. Cause: %s. Result: %s"
+                        .formatted(
+                                command,
+                                resultType.getSimpleName(),
+                                rootCauseMessage(cause),
+                                summarize(result.toString())
+                        ),
+                cause
+        );
+    }
+
+    private static String rootCauseMessage(Throwable throwable) {
+        Throwable current = throwable;
+
+        while (
+                current.getCause() != null
+                        && current.getCause() != current
+        ) {
+            current = current.getCause();
+        }
+
+        String message = current.getMessage();
+
+        if (!hasText(message)) {
+            return current.getClass().getSimpleName();
+        }
+
+        return current.getClass().getSimpleName() + ": " + message;
     }
 
     private static String summarize(String value) {
@@ -209,7 +314,8 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
         }
     }
 
-    private static final class DefaultProcessExecutor implements ProcessExecutor {
+    private static final class DefaultProcessExecutor
+            implements ProcessExecutor {
 
         @Override
         public ProcessResult execute(
@@ -218,7 +324,10 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
         ) {
             Process process = startProcess(properties);
 
-            try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            try (
+                    ExecutorService executor =
+                            Executors.newFixedThreadPool(2)
+            ) {
                 Future<String> stdoutFuture = executor.submit(
                         () -> readFully(process.getInputStream())
                 );
@@ -238,7 +347,8 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
 
                     throw new RagEngineException(
                             "ENGINE_TIMEOUT",
-                            "Python RAG engine timed out after %s.".formatted(properties.timeout())
+                            "Python RAG engine timed out after %s."
+                                    .formatted(properties.timeout())
                     );
                 }
 
@@ -262,9 +372,15 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
         private static Process startProcess(
                 PythonProcessRagEngineProperties properties
         ) {
-            ProcessBuilder processBuilder = new ProcessBuilder(properties.command());
-            processBuilder.directory(properties.workingDirectory().toFile());
-            processBuilder.environment().put("PYTHONIOENCODING", "utf-8");
+            ProcessBuilder processBuilder =
+                    new ProcessBuilder(properties.command());
+            processBuilder.directory(
+                    properties.workingDirectory().toFile()
+            );
+            processBuilder.environment().put(
+                    "PYTHONIOENCODING",
+                    "utf-8"
+            );
             processBuilder.environment().put("PYTHONUTF8", "1");
 
             try {
@@ -278,9 +394,14 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
             }
         }
 
-        private static void writeStdin(Process process, String stdinJson) {
+        private static void writeStdin(
+                Process process,
+                String stdinJson
+        ) {
             try (OutputStream stdin = process.getOutputStream()) {
-                stdin.write(stdinJson.getBytes(StandardCharsets.UTF_8));
+                stdin.write(
+                        stdinJson.getBytes(StandardCharsets.UTF_8)
+                );
                 stdin.flush();
             } catch (IOException exc) {
                 process.destroyForcibly();
@@ -293,14 +414,22 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
             }
         }
 
-        private static String readFully(InputStream inputStream) throws IOException {
-            try (inputStream; ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
+        private static String readFully(
+                InputStream inputStream
+        ) throws IOException {
+            try (
+                    inputStream;
+                    ByteArrayOutputStream buffer =
+                            new ByteArrayOutputStream()
+            ) {
                 inputStream.transferTo(buffer);
                 return buffer.toString(StandardCharsets.UTF_8);
             }
         }
 
-        private static String getFuture(Future<String> future) throws InterruptedException {
+        private static String getFuture(
+                Future<String> future
+        ) throws InterruptedException {
             try {
                 return future.get();
             } catch (ExecutionException exc) {
@@ -349,6 +478,12 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
             String concernText,
             int topK,
             RagReviewSummary reviewSummary
+    ) {
+    }
+
+    record ReviewSummaryExtractPayload(
+            String concernText,
+            String pharmacistNotes
     ) {
     }
 }

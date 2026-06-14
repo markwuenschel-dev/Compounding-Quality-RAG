@@ -24,8 +24,6 @@ The purpose is to revisit generated code after the demo and perform a slower man
 - [ ] `apps/review-ui/src/App.tsx`
 - [ ] `apps/review-ui/src/App.readiness.test.tsx`
 - [ ] `apps/review-ui/src/readiness.css`
-- [ ] `apps/review-ui/vite.config.ts`
-- [ ] `apps/review-ui/src/test/setup.ts`
 - [ ] `docs/generated_file_review_queue.md`
 
 ## Earlier non-seeded files supplied in this conversation
@@ -79,3 +77,57 @@ The purpose is to revisit generated code after the demo and perform a slower man
 5. Duplication and component boundaries
 6. Test brittleness and timing behavior
 7. Documentation accuracy
+
+## Narrative extraction MLE batch
+
+- [ ] `rag-engine-python/app/schemas.py`
+- [ ] `rag-engine-python/app/contextual_missing_information.py`
+- [ ] `rag-engine-python/app/review_summary_extraction.py`
+- [ ] `rag-engine-python/app/review_summary_evaluate.py`
+- [ ] `rag-engine-python/app/api_runner.py`
+- [ ] `rag-engine-python/data/eval/review_summary_extraction_cases.json`
+- [ ] `rag-engine-python/tests/test_contextual_missing_information.py`
+- [ ] `rag-engine-python/tests/test_review_summary_extraction.py`
+- [ ] `rag-engine-python/tests/test_api_runner_review_summary_extraction.py`
+- [ ] `rag-engine-python/tests/test_review_summary_evaluate.py`
+- [ ] `rag-engine-python/reports/review_summary_extraction_evaluation.md`
+
+## Narrative extraction evaluation-fix batch
+
+- [ ] `rag-engine-python/app/review_summary_extraction.py`
+- [ ] `rag-engine-python/app/contextual_missing_information.py`
+- [ ] `rag-engine-python/app/review_summary_evaluate.py`
+- [ ] `rag-engine-python/tests/test_review_summary_extraction.py`
+- [ ] `rag-engine-python/tests/test_contextual_missing_information.py`
+- [ ] `rag-engine-python/tests/test_review_summary_evaluate.py`
+
+
+## Full-stack narrative extraction integration
+
+- [ ] `services/review-api/src/main/java/com/compoundingquality/reviewapi/api/ReviewSummaryExtractionController.java`
+- [ ] `services/review-api/src/main/java/com/compoundingquality/reviewapi/application/ReviewSummaryExtractionService.java`
+- [ ] `services/review-api/src/main/java/com/compoundingquality/reviewapi/dto/ReviewSummaryExtractRequest.java`
+- [ ] `services/review-api/src/main/java/com/compoundingquality/reviewapi/dto/ReviewSummaryExtractResponse.java`
+- [ ] `services/review-api/src/main/java/com/compoundingquality/reviewapi/error/GlobalExceptionHandler.java`
+- [ ] `services/review-api/src/main/java/com/compoundingquality/reviewapi/rag/RagEngineClient.java`
+- [ ] `services/review-api/src/main/java/com/compoundingquality/reviewapi/rag/RagReviewSummaryExtractRequest.java`
+- [ ] `services/review-api/src/main/java/com/compoundingquality/reviewapi/rag/RagReviewSummaryExtractResult.java`
+- [ ] `services/review-api/src/main/java/com/compoundingquality/reviewapi/rag/PythonProcessRagEngineClient.java`
+- [ ] `services/review-api/src/test/java/com/compoundingquality/reviewapi/api/ReviewSummaryExtractionControllerTest.java`
+- [ ] `services/review-api/src/test/java/com/compoundingquality/reviewapi/application/ReviewSummaryExtractionServiceTest.java`
+- [ ] `apps/review-ui/src/api/types.ts`
+- [ ] `apps/review-ui/src/api/reviewApi.ts`
+- [ ] `apps/review-ui/src/api/reviewApi.test.ts`
+- [ ] `apps/review-ui/src/components/InvestigationNotesForm.tsx`
+- [ ] `apps/review-ui/src/components/InvestigationNotesForm.test.tsx`
+- [ ] `apps/review-ui/src/components/ExtractedFindingsPanel.tsx`
+- [ ] `apps/review-ui/src/components/ExtractedFindingsPanel.test.tsx`
+- [ ] `apps/review-ui/src/components/ReviewSummaryForm.tsx`
+- [ ] `apps/review-ui/src/components/ReviewSummaryForm.test.tsx`
+- [ ] `apps/review-ui/src/demo/demoCases.ts`
+- [ ] `apps/review-ui/src/App.tsx`
+- [ ] `apps/review-ui/src/App.test.tsx`
+- [ ] `apps/review-ui/src/App.readiness.test.tsx`
+- [ ] `apps/review-ui/src/extraction.css`
+- [ ] `docs/generated_file_review_queue.md`
+
