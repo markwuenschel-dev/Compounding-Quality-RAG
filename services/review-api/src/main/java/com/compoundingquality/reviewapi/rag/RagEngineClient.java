@@ -6,5 +6,11 @@ public interface RagEngineClient {
 
     RagRetrieveResult retrieve(RagRetrieveRequest request);
 
-    RagFinalAssessmentResult createFinalAssessment(RagFinalAssessmentRequest request);
+    RagFinalAssessmentResult createFinalAssessment(
+            RagFinalAssessmentRequest request
+    );
+
+    RagReviewSummaryExtractResult extractReviewSummary(
+            RagReviewSummaryExtractRequest request
+    );
 }

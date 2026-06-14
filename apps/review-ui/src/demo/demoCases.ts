@@ -1,36 +1,31 @@
 import type { ReviewSummaryRequest } from "../api/types";
 
-export type DemoCaseId = "vomiting-concern" | "unsupported-record-access";
+export type DemoCaseId =
+  | "vomiting-concern"
+  | "unsupported-record-access";
 
 export type DemoCase = {
   id: DemoCaseId;
   label: string;
   description: string;
   concernText: string;
+  pharmacistNotes?: string;
   reviewSummary?: ReviewSummaryRequest;
 };
 
-export const DEFAULT_DEMO_CASE_ID: DemoCaseId = "vomiting-concern";
+export const DEFAULT_DEMO_CASE_ID: DemoCaseId =
+  "vomiting-concern";
 
 export const DEMO_CASES: readonly DemoCase[] = [
   {
     id: "vomiting-concern",
     label: "Vomiting concern",
     description:
-      "Runs the complete checklist and final-assessment workflow using the primary synthetic demonstration case.",
+      "Runs the complete narrative-to-assessment workflow using the primary synthetic demonstration case.",
     concernText:
       "My dog received a chicken-flavored compounded oral liquid. About 10 minutes later he started running around frantically and vomited once. He seems okay now, but I’m worried the medication or flavor caused it.",
-    reviewSummary: {
-      recordReviewResult: "no_discrepancy_found",
-      lotBatchPatternSummary: "no_similar_batch_concerns_found",
-      inventoryInspectionResult: "no_inventory_available",
-      customerContextSummary:
-        "Dog vomited once about 10 minutes after administration and recovered. No hospitalization, death, legal threat, contamination concern, wrong medication concern, or veterinarian allegation was reported.",
-      apiReferenceReviewResult: "not_needed",
-      missingInformation: ["Exact dose administered"],
-      evidenceLimitations: ["Inventory was not available to inspect"],
-      severeTriggersObserved: [],
-    },
+    pharmacistNotes:
+      "Checked formula and worksheet, nothing off. Same lot had no similar vomiting complaints. No inventory left to inspect. Owner says the dog vomited about 10 minutes after the dose and is fine now. No ER visit and no veterinarian allegation. Exact dose is still unknown. No external reference was needed.",
   },
   {
     id: "unsupported-record-access",
@@ -42,8 +37,12 @@ export const DEMO_CASES: readonly DemoCase[] = [
   },
 ] as const;
 
-export function getDemoCase(id: DemoCaseId): DemoCase {
-  const demoCase = DEMO_CASES.find((candidate) => candidate.id === id);
+export function getDemoCase(
+  id: DemoCaseId,
+): DemoCase {
+  const demoCase = DEMO_CASES.find(
+    (candidate) => candidate.id === id,
+  );
 
   if (!demoCase) {
     throw new Error(`Unknown demo case: ${id}`);

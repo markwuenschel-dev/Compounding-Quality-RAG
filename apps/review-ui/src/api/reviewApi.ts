@@ -7,10 +7,13 @@ import type {
   ReadinessResponse,
   RetrieveRequest,
   RetrieveResponse,
+  ReviewSummaryExtractRequest,
+  ReviewSummaryExtractResponse,
 } from "./types";
 
 const DEFAULT_API_BASE_URL = "";
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+const EXTRACTION_TIMEOUT_MS = 75_000;
 const READINESS_TIMEOUT_MS = 5_000;
 
 export type ReviewApiErrorKind =
@@ -91,6 +94,23 @@ export async function retrieveEvidence(
   );
 }
 
+export async function extractReviewSummary(
+  request: ReviewSummaryExtractRequest,
+  options?: RequestOptions,
+): Promise<ReviewSummaryExtractResponse> {
+  return postJson<
+    ReviewSummaryExtractRequest,
+    ReviewSummaryExtractResponse
+  >(
+    "/api/review-summary/extract",
+    request,
+    {
+      timeoutMs:
+        options?.timeoutMs ?? EXTRACTION_TIMEOUT_MS,
+    },
+  );
+}
+
 export async function createFinalAssessment(
   request: FinalAssessmentRequest,
   options?: RequestOptions,
@@ -116,7 +136,10 @@ export function getReviewApiErrorMessage(
     case "timeout":
       return "The request timed out before the review engine responded. Try again.";
     case "validation":
-      return error.details?.message ?? "The request contains invalid or incomplete data.";
+      return (
+        error.details?.message ??
+        "The request contains invalid or incomplete data."
+      );
     case "engine":
       return "The review engine could not complete the request. Check backend readiness and try again.";
     case "refusal":
@@ -166,13 +189,19 @@ async function requestJson(
   timeoutMs: number,
 ): Promise<{ response: Response; body: unknown }> {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    timeoutMs,
+  );
 
   try {
-    const response = await fetch(`${DEFAULT_API_BASE_URL}${path}`, {
-      ...init,
-      signal: controller.signal,
-    });
+    const response = await fetch(
+      `${DEFAULT_API_BASE_URL}${path}`,
+      {
+        ...init,
+        signal: controller.signal,
+      },
+    );
     const body = await readJsonResponse(response);
 
     return { response, body };
@@ -203,7 +232,9 @@ async function requestJson(
   }
 }
 
-async function readJsonResponse(response: Response): Promise<unknown> {
+async function readJsonResponse(
+  response: Response,
+): Promise<unknown> {
   const text = await response.text();
 
   if (text.length === 0) {
@@ -217,7 +248,10 @@ async function readJsonResponse(response: Response): Promise<unknown> {
   }
 }
 
-function createHttpError(status: number, body: unknown): ReviewApiError {
+function createHttpError(
+  status: number,
+  body: unknown,
+): ReviewApiError {
   const details = isApiErrorResponse(body) ? body : null;
   const code = details?.code?.toUpperCase() ?? "";
   const message =
@@ -225,6 +259,7 @@ function createHttpError(status: number, body: unknown): ReviewApiError {
 
   if (
     status === 403 ||
+    code === "REFUSED" ||
     code.includes("REFUSAL") ||
     code.includes("UNSUPPORTED_ACCESS")
   ) {
@@ -268,7 +303,8 @@ function createHttpError(status: number, body: unknown): ReviewApiError {
   if (
     status >= 500 ||
     code.includes("ENGINE") ||
-    code.includes("RAG")
+    code.includes("RAG") ||
+    code.includes("EXTRACTION")
   ) {
     return new ReviewApiError(
       message,
@@ -288,7 +324,9 @@ function createHttpError(status: number, body: unknown): ReviewApiError {
   );
 }
 
-function invalidResponseError(status: number): ReviewApiError {
+function invalidResponseError(
+  status: number,
+): ReviewApiError {
   return new ReviewApiError(
     "Response was not valid JSON.",
     "invalid_response",
@@ -305,7 +343,9 @@ function isAbortError(error: unknown): boolean {
   );
 }
 
-function isApiErrorResponse(value: unknown): value is ApiErrorResponse {
+function isApiErrorResponse(
+  value: unknown,
+): value is ApiErrorResponse {
   if (typeof value !== "object" || value === null) {
     return false;
   }
@@ -318,7 +358,9 @@ function isApiErrorResponse(value: unknown): value is ApiErrorResponse {
   );
 }
 
-function isReadinessResponse(value: unknown): value is ReadinessResponse {
+function isReadinessResponse(
+  value: unknown,
+): value is ReadinessResponse {
   if (typeof value !== "object" || value === null) {
     return false;
   }
@@ -326,8 +368,10 @@ function isReadinessResponse(value: unknown): value is ReadinessResponse {
   const candidate = value as Partial<ReadinessResponse>;
 
   return (
-    (candidate.status === "READY" ||
-      candidate.status === "NOT_READY") &&
+    (
+      candidate.status === "READY" ||
+      candidate.status === "NOT_READY"
+    ) &&
     Array.isArray(candidate.checks) &&
     typeof candidate.timestamp === "string"
   );

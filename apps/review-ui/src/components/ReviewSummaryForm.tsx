@@ -3,10 +3,143 @@ import type { ReviewSummaryRequest } from "../api/types";
 
 type ReviewSummaryFormProps = {
   isSubmitting: boolean;
-  onSubmit: (reviewSummary: ReviewSummaryRequest) => Promise<void>;
+  onSubmit: (
+    reviewSummary: ReviewSummaryRequest,
+  ) => Promise<void>;
   initialValues?: ReviewSummaryRequest;
   isSubmissionDisabled?: boolean;
 };
+
+type Option = {
+  value: string;
+  label: string;
+};
+
+const RECORD_REVIEW_OPTIONS: Option[] = [
+  {
+    value: "no_discrepancy_found",
+    label: "No discrepancy found",
+  },
+  {
+    value: "documentation_incomplete",
+    label: "Documentation incomplete",
+  },
+  {
+    value: "documentation_discrepancy_found",
+    label: "Documentation discrepancy found",
+  },
+  {
+    value: "not_applicable",
+    label: "Not applicable",
+  },
+];
+
+const LOT_BATCH_OPTIONS: Option[] = [
+  {
+    value: "no_similar_batch_concerns_found",
+    label: "No similar batch concerns found",
+  },
+  {
+    value: "similar_concern_same_batch_found",
+    label: "Similar concern in same batch found",
+  },
+  {
+    value:
+      "similar_concern_same_medication_dosage_form_found",
+    label:
+      "Similar concern for same medication or dosage form",
+  },
+  {
+    value: "trend_threshold_met",
+    label: "Trend threshold met",
+  },
+  {
+    value: "unavailable",
+    label: "Unavailable",
+  },
+  {
+    value: "not_applicable",
+    label: "Not applicable",
+  },
+];
+
+const INVENTORY_OPTIONS: Option[] = [
+  {
+    value: "no_inventory_available",
+    label: "No inventory available",
+  },
+  {
+    value: "no_visual_concern_found",
+    label: "No visual concern found",
+  },
+  {
+    value: "visual_concern_found",
+    label: "Visual concern found",
+  },
+  {
+    value: "not_checked",
+    label: "Not checked",
+  },
+  {
+    value: "not_applicable",
+    label: "Not applicable",
+  },
+];
+
+const API_REFERENCE_OPTIONS: Option[] = [
+  {
+    value: "not_needed",
+    label: "Not needed",
+  },
+  {
+    value: "synthetic_reference_consulted",
+    label: "Synthetic reference consulted",
+  },
+  {
+    value: "external_reference_needed",
+    label: "External reference needed",
+  },
+  {
+    value: "not_supported_by_public_corpus",
+    label: "Not supported by public corpus",
+  },
+];
+
+const SEVERE_TRIGGER_OPTIONS: Option[] = [
+  {
+    value: "pet_death",
+    label: "Pet death",
+  },
+  {
+    value: "pet_hospitalization",
+    label: "Pet hospitalization",
+  },
+  {
+    value: "threatened_legal_action",
+    label: "Threatened legal action",
+  },
+  {
+    value: "veterinarian_alleges_harm_from_compound",
+    label: "Veterinarian alleges harm from compound",
+  },
+  {
+    value: "possible_contamination",
+    label: "Possible contamination",
+  },
+  {
+    value: "wrong_patient_or_wrong_medication",
+    label: "Wrong patient or wrong medication",
+  },
+  {
+    value:
+      "repeat_issue_same_lot_or_batch_with_conditions",
+    label: "Repeat issue in same lot or batch",
+  },
+  {
+    value: "rare_regulatory_or_compliance_concern",
+    label: "Regulatory or compliance concern",
+  },
+];
 
 const EMPTY_REVIEW_SUMMARY: ReviewSummaryRequest = {
   recordReviewResult: "",
@@ -25,43 +158,66 @@ export function ReviewSummaryForm({
   initialValues = EMPTY_REVIEW_SUMMARY,
   isSubmissionDisabled = false,
 }: ReviewSummaryFormProps) {
-  const [recordReviewResult, setRecordReviewResult] = useState(
-    initialValues.recordReviewResult,
-  );
-  const [lotBatchPatternSummary, setLotBatchPatternSummary] = useState(
-    initialValues.lotBatchPatternSummary,
-  );
-  const [inventoryInspectionResult, setInventoryInspectionResult] = useState(
-    initialValues.inventoryInspectionResult,
-  );
-  const [customerContextSummary, setCustomerContextSummary] = useState(
-    initialValues.customerContextSummary ?? "",
-  );
-  const [apiReferenceReviewResult, setApiReferenceReviewResult] = useState(
-    initialValues.apiReferenceReviewResult,
-  );
-  const [missingInformation, setMissingInformation] = useState(
-    initialValues.missingInformation.join("\n"),
-  );
-  const [evidenceLimitations, setEvidenceLimitations] = useState(
-    initialValues.evidenceLimitations.join("\n"),
-  );
-  const [severeTriggersObserved, setSevereTriggersObserved] = useState(
-    initialValues.severeTriggersObserved.join("\n"),
+  const [
+    recordReviewResult,
+    setRecordReviewResult,
+  ] = useState(initialValues.recordReviewResult);
+  const [
+    lotBatchPatternSummary,
+    setLotBatchPatternSummary,
+  ] = useState(initialValues.lotBatchPatternSummary);
+  const [
+    inventoryInspectionResult,
+    setInventoryInspectionResult,
+  ] = useState(initialValues.inventoryInspectionResult);
+  const [
+    customerContextSummary,
+    setCustomerContextSummary,
+  ] = useState(initialValues.customerContextSummary ?? "");
+  const [
+    apiReferenceReviewResult,
+    setApiReferenceReviewResult,
+  ] = useState(initialValues.apiReferenceReviewResult);
+  const [
+    missingInformation,
+    setMissingInformation,
+  ] = useState(initialValues.missingInformation.join("\n"));
+  const [
+    evidenceLimitations,
+    setEvidenceLimitations,
+  ] = useState(initialValues.evidenceLimitations.join("\n"));
+  const [
+    severeTriggersObserved,
+    setSevereTriggersObserved,
+  ] = useState<string[]>(
+    initialValues.severeTriggersObserved,
   );
 
   const requiredFieldsComplete =
-    recordReviewResult.trim().length > 0 &&
-    lotBatchPatternSummary.trim().length > 0 &&
-    inventoryInspectionResult.trim().length > 0 &&
-    apiReferenceReviewResult.trim().length > 0;
+    recordReviewResult.length > 0 &&
+    lotBatchPatternSummary.length > 0 &&
+    inventoryInspectionResult.length > 0 &&
+    apiReferenceReviewResult.length > 0;
 
   const canSubmit =
     requiredFieldsComplete &&
     !isSubmitting &&
     !isSubmissionDisabled;
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function toggleSevereTrigger(
+    trigger: string,
+    checked: boolean,
+  ) {
+    setSevereTriggersObserved((current) =>
+      checked
+        ? [...new Set([...current, trigger])]
+        : current.filter((value) => value !== trigger),
+    );
+  }
+
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
 
     if (!canSubmit) {
@@ -69,26 +225,33 @@ export function ReviewSummaryForm({
     }
 
     await onSubmit({
-      recordReviewResult: recordReviewResult.trim(),
-      lotBatchPatternSummary: lotBatchPatternSummary.trim(),
-      inventoryInspectionResult: inventoryInspectionResult.trim(),
-      customerContextSummary: normalizeOptionalText(customerContextSummary),
-      apiReferenceReviewResult: apiReferenceReviewResult.trim(),
+      recordReviewResult,
+      lotBatchPatternSummary,
+      inventoryInspectionResult,
+      customerContextSummary:
+        normalizeOptionalText(customerContextSummary),
+      apiReferenceReviewResult,
       missingInformation: parseList(missingInformation),
-      evidenceLimitations: parseList(evidenceLimitations),
-      severeTriggersObserved: parseList(severeTriggersObserved),
+      evidenceLimitations: parseList(
+        evidenceLimitations,
+      ),
+      severeTriggersObserved,
     });
   }
 
   return (
-    <section className="card workflow-card" aria-label="Reviewer findings">
+    <section
+      className="card workflow-card"
+      aria-label="Reviewer findings"
+    >
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Step 3</p>
-          <h2>Reviewer findings</h2>
+          <p className="eyebrow">Step 4</p>
+          <h2>Confirm reviewer findings</h2>
           <p>
-            Record what the human reviewer confirmed before requesting the
-            final structured assessment.
+            The extractor supplied valid structured values.
+            Confirm or correct them before generating the final
+            assessment.
           </p>
         </div>
       </div>
@@ -99,34 +262,38 @@ export function ReviewSummaryForm({
         onSubmit={handleSubmit}
       >
         <div className="form-grid">
-          <TextAreaField
+          <SelectField
             id="record-review-result"
             label="Record review result"
             value={recordReviewResult}
+            options={RECORD_REVIEW_OPTIONS}
             onChange={setRecordReviewResult}
             required
           />
 
-          <TextAreaField
+          <SelectField
             id="lot-batch-pattern-summary"
             label="Lot or batch pattern summary"
             value={lotBatchPatternSummary}
+            options={LOT_BATCH_OPTIONS}
             onChange={setLotBatchPatternSummary}
             required
           />
 
-          <TextAreaField
+          <SelectField
             id="inventory-inspection-result"
             label="Inventory inspection result"
             value={inventoryInspectionResult}
+            options={INVENTORY_OPTIONS}
             onChange={setInventoryInspectionResult}
             required
           />
 
-          <TextAreaField
+          <SelectField
             id="api-reference-review-result"
             label="API reference review result"
             value={apiReferenceReviewResult}
+            options={API_REFERENCE_OPTIONS}
             onChange={setApiReferenceReviewResult}
             required
           />
@@ -158,18 +325,44 @@ export function ReviewSummaryForm({
           />
         </div>
 
-        <TextAreaField
-          id="severe-triggers-observed"
-          label="Severe triggers observed"
-          value={severeTriggersObserved}
-          onChange={setSevereTriggersObserved}
-          placeholder="One item per line; leave blank when none are confirmed"
-          className="field-wide"
-        />
+        <fieldset className="checkbox-fieldset">
+          <legend>Severe triggers observed</legend>
+          <p>
+            Leave all options unchecked when no severe trigger
+            was affirmatively confirmed.
+          </p>
+          <div className="checkbox-grid">
+            {SEVERE_TRIGGER_OPTIONS.map((option) => (
+              <label key={option.value}>
+                <input
+                  type="checkbox"
+                  value={option.value}
+                  checked={severeTriggersObserved.includes(
+                    option.value,
+                  )}
+                  onChange={(event) =>
+                    toggleSevereTrigger(
+                      option.value,
+                      event.target.checked,
+                    )
+                  }
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
         <div className="form-actions form-actions-split">
-          <p className="required-note">Fields marked * are required.</p>
-          <button className="primary-button" type="submit" disabled={!canSubmit}>
+          <p className="required-note">
+            Structured selections are submitted as canonical
+            enum values.
+          </p>
+          <button
+            className="primary-button"
+            type="submit"
+            disabled={!canSubmit}
+          >
             {isSubmitting
               ? "Generating final assessment..."
               : "Generate final assessment"}
@@ -180,12 +373,56 @@ export function ReviewSummaryForm({
   );
 }
 
+type SelectFieldProps = {
+  id: string;
+  label: string;
+  value: string;
+  options: Option[];
+  onChange: (value: string) => void;
+  required?: boolean;
+};
+
+function SelectField({
+  id,
+  label,
+  value,
+  options,
+  onChange,
+  required = false,
+}: SelectFieldProps) {
+  return (
+    <div className="field-group">
+      <label htmlFor={id}>
+        {label}
+        {required ? " *" : ""}
+      </label>
+      <select
+        id={id}
+        value={value}
+        onChange={(event) =>
+          onChange(event.target.value)
+        }
+        required={required}
+      >
+        <option value="">Select a value</option>
+        {options.map((option) => (
+          <option
+            key={option.value}
+            value={option.value}
+          >
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 type TextAreaFieldProps = {
   id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
-  required?: boolean;
   placeholder?: string;
   className?: string;
 };
@@ -195,31 +432,33 @@ function TextAreaField({
   label,
   value,
   onChange,
-  required = false,
   placeholder,
   className = "",
 }: TextAreaFieldProps) {
   return (
     <div className={`field-group ${className}`}>
-      <label htmlFor={id}>
-        {label}
-        {required ? " *" : ""}
-      </label>
+      <label htmlFor={id}>{label}</label>
       <textarea
         id={id}
         rows={4}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) =>
+          onChange(event.target.value)
+        }
         placeholder={placeholder}
       />
     </div>
   );
 }
 
-function normalizeOptionalText(value: string): string | null {
+function normalizeOptionalText(
+  value: string,
+): string | null {
   const trimmedValue = value.trim();
 
-  return trimmedValue.length > 0 ? trimmedValue : null;
+  return trimmedValue.length > 0
+    ? trimmedValue
+    : null;
 }
 
 function parseList(value: string): string[] {

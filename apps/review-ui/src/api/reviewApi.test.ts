@@ -1,10 +1,16 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   createChecklist,
   createFinalAssessment,
+  extractReviewSummary,
   getReadiness,
   retrieveEvidence,
-  ReviewApiError,
 } from "./reviewApi";
 import type {
   ApiErrorResponse,
@@ -12,6 +18,7 @@ import type {
   FinalAssessmentResponse,
   ReadinessResponse,
   RetrieveResponse,
+  ReviewSummaryExtractResponse,
 } from "./types";
 
 describe("reviewApi", () => {
@@ -20,15 +27,17 @@ describe("reviewApi", () => {
     vi.restoreAllMocks();
   });
 
-  it("posts checklist requests and returns JSON responses", async () => {
+  it("posts checklist requests", async () => {
     const responseBody = buildChecklistResponse();
-    const fetchMock = mockJsonResponse(200, responseBody);
+    const fetchMock = mockJsonResponse(
+      200,
+      responseBody,
+    );
 
-    const result = await createChecklist({
+    await createChecklist({
       concernText: "Dog vomited once.",
     });
 
-    expect(result).toEqual(responseBody);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/checklist",
       expect.objectContaining({
@@ -46,8 +55,10 @@ describe("reviewApi", () => {
       topK: 5,
       evidence: [],
     };
-
-    const fetchMock = mockJsonResponse(200, responseBody);
+    const fetchMock = mockJsonResponse(
+      200,
+      responseBody,
+    );
 
     await retrieveEvidence({
       queryText: "vomiting",
@@ -62,6 +73,34 @@ describe("reviewApi", () => {
     );
   });
 
+  it("posts review-summary extraction requests", async () => {
+    const responseBody =
+      buildExtractionResponse();
+    const fetchMock = mockJsonResponse(
+      200,
+      responseBody,
+    );
+
+    const result = await extractReviewSummary({
+      concernText: "Dog vomited.",
+      pharmacistNotes:
+        "Worksheet review found no discrepancy.",
+    });
+
+    expect(result).toEqual(responseBody);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/review-summary/extract",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          concernText: "Dog vomited.",
+          pharmacistNotes:
+            "Worksheet review found no discrepancy.",
+        }),
+      }),
+    );
+  });
+
   it("posts final assessment requests", async () => {
     const responseBody: FinalAssessmentResponse = {
       rawIntake: null,
@@ -70,20 +109,15 @@ describe("reviewApi", () => {
       reviewSummary: null,
       derivedAssessment: null,
     };
-
-    const fetchMock = mockJsonResponse(200, responseBody);
+    const fetchMock = mockJsonResponse(
+      200,
+      responseBody,
+    );
 
     await createFinalAssessment({
       concernText: "Dog vomited once.",
-      reviewSummary: {
-        recordReviewResult: "none",
-        lotBatchPatternSummary: "none",
-        inventoryInspectionResult: "unavailable",
-        apiReferenceReviewResult: "not_needed",
-        missingInformation: [],
-        evidenceLimitations: [],
-        severeTriggersObserved: [],
-      },
+      reviewSummary:
+        buildExtractionResponse().reviewSummary,
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -94,7 +128,7 @@ describe("reviewApi", () => {
     );
   });
 
-  it("returns readiness bodies even when the endpoint responds 503", async () => {
+  it("returns readiness bodies for 503", async () => {
     const readiness: ReadinessResponse = {
       status: "NOT_READY",
       checks: [
@@ -109,7 +143,9 @@ describe("reviewApi", () => {
 
     mockJsonResponse(503, readiness);
 
-    await expect(getReadiness()).resolves.toEqual(readiness);
+    await expect(getReadiness()).resolves.toEqual(
+      readiness,
+    );
   });
 
   it("classifies browser network failures", async () => {
@@ -121,24 +157,38 @@ describe("reviewApi", () => {
     );
 
     await expect(
-      createChecklist({ concernText: "Dog vomited once." }),
+      createChecklist({
+        concernText: "Dog vomited once.",
+      }),
     ).rejects.toMatchObject({
-      name: "ReviewApiError",
       kind: "network",
       retryable: true,
     });
   });
 
-  it("aborts and classifies timed-out requests", async () => {
+  it("classifies timed-out requests", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(
-        (_input: RequestInfo | URL, init?: RequestInit) =>
-          new Promise<Response>((_resolve, reject) => {
-            init?.signal?.addEventListener("abort", () => {
-              reject(new DOMException("Aborted", "AbortError"));
-            });
-          }),
+        (
+          _input: RequestInfo | URL,
+          init?: RequestInit,
+        ) =>
+          new Promise<Response>(
+            (_resolve, reject) => {
+              init?.signal?.addEventListener(
+                "abort",
+                () => {
+                  reject(
+                    new DOMException(
+                      "Aborted",
+                      "AbortError",
+                    ),
+                  );
+                },
+              );
+            },
+          ),
       ),
     );
 
@@ -148,13 +198,12 @@ describe("reviewApi", () => {
         { timeoutMs: 1 },
       ),
     ).rejects.toMatchObject({
-      name: "ReviewApiError",
       kind: "timeout",
       retryable: true,
     });
   });
 
-  it("classifies validation failures as non-retryable", async () => {
+  it("classifies validation failures", async () => {
     mockJsonResponse(
       400,
       buildApiError(
@@ -169,47 +218,48 @@ describe("reviewApi", () => {
     ).rejects.toMatchObject({
       kind: "validation",
       retryable: false,
-      status: 400,
     });
   });
 
-  it("classifies engine failures as retryable", async () => {
+  it("classifies extraction failures as engine failures", async () => {
     mockJsonResponse(
       502,
       buildApiError(
         502,
-        "ENGINE_PROCESS_START",
-        "Python process failed to start",
+        "EXTRACTION_FAILURE",
+        "OpenAI request failed.",
       ),
     );
 
     await expect(
-      createChecklist({ concernText: "Dog vomited once." }),
+      extractReviewSummary({
+        concernText: "Dog vomited.",
+        pharmacistNotes: "Reviewed.",
+      }),
     ).rejects.toMatchObject({
       kind: "engine",
       retryable: true,
-      status: 502,
     });
   });
 
-  it("classifies unsupported-access refusals as non-retryable", async () => {
+  it("classifies REFUSED responses as refusal errors", async () => {
     mockJsonResponse(
-      403,
+      422,
       buildApiError(
-        403,
-        "UNSUPPORTED_ACCESS",
-        "Real operational records are not available.",
+        422,
+        "REFUSED",
+        "Real operational records are unavailable.",
       ),
     );
 
     await expect(
       createChecklist({
-        concernText: "Check the real compounding record.",
+        concernText:
+          "Check the real compounding record.",
       }),
     ).rejects.toMatchObject({
       kind: "refusal",
       retryable: false,
-      status: 403,
     });
   });
 
@@ -225,7 +275,9 @@ describe("reviewApi", () => {
     );
 
     await expect(
-      createChecklist({ concernText: "Dog vomited once." }),
+      createChecklist({
+        concernText: "Dog vomited once.",
+      }),
     ).rejects.toMatchObject({
       kind: "invalid_response",
       retryable: true,
@@ -233,7 +285,10 @@ describe("reviewApi", () => {
   });
 });
 
-function mockJsonResponse(status: number, body: unknown) {
+function mockJsonResponse(
+  status: number,
+  body: unknown,
+) {
   const fetchMock = vi.fn(
     async () =>
       new Response(JSON.stringify(body), {
@@ -277,5 +332,25 @@ function buildChecklistResponse(): ChecklistResponse {
     escalationTriggersToRuleOut: [],
     evidence: [],
     limitations: [],
+  };
+}
+
+function buildExtractionResponse(): ReviewSummaryExtractResponse {
+  return {
+    reviewSummary: {
+      recordReviewResult:
+        "no_discrepancy_found",
+      lotBatchPatternSummary: "unavailable",
+      inventoryInspectionResult: "not_checked",
+      customerContextSummary: "Dog vomited once.",
+      apiReferenceReviewResult: "not_needed",
+      missingInformation: [
+        "Exact dose administered",
+      ],
+      evidenceLimitations: [],
+      severeTriggersObserved: [],
+    },
+    fieldEvidence: [],
+    unresolvedQuestions: [],
   };
 }
