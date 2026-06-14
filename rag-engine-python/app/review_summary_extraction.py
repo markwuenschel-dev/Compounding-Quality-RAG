@@ -8,12 +8,16 @@ from typing import Any, Protocol
 
 from pydantic import ValidationError
 
+from app.contextual_missing_information import build_decision_relevant_questions
 from app.schemas import (
     ApiReferenceReviewResult,
+    ExtractionEvidenceStatus,
     EscalationTrigger,
     InventoryInspectionResult,
     LotBatchPatternSummary,
     RecordReviewResult,
+    ReviewSummaryExtractionResult,
+    ReviewSummaryFieldEvidence,
     ReviewSummary,
 )
 
@@ -123,7 +127,7 @@ _AFFIRMATION_RE = re.compile(
 )
 
 _INVENTORY_UNAVAILABLE_RE = re.compile(
-    r"\b(no inventory available|inventory (?:was )?(?:not available|unavailable)|not available to inspect|unavailable to inspect)\b",
+    r"\b(no inventory available|no inventory left(?: to inspect)?|inventory (?:was )?(?:not available|unavailable)|not available to inspect|unavailable to inspect)\b",
     re.IGNORECASE,
 )
 
@@ -133,9 +137,9 @@ _INVENTORY_NOT_CHECKED_RE = re.compile(
 )
 
 _EXTERNAL_UNSUPPORTED_RE = re.compile(
-    r"\b(plumb'?s?|external (?:drug )?reference|drug handbook|package insert)\b.*\b(not supported|not available|public corpus|synthetic corpus|cannot support|unavailable)\b"
-    r"|\b(not supported|not available|public corpus|synthetic corpus|cannot support|unavailable)\b.*\b(plumb'?s?|external (?:drug )?reference|drug handbook|package insert)\b",
-    re.IGNORECASE | re.DOTALL,
+    r"\b(plumb'?s?|external (?:drug )?reference|drug handbook|package insert)\b[^.\n;]{0,160}\b(not supported|not available|public corpus|synthetic corpus|cannot support|unavailable)\b"
+    r"|\b(not supported|not available|public corpus|synthetic corpus|cannot support|unavailable)\b[^.\n;]{0,160}\b(plumb'?s?|external (?:drug )?reference|drug handbook|package insert)\b",
+    re.IGNORECASE,
 )
 
 _EXTERNAL_NEEDED_RE = re.compile(
@@ -150,6 +154,98 @@ _SYNTHETIC_REFERENCE_RE = re.compile(
 
 _NO_SEVERE_TRIGGER_RE = re.compile(
     r"\b(no severe escalation trigger|no severe trigger|no escalation trigger|no structured severe trigger|reviewer observed no severe)\b",
+    re.IGNORECASE,
+)
+
+
+_RECORD_DISCREPANCY_RE = re.compile(
+    r"\b(?:documentation discrepancy|record discrepancy|worksheet discrepancy|formula discrepancy|wrong patient|wrong medication|different patient|different medication|label was for a different patient)\b",
+    re.IGNORECASE,
+)
+
+_RECORD_INCOMPLETE_RE = re.compile(
+    r"\b(?:documentation incomplete|record incomplete|worksheet incomplete|missing documentation|incomplete documentation)\b",
+    re.IGNORECASE,
+)
+
+_RECORD_NO_DISCREPANCY_RE = re.compile(
+    r"\b(?:no discrepancy|nothing off|record review (?:was )?(?:normal|complete)|worksheet review (?:was )?(?:normal|complete)|formula review (?:was )?(?:normal|complete)|correct medication and patient|correct patient and medication)\b",
+    re.IGNORECASE,
+)
+
+_RECORD_NOT_APPLICABLE_RE = re.compile(
+    r"\b(?:record review|documentation review|worksheet review)\s+(?:was\s+)?not applicable\b",
+    re.IGNORECASE,
+)
+
+_LOT_NOT_APPLICABLE_RE = re.compile(
+    r"\b(?:lot|batch|lot review|batch review|lot trend|batch trend)\s+(?:was\s+)?not applicable\b",
+    re.IGNORECASE,
+)
+
+_LOT_UNAVAILABLE_RE = re.compile(
+    r"\b(?:lot|batch|lot trend|batch trend|lot review|batch review)\s+(?:was\s+)?(?:unavailable|not available|unknown|not known)\b",
+    re.IGNORECASE,
+)
+
+_LOT_NO_SIMILAR_RE = re.compile(
+    r"\b(?:same\s+)?(?:lot|batch)[^.\n;]{0,80}\bno\s+similar\s+(?:complaints?|concerns?|issues?)\b"
+    r"|\bno\s+similar\s+(?:complaints?|concerns?|issues?)[^.\n;]{0,80}\b(?:lot|batch)\b"
+    r"|\bno\s+similar\s+(?:lot|batch)\s+(?:complaints?|concerns?|issues?)\b",
+    re.IGNORECASE,
+)
+
+_LOT_SAME_BATCH_FOUND_RE = re.compile(
+    r"\b(?:similar|repeat)\s+(?:complaint|concern|issue)s?\s+(?:was\s+|were\s+)?(?:found|identified|confirmed)[^.\n;]{0,60}\b(?:same\s+)?(?:lot|batch)\b"
+    r"|\b(?:same\s+)?(?:lot|batch)[^.\n;]{0,60}\b(?:similar|repeat)\s+(?:complaint|concern|issue)s?\s+(?:was\s+|were\s+)?(?:found|identified|confirmed)\b",
+    re.IGNORECASE,
+)
+
+_LOT_SAME_PRODUCT_FOUND_RE = re.compile(
+    r"\bsimilar\s+(?:complaint|concern|issue)s?\s+(?:was\s+|were\s+)?(?:found|identified|confirmed)[^.\n;]{0,80}\b(?:same medication|same dosage form|same product)\b",
+    re.IGNORECASE,
+)
+
+_LOT_TREND_THRESHOLD_RE = re.compile(
+    r"\btrend threshold (?:was\s+)?(?:met|reached|exceeded)\b",
+    re.IGNORECASE,
+)
+
+_INVENTORY_NOT_APPLICABLE_RE = re.compile(
+    r"\b(?:inventory inspection|inventory review|inventory)\s+(?:was\s+)?not applicable\b",
+    re.IGNORECASE,
+)
+
+_INVENTORY_NO_VISUAL_RE = re.compile(
+    r"\b(?:no visual concern|no visible concern|no defect observed|no visible defect|inspection found no concern|inventory inspection found no visual concern)\b",
+    re.IGNORECASE,
+)
+
+_INVENTORY_VISUAL_CONCERN_RE = re.compile(
+    r"\b(?:visual concern found|visible concern found|visual defect found|visible defect found|inspection found a concern|foreign material observed|particulate observed|mold observed)\b",
+    re.IGNORECASE,
+)
+
+_API_NOT_NEEDED_RE = re.compile(
+    r"\b(?:external|api|drug)?\s*reference\s+(?:was\s+)?not needed\b"
+    r"|\bno external reference (?:was\s+)?needed\b",
+    re.IGNORECASE,
+)
+
+_EXPLICIT_DOSE_MISSING_RE = re.compile(
+    r"\b(?:exact\s+)?dose\s+(?:is\s+|was\s+)?(?:unknown|not known|not documented|missing|still unknown)\b"
+    r"|\b(?:still need|need to confirm|could not confirm|couldn't confirm)\s+(?:the\s+)?(?:exact\s+)?dose\b",
+    re.IGNORECASE,
+)
+
+_EXPLICIT_DEVICE_DISPENSE_MISSING_RE = re.compile(
+    r"\b(?:could not confirm|couldn't confirm|unable to confirm|not sure|unknown|unclear)\b[^.\n;]{0,80}\b(?:dispensed|dispense|came out|medication came out|anything dispensed)\b"
+    r"|\b(?:whether|if)\s+(?:any\s+)?medication\s+(?:was\s+)?dispensed\s+(?:is\s+|was\s+)?(?:unknown|unclear|not known)\b",
+    re.IGNORECASE,
+)
+
+_EXPLICIT_MISSING_SENTENCE_RE = re.compile(
+    r"\b(?:missing|unknown|not known|not documented|still need|need to confirm|could not confirm|couldn't confirm|unable to determine)\b",
     re.IGNORECASE,
 )
 
@@ -174,6 +270,203 @@ def extract_review_summary(reviewer_note: str, llm_client: LLMClient) -> ReviewS
 
     return enforce_review_summary_grounding(summary, clean_note)
 
+
+
+_FIELD_SUPPORT_TERMS: dict[str, tuple[str, ...]] = {
+    "record_review_result": (
+        "record",
+        "worksheet",
+        "formula",
+        "documentation",
+        "discrepancy",
+    ),
+    "lot_batch_pattern_summary": (
+        "lot",
+        "batch",
+        "trend",
+        "similar complaint",
+        "similar concern",
+    ),
+    "inventory_inspection_result": (
+        "inventory",
+        "inspect",
+        "inspected",
+        "visual",
+    ),
+    "customer_context_summary": (
+        "customer",
+        "owner",
+        "dog",
+        "cat",
+        "pet",
+        "vomit",
+        "puked",
+        "symptom",
+        "hospital",
+        "vet",
+        "veterinarian",
+    ),
+    "api_reference_review_result": (
+        "api",
+        "reference",
+        "plumb",
+        "package insert",
+        "drug handbook",
+    ),
+    "missing_information": (
+        "missing",
+        "unknown",
+        "not known",
+        "still need",
+        "need to confirm",
+    ),
+    "evidence_limitations": (
+        "unavailable",
+        "not available",
+        "not inspected",
+        "not checked",
+        "not supported",
+        "could not",
+        "couldn't",
+        "unable",
+    ),
+    "severe_triggers_observed": (
+        "death",
+        "died",
+        "hospital",
+        "legal",
+        "lawsuit",
+        "lawyer",
+        "contamination",
+        "wrong medication",
+        "wrong patient",
+        "veterinarian",
+        "vet",
+        "no severe",
+        "no escalation",
+    ),
+}
+
+_AMBIGUITY_RE = re.compile(
+    r"\b(?:maybe|possibly|unclear|unknown|not sure|could not determine|couldn't determine|still investigating|unconfirmed)\b",
+    re.IGNORECASE,
+)
+
+
+def extract_review_summary_result(
+    reviewer_note: str,
+    llm_client: LLMClient,
+    *,
+    concern_text: str = "",
+) -> ReviewSummaryExtractionResult:
+    clean_note = reviewer_note.strip()
+
+    if not clean_note:
+        raise ValueError("reviewer_note must not be empty")
+
+    summary = extract_review_summary(clean_note, llm_client)
+    evidence = build_review_summary_field_evidence(
+        reviewer_note=clean_note,
+        review_summary=summary,
+    )
+    unresolved_questions = build_decision_relevant_questions(
+        concern_text=concern_text,
+        reviewer_note=clean_note,
+        review_summary=summary,
+    )
+
+    return ReviewSummaryExtractionResult(
+        review_summary=summary,
+        field_evidence=evidence,
+        unresolved_questions=unresolved_questions,
+    )
+
+
+def build_review_summary_field_evidence(
+    *,
+    reviewer_note: str,
+    review_summary: ReviewSummary,
+) -> list[ReviewSummaryFieldEvidence]:
+    summary_data = review_summary.model_dump(mode="json")
+    evidence: list[ReviewSummaryFieldEvidence] = []
+
+    for field_name, terms in _FIELD_SUPPORT_TERMS.items():
+        supporting_quote = find_supporting_sentence(
+            reviewer_note,
+            terms,
+        )
+        status = field_evidence_status(
+            field_name=field_name,
+            field_value=summary_data.get(field_name),
+            supporting_quote=supporting_quote,
+        )
+
+        evidence.append(
+            ReviewSummaryFieldEvidence(
+                field_name=field_name,
+                status=status,
+                supporting_quote=supporting_quote,
+                explanation=field_evidence_explanation(
+                    field_name=field_name,
+                    status=status,
+                ),
+            )
+        )
+
+    return evidence
+
+
+def find_supporting_sentence(
+    reviewer_note: str,
+    terms: Iterable[str],
+) -> str | None:
+    lowered_terms = tuple(term.lower() for term in terms)
+
+    for sentence in split_sentences(reviewer_note):
+        lowered_sentence = sentence.lower()
+
+        if any(term in lowered_sentence for term in lowered_terms):
+            return sentence
+
+    return None
+
+
+def field_evidence_status(
+    *,
+    field_name: str,
+    field_value: Any,
+    supporting_quote: str | None,
+) -> ExtractionEvidenceStatus:
+    if supporting_quote and _AMBIGUITY_RE.search(supporting_quote):
+        return ExtractionEvidenceStatus.AMBIGUOUS
+
+    if supporting_quote is None:
+        return ExtractionEvidenceStatus.NOT_STATED
+
+    if field_name in _ENUM_FIELDS:
+        return ExtractionEvidenceStatus.NORMALIZED
+
+    if field_name in _LIST_FIELDS and not field_value:
+        return ExtractionEvidenceStatus.NOT_STATED
+
+    return ExtractionEvidenceStatus.EXPLICIT
+
+
+def field_evidence_explanation(
+    *,
+    field_name: str,
+    status: ExtractionEvidenceStatus,
+) -> str:
+    if status == ExtractionEvidenceStatus.NORMALIZED:
+        return f"{field_name} was normalized from reviewer wording into the existing enum contract."
+
+    if status == ExtractionEvidenceStatus.EXPLICIT:
+        return f"{field_name} is directly supported by the reviewer note."
+
+    if status == ExtractionEvidenceStatus.AMBIGUOUS:
+        return f"{field_name} contains uncertain wording and requires reviewer confirmation."
+
+    return f"No direct supporting sentence was found for {field_name}."
 
 def build_review_summary_prompt(reviewer_note: str) -> str:
     return f"""
@@ -207,6 +500,8 @@ Safety rules:
 - If no external/API reference was needed, use "not_needed".
 - If external references are outside the public synthetic corpus, use "not_supported_by_public_corpus" and add an evidence limitation.
 - Keep missing_information and evidence_limitations as concise, reviewer-facing strings.
+- Do not create a generic checklist of absent fields.
+- Add missing_information only when the reviewer note explicitly identifies the information as missing, unknown, or still needed.
 
 Reviewer note:
 {reviewer_note}
@@ -335,13 +630,18 @@ def enforce_review_summary_grounding(
     data = summary.model_dump(mode="json")
     note = reviewer_note.strip()
 
-    data["missing_information"] = unique_in_order(data["missing_information"])
+    data["missing_information"] = infer_grounded_missing_information(
+        note,
+        data["missing_information"],
+    )
     data["evidence_limitations"] = unique_in_order(data["evidence_limitations"])
     data["severe_triggers_observed"] = infer_grounded_severe_triggers(
         note,
         data["severe_triggers_observed"],
     )
 
+    apply_record_review_grounding(note, data)
+    apply_lot_batch_grounding(note, data)
     apply_inventory_grounding(note, data)
     apply_api_reference_grounding(note, data)
 
@@ -427,6 +727,14 @@ def sentence_negates_trigger(sentence: str, trigger: EscalationTrigger) -> bool:
         if re.search(r"\bruled out\b", suffix, re.IGNORECASE):
             return True
 
+        if trigger == EscalationTrigger.REPEAT_ISSUE_SAME_LOT_OR_BATCH_WITH_CONDITIONS:
+            if re.search(
+                r"\b(?:no similar|without similar|no repeat|no trend|trend threshold (?:was )?not met)\b",
+                suffix,
+                re.IGNORECASE,
+            ):
+                return True
+
         if _NEGATION_RE.search(local_prefix):
             return True
 
@@ -461,7 +769,115 @@ def split_sentences(text: str) -> list[str]:
     return [part.strip() for part in re.split(r"[.;\n]+", text) if part.strip()]
 
 
+def infer_grounded_missing_information(
+    reviewer_note: str,
+    model_items: Iterable[str],
+) -> list[str]:
+    grounded: list[str] = []
+
+    if _EXPLICIT_DOSE_MISSING_RE.search(reviewer_note):
+        grounded.append("Exact dose administered")
+
+    if _EXPLICIT_DEVICE_DISPENSE_MISSING_RE.search(reviewer_note):
+        grounded.append("Whether medication dispensed from the device")
+
+    for sentence in split_sentences(reviewer_note):
+        if not _EXPLICIT_MISSING_SENTENCE_RE.search(sentence):
+            continue
+
+        normalized = normalize_explicit_missing_sentence(sentence)
+        if normalized is not None:
+            grounded.append(normalized)
+
+    _ = model_items
+    return unique_in_order(grounded)
+
+
+def normalize_explicit_missing_sentence(sentence: str) -> str | None:
+    lowered = sentence.lower()
+
+    if "dose" in lowered:
+        return "Exact dose administered"
+
+    if any(term in lowered for term in ("dispense", "dispensed", "came out")):
+        return "Whether medication dispensed from the device"
+
+    if "symptom" in lowered and any(
+        term in lowered
+        for term in ("resolved", "continued", "worsened", "course")
+    ):
+        return "Whether symptoms resolved"
+
+    if "veterinarian" in lowered or re.search(r"\bvet\b", lowered):
+        return "Whether veterinarian was contacted"
+
+    if "lot" in lowered or "batch" in lowered:
+        return "Lot or batch trend information"
+
+    return sentence.strip()
+
+
+
+def apply_record_review_grounding(note: str, data: dict[str, Any]) -> None:
+    if _RECORD_NOT_APPLICABLE_RE.search(note):
+        data["record_review_result"] = RecordReviewResult.NOT_APPLICABLE.value
+        return
+
+    if _RECORD_INCOMPLETE_RE.search(note):
+        data["record_review_result"] = RecordReviewResult.DOCUMENTATION_INCOMPLETE.value
+        return
+
+    if _RECORD_DISCREPANCY_RE.search(note):
+        if not re.search(
+            r"\b(?:ruled out|no wrong medication|no wrong patient|correct medication and patient|correct patient and medication)\b",
+            note,
+            re.IGNORECASE,
+        ):
+            data["record_review_result"] = (
+                RecordReviewResult.DOCUMENTATION_DISCREPANCY_FOUND.value
+            )
+            return
+
+    if _RECORD_NO_DISCREPANCY_RE.search(note):
+        data["record_review_result"] = RecordReviewResult.NO_DISCREPANCY_FOUND.value
+
+
+def apply_lot_batch_grounding(note: str, data: dict[str, Any]) -> None:
+    if _LOT_NOT_APPLICABLE_RE.search(note):
+        data["lot_batch_pattern_summary"] = LotBatchPatternSummary.NOT_APPLICABLE.value
+        return
+
+    if _LOT_TREND_THRESHOLD_RE.search(note):
+        data["lot_batch_pattern_summary"] = LotBatchPatternSummary.TREND_THRESHOLD_MET.value
+        return
+
+    if _LOT_NO_SIMILAR_RE.search(note):
+        data["lot_batch_pattern_summary"] = (
+            LotBatchPatternSummary.NO_SIMILAR_BATCH_CONCERNS_FOUND.value
+        )
+        return
+
+    if _LOT_SAME_BATCH_FOUND_RE.search(note):
+        data["lot_batch_pattern_summary"] = (
+            LotBatchPatternSummary.SIMILAR_CONCERN_SAME_BATCH_FOUND.value
+        )
+        return
+
+    if _LOT_SAME_PRODUCT_FOUND_RE.search(note):
+        data["lot_batch_pattern_summary"] = (
+            LotBatchPatternSummary.SIMILAR_CONCERN_SAME_MEDICATION_DOSAGE_FORM_FOUND.value
+        )
+        return
+
+    if _LOT_UNAVAILABLE_RE.search(note):
+        data["lot_batch_pattern_summary"] = LotBatchPatternSummary.UNAVAILABLE.value
+
+
 def apply_inventory_grounding(note: str, data: dict[str, Any]) -> None:
+    if _INVENTORY_NOT_APPLICABLE_RE.search(note):
+        data["inventory_inspection_result"] = InventoryInspectionResult.NOT_APPLICABLE.value
+        return
+
     if _INVENTORY_UNAVAILABLE_RE.search(note):
         data["inventory_inspection_result"] = InventoryInspectionResult.NO_INVENTORY_AVAILABLE.value
         add_unique(
@@ -476,6 +892,14 @@ def apply_inventory_grounding(note: str, data: dict[str, Any]) -> None:
             data["evidence_limitations"],
             "Inventory was not inspected.",
         )
+        return
+
+    if _INVENTORY_NO_VISUAL_RE.search(note):
+        data["inventory_inspection_result"] = InventoryInspectionResult.NO_VISUAL_CONCERN_FOUND.value
+        return
+
+    if _INVENTORY_VISUAL_CONCERN_RE.search(note):
+        data["inventory_inspection_result"] = InventoryInspectionResult.VISUAL_CONCERN_FOUND.value
 
 
 def apply_api_reference_grounding(note: str, data: dict[str, Any]) -> None:
@@ -487,13 +911,16 @@ def apply_api_reference_grounding(note: str, data: dict[str, Any]) -> None:
         )
         return
 
+    if _API_NOT_NEEDED_RE.search(note):
+        data["api_reference_review_result"] = ApiReferenceReviewResult.NOT_NEEDED.value
+        return
+
     if _EXTERNAL_NEEDED_RE.search(note):
         data["api_reference_review_result"] = ApiReferenceReviewResult.EXTERNAL_REFERENCE_NEEDED.value
         return
 
     if _SYNTHETIC_REFERENCE_RE.search(note):
         data["api_reference_review_result"] = ApiReferenceReviewResult.SYNTHETIC_REFERENCE_CONSULTED.value
-
 
 def enum_values(enum_cls: type[StrEnum]) -> list[str]:
     return [member.value for member in enum_cls]
