@@ -259,9 +259,13 @@ public class PythonProcessRagEngineClient implements RagEngineClient {
             }
         }
 
-        private static Process startProcess(PythonProcessRagEngineProperties properties) {
+        private static Process startProcess(
+                PythonProcessRagEngineProperties properties
+        ) {
             ProcessBuilder processBuilder = new ProcessBuilder(properties.command());
             processBuilder.directory(properties.workingDirectory().toFile());
+            processBuilder.environment().put("PYTHONIOENCODING", "utf-8");
+            processBuilder.environment().put("PYTHONUTF8", "1");
 
             try {
                 return processBuilder.start();

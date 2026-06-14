@@ -204,3 +204,23 @@ This log captures implementation failures found while building the synthetic Com
 **Fix:** Documented the retrieval comparison baseline and kept `KeywordRetriever` as the default API/checklist retrieval path. Preserved `EmbeddingRetriever` and `HybridRetriever` as evaluation baselines only, not production semantic search.
 
 **Prevention:** Do not promote a retriever based on one small eval run. Keep retrieval comparisons visible in `reports/retrieval_comparison.md`, preserve known miss IDs in the baseline docs, and only change the default retrieval path after a deliberate evaluation-backed decision.
+
+### 16. Clipboard tests targeted a stale browser API mock
+
+**Symptom:** `FinalAssessmentPanel` clipboard tests reported that `navigator.clipboard.writeText` was never called. The expected copy-success and copy-failure messages did not render, and Vitest also reported an unhandled worker timeout.
+
+**Root cause:** The test replaced `navigator.clipboard` before calling `userEvent.setup()`. Testing Library then installed its own clipboard stub, so the assertion was watching a different `writeText` function from the one the component called. The component also used a feedback-reset timer that added unnecessary asynchronous work during the test run.
+
+**Fix:** Created the `userEvent` instance before spying on `navigator.clipboard.writeText`, awaited the asynchronous UI feedback, and removed the unnecessary automatic feedback-reset timer.
+
+**Prevention:** Mock browser APIs only after test helpers have installed their own stubs. Await asynchronous UI transitions with `findBy*` or `waitFor`, and avoid timers unless the timed behavior is an explicit product requirement.
+
+### 17. Python subprocess output used an inconsistent Windows encoding
+
+**Symptom:** Refusal text rendered `can�t` instead of `can't` in the browser.
+
+**Root cause:** Java correctly decoded Python stdout and stderr as UTF-8, but the Python subprocess was not explicitly configured to emit UTF-8. On Windows, Python could therefore write output using a different code page, causing Java's UTF-8 decoder to replace the incompatible apostrophe bytes with the Unicode replacement character.
+
+**Fix:** Added `PYTHONIOENCODING=utf-8` and `PYTHONUTF8=1` to the `ProcessBuilder` environment before starting the Python RAG process.
+
+**Prevention:** Explicitly define both sides of every subprocess encoding boundary: configure the child process to emit UTF-8 and configure the parent process to decode UTF-8. Include non-ASCII punctuation in process-boundary tests.

@@ -1,0 +1,134 @@
+.demo-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.25rem;
+  align-items: end;
+  padding: 1.25rem;
+}
+
+.demo-toolbar h2 {
+  margin-bottom: 0.4rem;
+  color: var(--navy);
+  font-size: 1.15rem;
+}
+
+.demo-toolbar-description {
+  max-width: 760px;
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.demo-toolbar-controls {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) auto auto;
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.demo-toolbar-controls label {
+  grid-column: 1 / -1;
+  color: #344054;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.demo-toolbar-controls select {
+  min-height: 2.8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 2.4rem 0 0.8rem;
+  color: var(--ink);
+  background: #ffffff;
+}
+
+.demo-toolbar-controls select:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 4px rgba(8, 127, 140, 0.13);
+}
+
+.secondary-button,
+.ghost-button {
+  min-height: 2.8rem;
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.secondary-button {
+  color: var(--teal-dark);
+  border: 1px solid rgba(8, 127, 140, 0.35);
+  background: var(--teal-soft);
+}
+
+.ghost-button {
+  color: var(--navy);
+  border: 1px solid var(--line);
+  background: #ffffff;
+}
+
+.secondary-button:hover:not(:disabled),
+.ghost-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.secondary-button:disabled,
+.ghost-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.final-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.copy-feedback {
+  min-height: 1.2rem;
+  margin: -0.45rem 0 0.75rem;
+  color: var(--teal-dark);
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+@media (max-width: 920px) {
+  .demo-toolbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .demo-toolbar-controls {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .demo-toolbar-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .demo-toolbar-controls label {
+    grid-column: auto;
+  }
+
+  .demo-toolbar-controls button {
+    width: 100%;
+  }
+
+  .final-actions {
+    justify-content: stretch;
+  }
+
+  .final-actions .secondary-button {
+    width: 100%;
+  }
+
+  .copy-feedback {
+    text-align: left;
+  }
+}

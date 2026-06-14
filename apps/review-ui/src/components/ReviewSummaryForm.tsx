@@ -4,21 +4,49 @@ import type { ReviewSummaryRequest } from "../api/types";
 type ReviewSummaryFormProps = {
   isSubmitting: boolean;
   onSubmit: (reviewSummary: ReviewSummaryRequest) => Promise<void>;
+  initialValues?: ReviewSummaryRequest;
+};
+
+const EMPTY_REVIEW_SUMMARY: ReviewSummaryRequest = {
+  recordReviewResult: "",
+  lotBatchPatternSummary: "",
+  inventoryInspectionResult: "",
+  customerContextSummary: null,
+  apiReferenceReviewResult: "",
+  missingInformation: [],
+  evidenceLimitations: [],
+  severeTriggersObserved: [],
 };
 
 export function ReviewSummaryForm({
   isSubmitting,
   onSubmit,
+  initialValues = EMPTY_REVIEW_SUMMARY,
 }: ReviewSummaryFormProps) {
-  const [recordReviewResult, setRecordReviewResult] = useState("");
-  const [lotBatchPatternSummary, setLotBatchPatternSummary] = useState("");
-  const [inventoryInspectionResult, setInventoryInspectionResult] =
-    useState("");
-  const [customerContextSummary, setCustomerContextSummary] = useState("");
-  const [apiReferenceReviewResult, setApiReferenceReviewResult] = useState("");
-  const [missingInformation, setMissingInformation] = useState("");
-  const [evidenceLimitations, setEvidenceLimitations] = useState("");
-  const [severeTriggersObserved, setSevereTriggersObserved] = useState("");
+  const [recordReviewResult, setRecordReviewResult] = useState(
+    initialValues.recordReviewResult,
+  );
+  const [lotBatchPatternSummary, setLotBatchPatternSummary] = useState(
+    initialValues.lotBatchPatternSummary,
+  );
+  const [inventoryInspectionResult, setInventoryInspectionResult] = useState(
+    initialValues.inventoryInspectionResult,
+  );
+  const [customerContextSummary, setCustomerContextSummary] = useState(
+    initialValues.customerContextSummary ?? "",
+  );
+  const [apiReferenceReviewResult, setApiReferenceReviewResult] = useState(
+    initialValues.apiReferenceReviewResult,
+  );
+  const [missingInformation, setMissingInformation] = useState(
+    initialValues.missingInformation.join("\n"),
+  );
+  const [evidenceLimitations, setEvidenceLimitations] = useState(
+    initialValues.evidenceLimitations.join("\n"),
+  );
+  const [severeTriggersObserved, setSevereTriggersObserved] = useState(
+    initialValues.severeTriggersObserved.join("\n"),
+  );
 
   const requiredFieldsComplete =
     recordReviewResult.trim().length > 0 &&

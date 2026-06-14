@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   createChecklist,
   createFinalAssessment,
@@ -11,9 +11,16 @@ import type {
 } from "./api/types";
 import { ChecklistPanel } from "./components/ChecklistPanel";
 import { ConcernInputForm } from "./components/ConcernInputForm";
+import { DemoToolbar } from "./components/DemoToolbar";
 import { FinalAssessmentPanel } from "./components/FinalAssessmentPanel";
 import { ReviewSummaryForm } from "./components/ReviewSummaryForm";
 import { WorkflowProgress } from "./components/WorkflowProgress";
+import {
+  DEFAULT_DEMO_CASE_ID,
+  getDemoCase,
+  type DemoCaseId,
+} from "./demo/demoCases";
+import "./demoControls.css";
 
 type ChecklistState =
   | { status: "idle" }
@@ -28,12 +35,50 @@ type FinalAssessmentState =
   | { status: "error"; message: string };
 
 export function App() {
+  const [selectedDemoCaseId, setSelectedDemoCaseId] =
+    useState<DemoCaseId>(DEFAULT_DEMO_CASE_ID);
+  const [workflowVersion, setWorkflowVersion] = useState(0);
+  const [concernSeed, setConcernSeed] = useState("");
+  const [draftConcernText, setDraftConcernText] = useState("");
+  const [reviewSummarySeed, setReviewSummarySeed] =
+    useState<ReviewSummaryRequest>();
   const [submittedConcernText, setSubmittedConcernText] = useState("");
   const [checklistState, setChecklistState] = useState<ChecklistState>({
     status: "idle",
   });
   const [finalAssessmentState, setFinalAssessmentState] =
     useState<FinalAssessmentState>({ status: "idle" });
+
+  const canStartOver = useMemo(
+    () =>
+      draftConcernText.trim().length > 0 ||
+      checklistState.status !== "idle" ||
+      finalAssessmentState.status !== "idle",
+    [draftConcernText, checklistState.status, finalAssessmentState.status],
+  );
+
+  function handleLoadDemoCase() {
+    const demoCase = getDemoCase(selectedDemoCaseId);
+
+    setConcernSeed(demoCase.concernText);
+    setDraftConcernText(demoCase.concernText);
+    setReviewSummarySeed(demoCase.reviewSummary);
+    setSubmittedConcernText("");
+    setChecklistState({ status: "idle" });
+    setFinalAssessmentState({ status: "idle" });
+    setWorkflowVersion((version) => version + 1);
+  }
+
+  function handleStartOver() {
+    setSelectedDemoCaseId(DEFAULT_DEMO_CASE_ID);
+    setConcernSeed("");
+    setDraftConcernText("");
+    setReviewSummarySeed(undefined);
+    setSubmittedConcernText("");
+    setChecklistState({ status: "idle" });
+    setFinalAssessmentState({ status: "idle" });
+    setWorkflowVersion((version) => version + 1);
+  }
 
   async function handleChecklistSubmit(concernText: string) {
     setSubmittedConcernText(concernText);
@@ -110,9 +155,20 @@ export function App() {
 
         <div className="content-grid">
           <section className="workflow-column" aria-label="Review workflow">
+            <DemoToolbar
+              selectedDemoCaseId={selectedDemoCaseId}
+              onSelectedDemoCaseChange={setSelectedDemoCaseId}
+              onLoadDemoCase={handleLoadDemoCase}
+              onStartOver={handleStartOver}
+              canStartOver={canStartOver}
+            />
+
             <ConcernInputForm
+              key={`concern-${workflowVersion}`}
               isSubmitting={checklistState.status === "loading"}
               onSubmit={handleChecklistSubmit}
+              initialConcernText={concernSeed}
+              onConcernTextChange={setDraftConcernText}
             />
 
             {checklistState.status === "idle" ? (
@@ -139,8 +195,10 @@ export function App() {
                 <ChecklistPanel checklist={checklistState.checklist} />
 
                 <ReviewSummaryForm
+                  key={`review-${workflowVersion}`}
                   isSubmitting={finalAssessmentState.status === "loading"}
                   onSubmit={handleFinalAssessmentSubmit}
+                  initialValues={reviewSummarySeed}
                 />
 
                 {finalAssessmentState.status === "loading" ? (
