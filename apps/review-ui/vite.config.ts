@@ -6,11 +6,12 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": "http://localhost:8080",
+      "/ready": "http://localhost:8080",
     },
   },
   test: {
     environment: "jsdom",
     globals: true,
-    setupFiles: ["@testing-library/jest-dom/vitest"],
+    setupFiles: ["./src/test/setup.ts"],
   },
 });
