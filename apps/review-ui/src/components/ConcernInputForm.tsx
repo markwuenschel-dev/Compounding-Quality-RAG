@@ -3,13 +3,17 @@ import { FormEvent, useState } from "react";
 type ConcernInputFormProps = {
   isSubmitting: boolean;
   onSubmit: (concernText: string) => Promise<void>;
+  initialConcernText?: string;
+  onConcernTextChange?: (concernText: string) => void;
 };
 
 export function ConcernInputForm({
   isSubmitting,
   onSubmit,
+  initialConcernText = "",
+  onConcernTextChange,
 }: ConcernInputFormProps) {
-  const [concernText, setConcernText] = useState("");
+  const [concernText, setConcernText] = useState(initialConcernText);
 
   const trimmedConcernText = concernText.trim();
   const canSubmit = trimmedConcernText.length > 0 && !isSubmitting;
@@ -22,6 +26,11 @@ export function ConcernInputForm({
     }
 
     await onSubmit(trimmedConcernText);
+  }
+
+  function handleConcernTextChange(value: string) {
+    setConcernText(value);
+    onConcernTextChange?.(value);
   }
 
   return (
@@ -50,7 +59,7 @@ export function ConcernInputForm({
             rows={7}
             maxLength={5_000}
             value={concernText}
-            onChange={(event) => setConcernText(event.target.value)}
+            onChange={(event) => handleConcernTextChange(event.target.value)}
             placeholder="Example: Dog vomited once after receiving a flavored compounded oral liquid."
             aria-describedby="concern-help concern-count"
           />
