@@ -1,0 +1,240 @@
+[
+  {
+    "question_id": "DEV-RET-001-PAIR-0001",
+    "query": "the customer had been storing on countertop since received 12/19 been giving 2 weeks with no problems, today when she pulled the dose the medication was like pudding she described the customer states no change in the way medication has been stored What would cause it to turn to a pudding like consistency?",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-004"
+    ],
+    "forbidden_source_ids": [],
+    "rationale": "Appearance change requires quality-review and storage-context guidance."
+  },
+  {
+    "question_id": "DEV-RET-002-PAIR-0003",
+    "query": "the customer reports that pen is not at refill mark yet She was asking if she should use 2 clicks instead of 1 She did not report any damage to the pen or that it was broken, just that the clicks weren't pushing out as much medication as before",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-006",
+      "SOP-008"
+    ],
+    "forbidden_source_ids": [
+      "SOP-005"
+    ],
+    "rationale": "A dispensing-device concern with another same-lot complaint needs device, quality-review, and trend guidance."
+  },
+  {
+    "question_id": "DEV-RET-003-PAIR-0009",
+    "query": "the customer call her cat has fish oil intolerance and medication is tuna flavor the only mention in the formulary tuna flavor oil no details submit request from cpd to call her",
+    "expected_source_ids": [
+      "SOP-002",
+      "SOP-004"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "rationale": "A narrow flavor-ingredient and intolerance question should retrieve ingredient and palatability guidance, not escalation guidance."
+  },
+  {
+    "question_id": "DEV-RET-004-PAIR-0022",
+    "query": "says she's been storing it in fridge (original in November) and asking if that's okay I see where it's recommended to be stored at room temperature (68-77\u00b0F) told her I will check with compounding to see if they have any data on it being refrigerated",
+    "expected_source_ids": [
+      "SOP-002",
+      "SOP-004",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-006"
+    ],
+    "rationale": "Refrigerated storage and product-specific stability require storage and unsupported-reference boundaries."
+  },
+  {
+    "question_id": "DEV-RET-005-PAIR-0028",
+    "query": "the customer stated the Prednisone Compounded Beef Oral Oil Suspension, 10 mg/mL, 90 mL that she received smells weird and does not smell like how it normally does and does not feel comfortable using it the customer has not used the bottle that we dispensed",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-004"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "rationale": "An odor concern with a documented record discrepancy is a quality review, not routine frontline delegation."
+  },
+  {
+    "question_id": "DEV-RET-006-PAIR-0033",
+    "query": "with questions on pimobendan compounded liquid the customer (shes an MD) has a questions regarding administration, effect of food on absorption she said pet is having trouble taking medication and she really wants to give medication with food",
+    "expected_source_ids": [
+      "SOP-004",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-008"
+    ],
+    "rationale": "Food-administration and absorption questions require administration context and external-reference boundaries."
+  },
+  {
+    "question_id": "DEV-RET-007-PAIR-0036",
+    "query": "for the pet, Fluoxetine HCl Compounded Oral Oil Liquid Chicken Flavored for Dogs & Cats, 15-mg/mL, 30 mL, the reporting customer is reporting and her sister is the customer listed with the clinic and is listed as the the customer at the vet Pet's first dose was on and that is when the pet got sick, , , , there was blood in the stool and was hospitalized on from 8AM to 6PM They took a blood test and everything came out okay but he had some sort of infection that caused vomiting, diarrhea and blood in his stool",
+    "expected_source_ids": [
+      "SOP-005",
+      "SOP-007"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "rationale": "Hospitalization and severe GI symptoms require adverse-event and escalation guidance."
+  },
+  {
+    "question_id": "DEV-RET-008-PAIR-0054",
+    "query": "long hx of product with us Veterinarian told the customer, therapeutic levels are not adjusting as they would hope",
+    "expected_source_ids": [
+      "SOP-004",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-006"
+    ],
+    "rationale": "Efficacy and therapeutic-level concerns require administration and reference review rather than a default resolution path."
+  },
+  {
+    "question_id": "DEV-RET-009-PAIR-0086",
+    "query": "He receives a 30ml bottle that should last 60 days He initially said he was giving 2.5ml, but then corrected himself to say 0.25ml when I questioned him I did have him look at and describe the syringe to me and he states it is a 1-ml syringe he draws up to the 0.25ml mark",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-004"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "rationale": "A quantity discrepancy with possible syringe misunderstanding requires record and administration review."
+  },
+  {
+    "question_id": "DEV-RET-010-PAIR-0093",
+    "query": "After first dose given around 20 minutes prior to eating Within 1/2 hour of administration pet was having difficulty walking, and general weakness inhibiting normal bodily function Will not report to manufacturer",
+    "expected_source_ids": [
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "rationale": "Difficulty walking and weakness after a dose require adverse-event review."
+  },
+  {
+    "question_id": "DEV-RET-011-PAIR-0103",
+    "query": "Did not get specific flavor or strength info, but the customer wants to know what inactive ingredients are in our general ursodiol oral oil suspensions prior to making purchases mentioned to the customer vegan flavoring and sugar free but she is wanting to know specifics",
+    "expected_source_ids": [
+      "SOP-002",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "rationale": "A request for a full inactive-ingredient list requires ingredient and unsupported-information boundaries."
+  },
+  {
+    "question_id": "DEV-RET-012-PAIR-0106",
+    "query": "New the customer reaching out to ask about where we source the ingredients from for the Ursodiol Capsule 80 mg () Compounding hub details: Ursodeoxycholic Acid, USP I informed her that certain ingredients of our compounds are from USP, but not all",
+    "expected_source_ids": [
+      "SOP-002",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "rationale": "Supplier-source disclosure requires response and public-corpus limitation guidance."
+  },
+  {
+    "question_id": "DEV-RET-013-PAIR-0111",
+    "query": "how are we sure that the pet is getting the correct dose of all three medications when they are combined in one solution? Reports vet has concerns since bloodwork was showing worsening of condition",
+    "expected_source_ids": [
+      "SOP-004",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "rationale": "Dose-uniformity questions require administration and evidence-boundary guidance."
+  },
+  {
+    "question_id": "DEV-RET-014-PAIR-0157",
+    "query": "the customer reported informing the pet was started on Theophylline for chronic bronchitis and the first dose was given the evening of the customer reports the pet was hyper all night and was visibly gagging and looked short of breath Pet was not given another dose and returned back to normal the following day",
+    "expected_source_ids": [
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "rationale": "Shortness of breath after a dose requires adverse-event review and makes pharmacist outreach more likely; it is not an automatic severe trigger."
+  },
+  {
+    "question_id": "DEV-RET-015-PAIR-0169",
+    "query": "the customer has questions about formulation of Fluoxetine HCl Compounded Transdermal Cream, 4 mg/0.1 mL, 9 mL for Veterinary use (2 clicks=0.1 mL) since her pet has been experiencing sores in the ears ever since they had a herpes virus in Dec 2025 asking if anything changed in formulation with product or if there are alternative formulations for more sensitive pets (I said I believe there is only one formulation for this product) Did ingredients or manufacturer change on this formulation recently? Are the...",
+    "expected_source_ids": [
+      "SOP-004",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-008"
+    ],
+    "rationale": "Ear sores with transdermal use require administration-site and adverse-event context."
+  },
+  {
+    "question_id": "DEV-RET-016-PAIR-0187",
+    "query": "Received inbound call from tech stating that clinic had emailed in regarding Fluoxetine Transdermal compound Clinic stated that the customer told them the transdermal is easier to apply after storing in the fridge Clinic was questioning whether the medication would still be effective after storing in fridge because Chewy website states medication must be stored at room temp",
+    "expected_source_ids": [
+      "SOP-002",
+      "SOP-004",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-006"
+    ],
+    "rationale": "Refrigerated transdermal efficacy requires storage and unsupported stability boundaries."
+  },
+  {
+    "question_id": "DEV-RET-017-PAIR-0228",
+    "query": "the customer states they started using replacement bottle on and the bottle should last them for 90 days from the date they started using it, but they looked today () and the bottle looked very low (below the 20-mL line on the bottle), so the customer pulled up the remaining amount of oral suspension in the bottle and only 15-mLs was in the bottle ( per calculations, the customer should at 27-mLs left MINUMUM in the bottle) the customer stated they are vigorously shaking bottle as they should, storing...",
+    "expected_source_ids": [
+      "SOP-004",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "rationale": "A low-volume complaint complicated by use after BUD requires shortage and BUD context."
+  },
+  {
+    "question_id": "DEV-RET-018-PAIR-0252",
+    "query": "spoke with the customer who states she just started this bottle 2 days ago, and on the first day the pet was fine, but yesterday after both doses, he has been drooling excessively, foaming a little bit at the mouth, shaking his head and dripping saliva as if he does not like the medication States she got her 1st bottle from the clinic and he took all of that just fine, states that bottle was more milky and ours is more clear Let her know it sounds like the pet is not tolerating either this flavor well or perhaps...",
+    "expected_source_ids": [
+      "SOP-004",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "rationale": "Drooling and foaming with flavor and dose concerns should not be reduced to routine flavor refusal."
+  },
+  {
+    "question_id": "DEV-RET-019-PAIR-0295",
+    "query": "the customer would like a call back with the degradation rate of the above compound after BUD due to giving it to cat for 20 days after BUD",
+    "expected_source_ids": [
+      "SOP-002",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-008"
+    ],
+    "rationale": "A degradation-rate request after BUD requires BUD and unsupported-reference guidance."
+  },
+  {
+    "question_id": "DEV-RET-020-PAIR-0304",
+    "query": "On , the customer gave the pet 0.1 mL of Trazodone HCl Compounded Chicken Oral Oil Suspension, 50 mg/mL Soon after the pet started foaming at the mouth and fell over In the evening, the pet had diarrhea and her appetite has decreased since getting the medication",
+    "expected_source_ids": [
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "rationale": "Foaming, falling over, and neurologic signs require adverse-event review; collapse-like context alone is not an automatic severe trigger."
+  }
+]

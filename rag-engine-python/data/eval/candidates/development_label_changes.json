@@ -1,0 +1,130 @@
+{
+  "corrected_case_count": 8,
+  "holdout_changed": false,
+  "changes": [
+    {
+      "case_id": "DEV-EXT-004-PAIR-0022",
+      "pair_id": "PAIR-0022",
+      "reason": "The note says USP guidance was incorporated. Under the proposed policy, a completed abstracted reference review is labeled synthetic_reference_consulted unless the note explicitly states that the requested conclusion is unsupported.",
+      "changed_fields": {
+        "api_reference_review_result": {
+          "before": "not_supported_by_public_corpus",
+          "after": "synthetic_reference_consulted"
+        },
+        "evidence_limitations": {
+          "before": [
+            "Product-specific refrigerated stability is not supported by the public corpus."
+          ],
+          "after": []
+        }
+      }
+    },
+    {
+      "case_id": "DEV-EXT-007-PAIR-0036",
+      "pair_id": "PAIR-0036",
+      "reason": "Hospitalization appears in the complaint but not in the canonical reviewer note. The extraction contract treats severe_triggers_observed as reviewer-confirmed findings, so complaint-only facts are not gold labels for reviewer-note extraction.",
+      "changed_fields": {
+        "severe_triggers_observed": {
+          "before": [
+            "pet_hospitalization"
+          ],
+          "after": []
+        }
+      }
+    },
+    {
+      "case_id": "DEV-EXT-011-PAIR-0103",
+      "pair_id": "PAIR-0103",
+      "reason": "The limitation now mirrors the supplied investigation instead of adding a public-corpus conclusion that the reviewer note did not state.",
+      "changed_fields": {
+        "evidence_limitations": {
+          "before": [
+            "The complete proprietary inactive-ingredient formula is not supported by the public corpus."
+          ],
+          "after": [
+            "The full proprietary formula was not disclosed."
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "DEV-EXT-012-PAIR-0106",
+      "pair_id": "PAIR-0106",
+      "reason": "The limitation now mirrors the supplied investigation and preserves the explicit non-disclosure boundary.",
+      "changed_fields": {
+        "evidence_limitations": {
+          "before": [
+            "Specific supplier and manufacturer details are not supported by the public corpus."
+          ],
+          "after": [
+            "Specific supplier or manufacturer details were not disclosed."
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "DEV-EXT-014-PAIR-0157",
+      "pair_id": "PAIR-0157",
+      "reason": "This is an adverse-event investigation, but the canonical reviewer note does not document record-review or lot-trend outcomes. Under the proposed silence policy, required-but-undocumented review maps to documentation_incomplete and unavailable rather than not_applicable.",
+      "changed_fields": {
+        "record_review_result": {
+          "before": "not_applicable",
+          "after": "documentation_incomplete"
+        },
+        "lot_batch_pattern_summary": {
+          "before": "not_applicable",
+          "after": "unavailable"
+        }
+      }
+    },
+    {
+      "case_id": "DEV-EXT-015-PAIR-0169",
+      "pair_id": "PAIR-0169",
+      "reason": "This case includes a reported transdermal reaction and formulation concern. Record and lot review remain relevant, but their outcomes are not documented in the canonical investigation.",
+      "changed_fields": {
+        "record_review_result": {
+          "before": "not_applicable",
+          "after": "documentation_incomplete"
+        },
+        "lot_batch_pattern_summary": {
+          "before": "not_applicable",
+          "after": "unavailable"
+        }
+      }
+    },
+    {
+      "case_id": "DEV-EXT-016-PAIR-0187",
+      "pair_id": "PAIR-0187",
+      "reason": "USP guidance was incorporated. The note does not explicitly state that the requested refrigerated-efficacy conclusion was unsupported.",
+      "changed_fields": {
+        "api_reference_review_result": {
+          "before": "not_supported_by_public_corpus",
+          "after": "synthetic_reference_consulted"
+        },
+        "evidence_limitations": {
+          "before": [
+            "Product-specific efficacy after refrigeration is not supported by the public corpus."
+          ],
+          "after": []
+        }
+      }
+    },
+    {
+      "case_id": "DEV-EXT-019-PAIR-0295",
+      "pair_id": "PAIR-0295",
+      "reason": "USP guidance was incorporated. The canonical reviewer note does not explicitly state that a degradation-rate answer was unsupported.",
+      "changed_fields": {
+        "api_reference_review_result": {
+          "before": "not_supported_by_public_corpus",
+          "after": "synthetic_reference_consulted"
+        },
+        "evidence_limitations": {
+          "before": [
+            "A product-specific degradation rate after the beyond-use date is not supported by the public corpus."
+          ],
+          "after": []
+        }
+      }
+    }
+  ]
+}

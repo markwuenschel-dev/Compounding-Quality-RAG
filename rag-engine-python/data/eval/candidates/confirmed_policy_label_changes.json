@@ -1,0 +1,152 @@
+{
+  "holdout_changed": false,
+  "change_count": 18,
+  "changes": [
+    {
+      "case_id": "DEV-EXT-003-PAIR-0009",
+      "pair_id": "PAIR-0009",
+      "field": "api_reference_review_result",
+      "before": "synthetic_reference_consulted",
+      "after": "external_reference_consulted",
+      "reason": "Domain decision: the investigation states that USP, manufacturer, internal clinical, veterinary-drug, or package-insert information was already reviewed."
+    },
+    {
+      "case_id": "DEV-EXT-004-PAIR-0022",
+      "pair_id": "PAIR-0022",
+      "field": "api_reference_review_result",
+      "before": "synthetic_reference_consulted",
+      "after": "external_reference_consulted",
+      "reason": "Domain decision: the investigation states that USP, manufacturer, internal clinical, veterinary-drug, or package-insert information was already reviewed."
+    },
+    {
+      "case_id": "DEV-EXT-005-PAIR-0028",
+      "pair_id": "PAIR-0028",
+      "field": "api_reference_review_result",
+      "before": "synthetic_reference_consulted",
+      "after": "external_reference_consulted",
+      "reason": "Domain decision: the investigation states that USP, manufacturer, internal clinical, veterinary-drug, or package-insert information was already reviewed."
+    },
+    {
+      "case_id": "DEV-EXT-006-PAIR-0033",
+      "pair_id": "PAIR-0033",
+      "field": "api_reference_review_result",
+      "before": "synthetic_reference_consulted",
+      "after": "external_reference_consulted",
+      "reason": "Domain decision: the investigation states that USP, manufacturer, internal clinical, veterinary-drug, or package-insert information was already reviewed."
+    },
+    {
+      "case_id": "DEV-EXT-007-PAIR-0036",
+      "pair_id": "PAIR-0036",
+      "field": "api_reference_review_result",
+      "before": "synthetic_reference_consulted",
+      "after": "external_reference_consulted",
+      "reason": "Domain decision: the investigation states that USP, manufacturer, internal clinical, veterinary-drug, or package-insert information was already reviewed."
+    },
+    {
+      "case_id": "DEV-EXT-008-PAIR-0054",
+      "pair_id": "PAIR-0054",
+      "field": "api_reference_review_result",
+      "before": "synthetic_reference_consulted",
+      "after": "external_reference_consulted",
+      "reason": "Domain decision: the investigation states that USP, manufacturer, internal clinical, veterinary-drug, or package-insert information was already reviewed."
+    },
+    {
+      "case_id": "DEV-EXT-010-PAIR-0093",
+      "pair_id": "PAIR-0093",
+      "field": "api_reference_review_result",
+      "before": "synthetic_reference_consulted",
+      "after": "external_reference_consulted",
+      "reason": "Domain decision: the investigation states that USP, manufacturer, internal clinical, veterinary-drug, or package-insert information was already reviewed."
+    },
+    {
+      "case_id": "DEV-EXT-013-PAIR-0111",
+      "pair_id": "PAIR-0111",
+      "field": "api_reference_review_result",
+      "before": "synthetic_reference_consulted",
+      "after": "external_reference_consulted",
+      "reason": "Domain decision: the investigation states that USP, manufacturer, internal clinical, veterinary-drug, or package-insert information was already reviewed."
+    },
+    {
+      "case_id": "DEV-EXT-015-PAIR-0169",
+      "pair_id": "PAIR-0169",
+      "field": "api_reference_review_result",
+      "before": "synthetic_reference_consulted",
+      "after": "external_reference_consulted",
+      "reason": "Domain decision: the investigation states that USP, manufacturer, internal clinical, veterinary-drug, or package-insert information was already reviewed."
+    },
+    {
+      "case_id": "DEV-EXT-016-PAIR-0187",
+      "pair_id": "PAIR-0187",
+      "field": "api_reference_review_result",
+      "before": "synthetic_reference_consulted",
+      "after": "external_reference_consulted",
+      "reason": "Domain decision: the investigation states that USP, manufacturer, internal clinical, veterinary-drug, or package-insert information was already reviewed."
+    },
+    {
+      "case_id": "DEV-EXT-017-PAIR-0228",
+      "pair_id": "PAIR-0228",
+      "field": "api_reference_review_result",
+      "before": "not_needed",
+      "after": "external_reference_consulted",
+      "reason": "Domain decision: the investigation states that USP, manufacturer, internal clinical, veterinary-drug, or package-insert information was already reviewed."
+    },
+    {
+      "case_id": "DEV-EXT-018-PAIR-0252",
+      "pair_id": "PAIR-0252",
+      "field": "api_reference_review_result",
+      "before": "synthetic_reference_consulted",
+      "after": "external_reference_consulted",
+      "reason": "Domain decision: the investigation states that USP, manufacturer, internal clinical, veterinary-drug, or package-insert information was already reviewed."
+    },
+    {
+      "case_id": "DEV-EXT-019-PAIR-0295",
+      "pair_id": "PAIR-0295",
+      "field": "api_reference_review_result",
+      "before": "synthetic_reference_consulted",
+      "after": "external_reference_consulted",
+      "reason": "Domain decision: the investigation states that USP, manufacturer, internal clinical, veterinary-drug, or package-insert information was already reviewed."
+    },
+    {
+      "case_id": "DEV-EXT-020-PAIR-0304",
+      "pair_id": "PAIR-0304",
+      "field": "api_reference_review_result",
+      "before": "synthetic_reference_consulted",
+      "after": "external_reference_consulted",
+      "reason": "Domain decision: the investigation states that USP, manufacturer, internal clinical, veterinary-drug, or package-insert information was already reviewed."
+    },
+    {
+      "case_id": "DEV-EXT-007-PAIR-0036",
+      "pair_id": "PAIR-0036",
+      "field": "severe_triggers_observed",
+      "before": [],
+      "after": [
+        "pet_hospitalization"
+      ],
+      "reason": "Domain decision: hospitalization reported in the complaint is an immediate severe escalation trigger and remains selected for reviewer confirmation."
+    },
+    {
+      "case_id": "DEV-EXT-013-PAIR-0111",
+      "pair_id": "PAIR-0111",
+      "field": "record_review_result",
+      "before": "not_applicable",
+      "after": "documentation_incomplete",
+      "reason": "Domain decision: combined-product dose uniformity with worsening bloodwork requires compounding-record review."
+    },
+    {
+      "case_id": "DEV-EXT-013-PAIR-0111",
+      "pair_id": "PAIR-0111",
+      "field": "lot_batch_pattern_summary",
+      "before": "not_applicable",
+      "after": "unavailable",
+      "reason": "Domain decision: this is a full quality review and the lot/batch result is not documented."
+    },
+    {
+      "case_id": "DEV-EXT-013-PAIR-0111",
+      "pair_id": "PAIR-0111",
+      "field": "inventory_inspection_result",
+      "before": "not_applicable",
+      "after": "not_checked",
+      "reason": "Domain decision: physical-product review remains relevant but no inspection result is documented."
+    }
+  ]
+}

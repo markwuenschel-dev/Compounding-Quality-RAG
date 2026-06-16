@@ -1,0 +1,262 @@
+[
+  {
+    "archetype_id": "GENERAL_COMPOUNDING_QUESTION",
+    "canonical_prompt": "Review the customer’s compounded-medication concern. Identify the primary issue, applicable guidance, missing information, and any escalation triggers.",
+    "candidate_count": 26
+  },
+  {
+    "archetype_id": "ADE_GASTROINTESTINAL",
+    "canonical_prompt": "A pet developed gastrointestinal symptoms after receiving a compounded medication. What timing, dose, prior tolerance, concurrent illness, and product-quality details should be reviewed?",
+    "candidate_count": 22
+  },
+  {
+    "archetype_id": "EFFICACY_SUSPECTED_PRODUCT_FAILURE",
+    "canonical_prompt": "The customer reports reduced efficacy or return of symptoms after starting a new compounded fill. What dosing, adherence, storage, formulation, lot, and clinical factors should be reviewed?",
+    "candidate_count": 17
+  },
+  {
+    "archetype_id": "PALATABILITY_ORAL_REACTION",
+    "canonical_prompt": "A pet gagged, drooled, foamed, spit out, or refused a compounded oral medication. How should palatability, administration technique, formulation, and possible adverse effects be distinguished?",
+    "candidate_count": 17
+  },
+  {
+    "archetype_id": "BUD_EXPIRATION_OR_STABILITY",
+    "canonical_prompt": "The customer has questions about the beyond-use date, expiration, degradation, or stability of a compounded product. What product-specific evidence and storage information is needed?",
+    "candidate_count": 15
+  },
+  {
+    "archetype_id": "DEVICE_GENERAL",
+    "canonical_prompt": "The customer reports difficulty using a compounded-medication device or container. What device integrity, technique, dose delivery, and product-loss factors should be reviewed?",
+    "candidate_count": 13
+  },
+  {
+    "archetype_id": "INGREDIENT_ALLERGEN_OR_EXCIPIENT",
+    "canonical_prompt": "The customer needs to know whether a compounded product contains a specific allergen, excipient, base, filler, or animal-derived ingredient. What formulation information can answer the concern?",
+    "candidate_count": 12
+  },
+  {
+    "archetype_id": "QUALITY_ODOR_OR_FLAVOR_CHANGE",
+    "canonical_prompt": "A compounded product has an unexpected odor, taste, or flavor compared with prior fills. What ingredient, flavoring, formulation, storage, and batch factors should be reviewed?",
+    "candidate_count": 11
+  },
+  {
+    "archetype_id": "QUANTITY_GENERAL",
+    "canonical_prompt": "The customer believes the dispensed quantity or days supply is incorrect. What fill, measurement, dosing, container, and administration factors should be reviewed?",
+    "candidate_count": 11
+  },
+  {
+    "archetype_id": "QUANTITY_RUNS_OUT_EARLY",
+    "canonical_prompt": "A compounded product runs out earlier than the calculated days supply despite reported correct dosing. What dose, device loss, container residue, fill quantity, and administration factors should be reviewed?",
+    "candidate_count": 11
+  },
+  {
+    "archetype_id": "QUANTITY_VISUAL_UNDERFILL",
+    "canonical_prompt": "A bottle or pen appears less full than expected. How should container capacity, labeled quantity, settling, and actual fill be evaluated?",
+    "candidate_count": 11
+  },
+  {
+    "archetype_id": "QUALITY_CLOUDY_OR_COLOR_CHANGE",
+    "canonical_prompt": "A compounded product is cloudy or has changed color compared with prior fills. What expected appearance, storage, aging, contamination, and formulation factors should be reviewed?",
+    "candidate_count": 10
+  },
+  {
+    "archetype_id": "ADE_DERMAL_APPLICATION_SITE",
+    "canonical_prompt": "A pet developed irritation, sores, scabbing, hair loss, or discoloration at a transdermal application site. What formulation, application, cleaning, and escalation details should be reviewed?",
+    "candidate_count": 9
+  },
+  {
+    "archetype_id": "ADE_NEURO_BEHAVIORAL",
+    "canonical_prompt": "A pet developed neurologic or marked behavioral changes after a compounded medication. What timing, dose, concomitant therapy, recovery, and product details should be reviewed?",
+    "candidate_count": 9
+  },
+  {
+    "archetype_id": "ADE_OTHER",
+    "canonical_prompt": "A pet experienced a possible adverse effect after a compounded medication. What timing, dose, prior exposure, concurrent therapy, recovery, and product details should be reviewed?",
+    "candidate_count": 9
+  },
+  {
+    "archetype_id": "INGREDIENT_SOURCE_OR_MANUFACTURER",
+    "canonical_prompt": "The customer or veterinarian asks about the source, manufacturer, supplier, salt form, or quality documentation for a compounded ingredient. What verified information can be provided?",
+    "candidate_count": 9
+  },
+  {
+    "archetype_id": "LABEL_PACKAGING_GENERAL",
+    "canonical_prompt": "The customer reports a labeling, packaging, or container concern. What identity, integrity, usability, and dispensing checks are required?",
+    "candidate_count": 9
+  },
+  {
+    "archetype_id": "QUALITY_SEPARATION_NO_RESUSPEND",
+    "canonical_prompt": "A compounded liquid separates, settles, cakes, or will not fully resuspend after shaking. What formulation, storage, shaking, stability, and product-quality factors should be reviewed?",
+    "candidate_count": 9
+  },
+  {
+    "archetype_id": "QUALITY_SOLID_DOSAGE_TEXTURE",
+    "canonical_prompt": "A compounded tablet, chew, or capsule has changed hardness, texture, dissolution, or physical integrity. What formulation, storage, handling, and batch factors should be reviewed?",
+    "candidate_count": 9
+  },
+  {
+    "archetype_id": "STORAGE_COLD_OR_FREEZING",
+    "canonical_prompt": "A compounded medication was exposed to cold or freezing conditions. What product-specific temperature, duration, physical-change, and stability information is needed?",
+    "candidate_count": 9
+  },
+  {
+    "archetype_id": "INGREDIENT_DIETARY_CONTENT",
+    "canonical_prompt": "The customer asks about sugar, sodium, fat, glycemic content, or another dietary component in a compounded product. What formulation and quantitative information is needed?",
+    "candidate_count": 8
+  },
+  {
+    "archetype_id": "QUALITY_TOO_THIN_OR_RUNNY",
+    "canonical_prompt": "A compounded product is unusually thin, watery, runny, or greasy compared with prior fills. What formulation, separation, storage, and dose-delivery risks should be reviewed?",
+    "candidate_count": 8
+  },
+  {
+    "archetype_id": "ADMIN_DOSING_OR_DEVICE_USE",
+    "canonical_prompt": "The customer or veterinarian needs clarification on dosing, clicks, priming, frequency, or administration technique. What product-specific instructions and verification steps apply?",
+    "candidate_count": 7
+  },
+  {
+    "archetype_id": "AVAILABILITY_FLAVOR_OR_UNFLAVORED",
+    "canonical_prompt": "The customer asks for a different flavor, less flavoring, or an unflavored formulation. What available options and formulation constraints apply?",
+    "candidate_count": 7
+  },
+  {
+    "archetype_id": "AVAILABILITY_GENERAL",
+    "canonical_prompt": "The customer asks whether a compounded product, strength, flavor, or dosage form can be provided. What verified availability and formulation constraints apply?",
+    "candidate_count": 7
+  },
+  {
+    "archetype_id": "DEVICE_ORAL_ADAPTER_OR_SYRINGE",
+    "canonical_prompt": "The customer cannot withdraw an oral liquid using the supplied adapter or syringe. What device setup, seal, syringe compatibility, and administration checks are required?",
+    "candidate_count": 7
+  },
+  {
+    "archetype_id": "QUALITY_GENERAL",
+    "canonical_prompt": "The customer reports a physical or sensory difference in a compounded product. What expected appearance, formulation, storage, and batch factors should be reviewed?",
+    "candidate_count": 7
+  },
+  {
+    "archetype_id": "ADMIN_WITH_FOOD_OR_MIXING",
+    "canonical_prompt": "The customer wants to give a compounded medication with food or mix it with other medications. What compatibility, absorption, dose-recovery, and stability considerations apply?",
+    "candidate_count": 6
+  },
+  {
+    "archetype_id": "QUANTITY_MEASURED_UNDERFILL",
+    "canonical_prompt": "The customer measured or counted less product than the labeled quantity. What measurement method, container size, fill verification, and dispensing investigation are required?",
+    "candidate_count": 6
+  },
+  {
+    "archetype_id": "ADMIN_GENERAL",
+    "canonical_prompt": "The customer has a question about administering a compounded medication. What product-specific technique, dose, stability, and safety information is needed?",
+    "candidate_count": 5
+  },
+  {
+    "archetype_id": "DEVICE_OPHTHALMIC_DROPPER",
+    "canonical_prompt": "An ophthalmic container is difficult to dispense from, leaks, foams, or delivers inconsistent drops. What container, nozzle, formulation, and contamination checks are required?",
+    "candidate_count": 5
+  },
+  {
+    "archetype_id": "STORAGE_REFRIGERATION",
+    "canonical_prompt": "The customer refrigerated a product labeled for room-temperature storage or wants to refrigerate it. What product-specific stability and handling guidance applies?",
+    "candidate_count": 5
+  },
+  {
+    "archetype_id": "ADE_RESPIRATORY_OR_COLLAPSE",
+    "canonical_prompt": "A pet developed collapse, breathing difficulty, or major weakness after a compounded medication. What immediate escalation and product-review information is required?",
+    "candidate_count": 4
+  },
+  {
+    "archetype_id": "ADE_SEVERE_OR_HOSPITAL",
+    "canonical_prompt": "A pet experienced a severe event requiring emergency care or hospitalization after receiving a compounded medication. What timeline, causality, product-quality, and escalation information is required?",
+    "candidate_count": 4
+  },
+  {
+    "archetype_id": "DEVICE_TRANSDERMAL_INCONSISTENT_DOSE",
+    "canonical_prompt": "A transdermal device appears to dispense inconsistent amounts per click. What device, technique, dose-accuracy, and product-quality checks are required?",
+    "candidate_count": 4
+  },
+  {
+    "archetype_id": "DEVICE_TRANSDERMAL_LEAK_OR_BREAK",
+    "canonical_prompt": "A transdermal pen, tip, or applicator is leaking or physically damaged. What packaging, device-integrity, dose-loss, and replacement considerations apply?",
+    "candidate_count": 4
+  },
+  {
+    "archetype_id": "DEVICE_TRANSDERMAL_NO_DISPENSE",
+    "canonical_prompt": "A transdermal pen or applicator is not dispensing medication. What device-use, priming, blockage, damage, and dose-loss checks are required?",
+    "candidate_count": 4
+  },
+  {
+    "archetype_id": "QUALITY_TESTING_OR_ACCREDITATION",
+    "canonical_prompt": "The customer or veterinarian asks how compounded-product strength, uniformity, testing, or accreditation is assured. What verified quality-system information can be provided?",
+    "candidate_count": 4
+  },
+  {
+    "archetype_id": "SAFETY_ACCIDENTAL_EXPOSURE",
+    "canonical_prompt": "A pet may have received an unintended or excessive amount of a compounded medication. What immediate facts, exposure details, and escalation triggers should be reviewed?",
+    "candidate_count": 4
+  },
+  {
+    "archetype_id": "ADMIN_OPEN_CRUSH_DISSOLVE",
+    "canonical_prompt": "The customer wants to open, crush, dissolve, or sprinkle a compounded dosage form. What dose uniformity, stability, handling, and administration considerations apply?",
+    "candidate_count": 3
+  },
+  {
+    "archetype_id": "AVAILABILITY_OUT_OF_STOCK_OR_ETA",
+    "canonical_prompt": "The customer asks whether a compounded product is unavailable, discontinued, or expected back in stock. What verified availability information can be provided?",
+    "candidate_count": 3
+  },
+  {
+    "archetype_id": "INGREDIENT_GENERAL",
+    "canonical_prompt": "The customer asks about ingredients, formulation components, or product sourcing. What verified formulation information is needed?",
+    "candidate_count": 3
+  },
+  {
+    "archetype_id": "QUALITY_TOO_THICK_OR_VISCOUS",
+    "canonical_prompt": "A compounded liquid has become unusually thick, gel-like, crystallized, or difficult to withdraw. What storage, temperature, formulation, aging, and product-quality factors should be reviewed?",
+    "candidate_count": 3
+  },
+  {
+    "archetype_id": "ADMIN_SPLIT_OR_DOSE_UNIFORMITY",
+    "canonical_prompt": "The customer wants to split or weigh a compounded dosage form and assumes the active ingredient is evenly distributed. What dose-uniformity and administration limitations apply?",
+    "candidate_count": 2
+  },
+  {
+    "archetype_id": "AVAILABILITY_ALTERNATE_DOSAGE_FORM",
+    "canonical_prompt": "The customer or veterinarian asks whether a medication can be compounded in a different dosage form or strength. What available formulations and constraints should be reviewed?",
+    "candidate_count": 2
+  },
+  {
+    "archetype_id": "LABEL_OR_INSTRUCTION_CONFLICT",
+    "canonical_prompt": "The label, medication guide, or storage instructions appear inconsistent. What product-specific labeling and dispensing information should control?",
+    "candidate_count": 2
+  },
+  {
+    "archetype_id": "PACKAGING_OR_CONTAINER_DAMAGE",
+    "canonical_prompt": "The product arrived with damaged, opened, sticky, leaking, or difficult packaging. What integrity, contamination, identity, and usability checks are required?",
+    "candidate_count": 2
+  },
+  {
+    "archetype_id": "SAFETY_WRONG_PRODUCT_OR_LABEL",
+    "canonical_prompt": "The customer is unsure whether the dispensed product or label matches the intended medication. What identity, labeling, and dispensing checks are required?",
+    "candidate_count": 2
+  },
+  {
+    "archetype_id": "STORAGE_GENERAL",
+    "canonical_prompt": "The customer asks whether storage or temperature exposure affected a compounded medication. What product-specific duration, temperature, appearance, and stability information is needed?",
+    "candidate_count": 2
+  },
+  {
+    "archetype_id": "STORAGE_HEAT_OR_WARM",
+    "canonical_prompt": "A compounded medication may have been exposed to elevated temperatures. What product-specific temperature, duration, packaging, and stability information is needed?",
+    "candidate_count": 2
+  },
+  {
+    "archetype_id": "ADMIN_TRANSDERMAL_CONTACT_OR_SITE",
+    "canonical_prompt": "The customer asks about transdermal absorption, human contact, cleaning, or alternate application sites. What application and exposure guidance applies?",
+    "candidate_count": 1
+  },
+  {
+    "archetype_id": "QUALITY_FOREIGN_MATERIAL_OR_DEBRIS",
+    "canonical_prompt": "A compounded product contains unexpected specks, flakes, residue, floaters, or debris. What identity, contamination, formulation, and disposition checks are required?",
+    "candidate_count": 1
+  }
+]

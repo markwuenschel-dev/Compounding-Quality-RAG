@@ -1,0 +1,119 @@
+[
+  {
+    "case_id": "NAR-001",
+    "concern_text": "My dog vomited once about ten minutes after a chicken-flavored oral liquid.",
+    "reviewer_note": "Checked formula and worksheet, nothing off. Same lot had no similar complaints. No inventory left to inspect. Owner says the dog puked about 10 minutes after the dose and is fine now. No ER visit and no veterinarian allegation. Exact dose is still unknown. No external reference was needed.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "no_inventory_available",
+      "customer_context_summary": "Dog vomited about 10 minutes after administration and is reportedly fine now.",
+      "api_reference_review_result": "not_needed",
+      "missing_information": [
+        "Exact dose administered"
+      ],
+      "evidence_limitations": [
+        "Inventory was not available to inspect."
+      ],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": [
+      "dose_administered"
+    ]
+  },
+  {
+    "case_id": "NAR-002",
+    "concern_text": "The transdermal pen clicked but the customer is not sure medication came out.",
+    "reviewer_note": "Record review found no discrepancy. Lot trend unavailable. Inventory was not inspected. Customer could not confirm whether anything dispensed. No severe escalation trigger. External reference not needed.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "unavailable",
+      "inventory_inspection_result": "not_checked",
+      "customer_context_summary": "Customer could not confirm whether the transdermal device dispensed medication.",
+      "api_reference_review_result": "not_needed",
+      "missing_information": [
+        "Whether medication dispensed from the device"
+      ],
+      "evidence_limitations": [
+        "Inventory was not inspected."
+      ],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": [
+      "device_dispense_status"
+    ]
+  },
+  {
+    "case_id": "NAR-003",
+    "concern_text": "The dog collapsed after receiving the compounded medication.",
+    "reviewer_note": "Worksheet review found no discrepancy. Same batch had no similar concerns. Inventory unavailable. Owner reported the dog was admitted to an emergency hospital. Veterinarian did not allege the compound caused the event. External reference needed.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "no_inventory_available",
+      "customer_context_summary": "Dog collapsed and was admitted to an emergency hospital.",
+      "api_reference_review_result": "external_reference_needed",
+      "missing_information": [],
+      "evidence_limitations": [
+        "Inventory was not available to inspect."
+      ],
+      "severe_triggers_observed": [
+        "pet_hospitalization"
+      ]
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "NAR-004",
+    "concern_text": "Customer worried the product might be contaminated or the wrong medication.",
+    "reviewer_note": "Record and label review confirmed the correct medication and patient. No visible foreign material and contamination was ruled out. No similar batch complaints. Inventory inspection found no visual concern. No external reference needed.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "no_visual_concern_found",
+      "customer_context_summary": "Customer raised contamination and wrong-medication concerns; reviewer ruled both out.",
+      "api_reference_review_result": "not_needed",
+      "missing_information": [],
+      "evidence_limitations": [],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "NAR-005",
+    "concern_text": "Can you tell whether this temperature excursion made the medication unsafe?",
+    "reviewer_note": "Record review complete with no discrepancy. Lot trend unavailable. No inventory available to inspect. Product-specific stability information is not supported by the public synthetic corpus, so an external reference is required.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "unavailable",
+      "inventory_inspection_result": "no_inventory_available",
+      "customer_context_summary": "Temperature excursion concern requires product-specific stability information.",
+      "api_reference_review_result": "not_supported_by_public_corpus",
+      "missing_information": [],
+      "evidence_limitations": [
+        "Inventory was not available to inspect.",
+        "External drug-reference information was not supported by the public synthetic corpus."
+      ],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "NAR-006",
+    "concern_text": "The label appears to have the wrong patient's name.",
+    "reviewer_note": "Record review confirmed the label was for a different patient. Lot review not applicable. Inventory inspection not applicable. No external reference needed.",
+    "expected_review_summary": {
+      "record_review_result": "documentation_discrepancy_found",
+      "lot_batch_pattern_summary": "not_applicable",
+      "inventory_inspection_result": "not_applicable",
+      "customer_context_summary": "Reviewer confirmed the label was for a different patient.",
+      "api_reference_review_result": "not_needed",
+      "missing_information": [],
+      "evidence_limitations": [],
+      "severe_triggers_observed": [
+        "wrong_patient_or_wrong_medication"
+      ]
+    },
+    "expected_unresolved_field_names": []
+  }
+]

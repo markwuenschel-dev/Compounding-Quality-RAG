@@ -1,0 +1,236 @@
+[
+  {
+    "question_id": "HOLD-RET-001-PAIR-0039",
+    "query": "the veterinarian wants the customer to give 2000mg Taurine daily, highest amount in OTC supplements are 500mg and she would like to know if we can compound since it is becoming more recommended in heart disease",
+    "expected_source_ids": [
+      "SOP-002"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "rationale": "A request for an unavailable strength is a guidance/routing question rather than a severe escalation."
+  },
+  {
+    "question_id": "HOLD-RET-002-PAIR-0048",
+    "query": "the customer wants to be 100% sure this product does not contain chicken dog is highly allergic checked formula and did not see chicken, but for peace of mind the customer would like a call from compounding team",
+    "expected_source_ids": [
+      "SOP-002"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "rationale": "A specific ingredient-presence question should retrieve narrow ingredient guidance."
+  },
+  {
+    "question_id": "HOLD-RET-003-PAIR-0057",
+    "query": "the customer called in inquiring if the suspension should be cloudy Previous of the same compound has been clear",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-004"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "rationale": "Unexpected cloudiness requires quality and administration-context guidance."
+  },
+  {
+    "question_id": "HOLD-RET-004-PAIR-0059",
+    "query": "bm is reporting amlodipine cream is weirdly runny and separated and that she hasn't stored it any differently then the other transdermal medication she's had",
+    "expected_source_ids": [
+      "SOP-003"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "rationale": "A runny separated transdermal with a record deviation should retrieve the quality-review spine."
+  },
+  {
+    "question_id": "HOLD-RET-005-PAIR-0071",
+    "query": "She says the pet has always loved the chicken flavor Telmesartan compound She wanted to know if the formulation changed or if the mediation could be a bad batch Dog is refusing medication, and barely getting any of her dose",
+    "expected_source_ids": [
+      "SOP-002",
+      "SOP-004",
+      "SOP-006"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "rationale": "Routine refusal after prior tolerance belongs to palatability and resolution guidance."
+  },
+  {
+    "question_id": "HOLD-RET-006-PAIR-0073",
+    "query": "Reporting that Doxycycline Compounded Chicken Oral Oil Suspension, 100 mg/mL, 90 mL has only #60ml in vial the customer works in a lab and had a 75ml syringe (from clinic they work with, large pets etc) and confirmed (after shaking vial) that the new bottle only had 60ml exactly the customer and I spoke about proper syringe technique, if they were able to read the qty on the liquid vial (they could not as the label covered the markings), and the customer also measured the 60ml in a graduated cylinder",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-004"
+    ],
+    "forbidden_source_ids": [
+      "SOP-005"
+    ],
+    "rationale": "A measured short fill requires quality review and oral-liquid shortage context."
+  },
+  {
+    "question_id": "HOLD-RET-007-PAIR-0090",
+    "query": "Took first dose on Monday 1/19, started having by next day- itching, hot spots, missing hair",
+    "expected_source_ids": [
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "rationale": "Itching and hair loss after dosing are adverse-event context, not routine flavor guidance."
+  },
+  {
+    "question_id": "HOLD-RET-008-PAIR-0095",
+    "query": "the customer is stating she received bottle with only 22ml in it This is the second bottle she has received that she has been shorted",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-004"
+    ],
+    "forbidden_source_ids": [
+      "SOP-005"
+    ],
+    "rationale": "A repeated shortage complaint needs quality and measurement-context review."
+  },
+  {
+    "question_id": "HOLD-RET-009-PAIR-0099",
+    "query": "the customer received Trilostane Compounded Oral Oil Liquid Marshmallow Flavored for Dogs & Cats, 10-mg/mL, 90 mL which the customer has received before but says this time it is really hard to resuspend the customer says that product is still within expiration date but has concerns about safety and expiration since this has never happened before Explained some settling may be normal but she is unable to shake sufficiently to get rid of residue at the bottom",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-004"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "rationale": "Failure to resuspend with a record discrepancy is a product-quality concern."
+  },
+  {
+    "question_id": "HOLD-RET-010-PAIR-0101",
+    "query": "the customer states it looks like something white has settled in the bottom of the bottle of trilostane that does not resuspend upon shaking",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-004"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "rationale": "Confirmed caking or sediment requires inventory and quality-review guidance."
+  },
+  {
+    "question_id": "HOLD-RET-011-PAIR-0118",
+    "query": "Received email of picture of pen At the neck of the pen, it had broken and medications are coming out at the neck and not the tip of pen",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-006"
+    ],
+    "forbidden_source_ids": [
+      "SOP-005"
+    ],
+    "rationale": "A broken leaking pen requires device replacement and quality-review guidance."
+  },
+  {
+    "question_id": "HOLD-RET-012-PAIR-0135",
+    "query": "issue started last night, was administering w/ no issues prior - confirmed using applicator correctly no medication came out on 1st or 2nd click last night this morning tried 2 clicks but no medication released",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-006"
+    ],
+    "forbidden_source_ids": [
+      "SOP-005"
+    ],
+    "rationale": "A pen that releases no medication requires device-failure and replacement guidance."
+  },
+  {
+    "question_id": "HOLD-RET-013-PAIR-0185",
+    "query": "the chicken flavor i think is good but it is in oil that gets thick in the fridge",
+    "expected_source_ids": [
+      "SOP-002",
+      "SOP-004"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "rationale": "Oil thickening in the refrigerator requires storage and routine formulation guidance."
+  },
+  {
+    "question_id": "HOLD-RET-014-PAIR-0201",
+    "query": "the customer called in stating most recent GS-441524 received is separated and will not form a suspension no matter how much she shakes it",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-004"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "rationale": "A suspension that will not form despite shaking is a quality defect, not routine counseling."
+  },
+  {
+    "question_id": "HOLD-RET-015-PAIR-0202",
+    "query": "the customer states when she went to use the pen this morning, only 1 click's worth of medication came out the customer states that the pen had been functioning properly when she started using it at the end of January",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-006"
+    ],
+    "forbidden_source_ids": [
+      "SOP-005"
+    ],
+    "rationale": "A pen that suddenly dispenses only one click requires device and replacement guidance."
+  },
+  {
+    "question_id": "HOLD-RET-016-PAIR-0249",
+    "query": "the customer reports the veterinarian d/c piroxicam for the pet due to bloody stools Initially on 10mg in November and about a month later pet had bloody stools About a month after 5mg dose and issue with bloody stools returned",
+    "expected_source_ids": [
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "rationale": "Recurrent bloody stools after dosing require adverse-event and reference review."
+  },
+  {
+    "question_id": "HOLD-RET-017-PAIR-0312",
+    "query": "the customer shows medication not suspended, the customer tried shaking vigorously, requested exp date on bottle, BUD on bottle",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "rationale": "Non-suspension plus a BUD question requires quality-review and BUD guidance."
+  },
+  {
+    "question_id": "HOLD-RET-018-PAIR-0320",
+    "query": "Has had history of Telmisartan Compounded Caps in different strengths with no issues opening them up and sprinkling on food Cannot open the 8mg caps to sprinkle in food, must cut them open, states this is dangerous",
+    "expected_source_ids": [
+      "SOP-004"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "rationale": "Difficulty opening capsules is an administration problem rather than escalation."
+  },
+  {
+    "question_id": "HOLD-RET-019-PAIR-0322",
+    "query": "the customer says dog had vomiting about 6 hours after taking 2nd and 3rd doses of piroxicam with food on two consecutive days Dog was fine on first dose",
+    "expected_source_ids": [
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "rationale": "Repeated vomiting after administration requires adverse-event review."
+  },
+  {
+    "question_id": "HOLD-RET-020-PAIR-0338",
+    "query": "the veterinarian has called in to inquire about the allergen safety associated with the Chicken flavoring I have gone over the resource of SpecializedRX flavor concentrates, but would like for a compound pharmacist to touch base about any specifics",
+    "expected_source_ids": [
+      "SOP-002",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "rationale": "An allergen-safety question with disclosure limits requires ingredient and evidence-boundary guidance."
+  }
+]
