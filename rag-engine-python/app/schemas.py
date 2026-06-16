@@ -155,6 +155,7 @@ class InventoryInspectionResult(StrEnum):
 class ApiReferenceReviewResult(StrEnum):
     NOT_NEEDED = "not_needed"
     SYNTHETIC_REFERENCE_CONSULTED = "synthetic_reference_consulted"
+    EXTERNAL_REFERENCE_CONSULTED = "external_reference_consulted"
     EXTERNAL_REFERENCE_NEEDED = "external_reference_needed"
     NOT_SUPPORTED_BY_PUBLIC_CORPUS = "not_supported_by_public_corpus"
 
@@ -373,3 +374,31 @@ class IntakeUnderstanding(StrictBaseModel):
     extracted_customer_context: str | None = None
     facts_present: list[str] = Field(default_factory=list)
     facts_missing: list[str] = Field(default_factory=list)
+
+
+class ExtractionEvidenceStatus(StrEnum):
+    EXPLICIT = "explicit"
+    NORMALIZED = "normalized"
+    AMBIGUOUS = "ambiguous"
+    NOT_STATED = "not_stated"
+
+
+class ReviewSummaryFieldEvidence(StrictBaseModel):
+    field_name: str = Field(min_length=1)
+    status: ExtractionEvidenceStatus
+    supporting_quote: str | None = None
+    explanation: str | None = None
+
+
+class UnresolvedReviewQuestion(StrictBaseModel):
+    field_name: str = Field(min_length=1)
+    question: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    decision_impact: list[str] = Field(default_factory=list)
+
+
+class ReviewSummaryExtractionResult(StrictBaseModel):
+    review_summary: ReviewSummary
+    field_evidence: list[ReviewSummaryFieldEvidence] = Field(default_factory=list)
+    unresolved_questions: list[UnresolvedReviewQuestion] = Field(default_factory=list)
+

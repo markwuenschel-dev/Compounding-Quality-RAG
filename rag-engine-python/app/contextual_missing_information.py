@@ -14,15 +14,25 @@ _VOMITING_TERMS = (
     "threw up",
 )
 
-_DEVICE_TERMS = (
-    "transdermal",
-    "pen",
-    "click",
-    "clicks",
-    "leak",
-    "leaking",
-    "air bubble",
-    "air bubbles",
+_DEVICE_OBJECT_RE = re.compile(
+    r"\b(?:pen|device|clicks?|syringe|adapter)\b",
+    re.IGNORECASE,
+)
+
+_DEVICE_FAILURE_SIGNAL_RE = re.compile(
+    r"\b(?:not|no|nothing|less|fewer|reduced|inconsistent|broken|damaged|"
+    r"leak(?:ing|age)?|air bubbles?|stuck|fail(?:ed|ing)?|stopped|won't|"
+    r"wouldn't|doesn't|didn't|isn't|wasn't|weren't|unable|unclear|"
+    r"uncertain|not sure)\b",
+    re.IGNORECASE,
+)
+
+_DIRECT_DEVICE_FAILURE_RE = re.compile(
+    r"\b(?:no medication came out|nothing came out|did not dispense|"
+    r"does not dispense|would not dispense|won't dispense|not dispensing|"
+    r"inconsistent clicks?|clicks? (?:were|was|are|is)? ?(?:not|less|reduced)|"
+    r"air bubbles?|broken pen|damaged pen|leaking pen|pen leak)\b",
+    re.IGNORECASE,
 )
 
 _BUD_TERMS = (
@@ -33,8 +43,17 @@ _BUD_TERMS = (
     "expiration",
 )
 
-_DOSE_RE = re.compile(
-    r"\b\d+(?:\.\d+)?\s*(?:ml|milliliters?|mg|milligrams?|mcg|micrograms?|units?|tablets?|capsules?|clicks?)\b",
+_ADMINISTERED_DOSE_RE = re.compile(
+    r"\b(?:gave|given|giving|administered|administering|received|receives|"
+    r"took|taking|draws? up(?: to)?|applied|dose was|dosed with)\b"
+    r"[^.\n;]{0,60}"
+    r"\b\d+(?:\.\d+)?\s*(?:ml|milliliters?|mg|milligrams?|mcg|"
+    r"micrograms?|units?|tablets?|capsules?|clicks?)\b"
+    r"|\b\d+(?:\.\d+)?\s*(?:ml|milliliters?|mg|milligrams?|mcg|"
+    r"micrograms?|units?|tablets?|capsules?|clicks?)\s*"
+    r"(?:per dose|each dose|per administration)\b"
+    r"|\bafter\s+\d+(?:\.\d+)?\s*(?:ml|milliliters?|mg|"
+    r"milligrams?|mcg|micrograms?|units?|tablets?|capsules?|clicks?)\b",
     re.IGNORECASE,
 )
 
@@ -91,9 +110,25 @@ _DEVICE_DISPENSE_RE = re.compile(
 )
 
 _DATE_RE = re.compile(
-    r"\b(?:\d{1,2}/\d{1,2}/\d{2,4}|\d{4}-\d{2}-\d{2}|preparation date|dispense date|assigned bud|beyond-use date)\b",
+    r"\b(?:\d{1,2}/\d{1,2}/\d{2,4}|\d{4}-\d{2}-\d{2}|"
+    r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|"
+    r"jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|"
+    r"nov(?:ember)?|dec(?:ember)?)\s+\d{1,2},?\s+\d{4})\b",
     re.IGNORECASE,
 )
+
+
+def has_device_failure_context(text: str) -> bool:
+    if _DIRECT_DEVICE_FAILURE_RE.search(text):
+        return True
+
+    for sentence in re.split(r"[.;\n]+", text):
+        if not _DEVICE_OBJECT_RE.search(sentence):
+            continue
+        if _DEVICE_FAILURE_SIGNAL_RE.search(sentence):
+            return True
+
+    return False
 
 
 def build_decision_relevant_questions(
@@ -138,7 +173,7 @@ def build_decision_relevant_questions(
                 )
             )
 
-        if not _DOSE_RE.search(combined):
+        if not _ADMINISTERED_DOSE_RE.search(combined):
             questions.append(
                 question(
                     field_name="dose_administered",
@@ -189,7 +224,7 @@ def build_decision_relevant_questions(
     device_dispense_unresolved = _DEVICE_DISPENSE_UNRESOLVED_RE.search(combined)
     device_dispense_documented = _DEVICE_DISPENSE_RE.search(combined)
 
-    if contains_any(concern, _DEVICE_TERMS) and (
+    if has_device_failure_context(concern) and (
         device_dispense_unresolved or not device_dispense_documented
     ):
         questions.append(
