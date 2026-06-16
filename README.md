@@ -1,488 +1,452 @@
+<div align="center">
+
 # Compounding Quality RAG
 
-Synthetic, local-first retrieval and review-support prototype for compounding-quality inquiry review.
+**Human-in-the-loop review support for compounding-quality complaints, product questions, adverse-event reports, and pharmacist investigation narratives**
 
-> **Status:** Python RAG engine is v8 demo-complete and now has a JSON stdin/stdout `api_runner.py` bridge for Java integration. The Spring Boot `review-api` service has health, OpenAPI/Swagger, global error responses, and a mocked `POST /api/checklist` endpoint with validation tests. The next backend step is the Java `RagEngineClient` interface and Python process adapter.
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.6-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![Java](https://img.shields.io/badge/Java-21%2B-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org/)
+[![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Pydantic](https://img.shields.io/badge/Pydantic-2.x-E92063?logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
+[![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
 
-## 1. Problem Statement
+![Human in the loop](https://img.shields.io/badge/Design-Human--in--the--loop-5B5BD6)
+![Synthetic data](https://img.shields.io/badge/Data-Synthetic%20only-2E8B57)
+![Read only](https://img.shields.io/badge/System-Read%20only-6B7280)
 
-Technical Services (TS) pharmacists review compounding-related quality signals from two primary workflows:
+</div>
 
-- Frontline compounding quality-related event (QRE) or general-question submissions.
-- Negative customer reviews posted to customer-facing compounded product pages.
+---
 
-These workflows require repeated document lookup, categorization, record-check framing, and judgment calls across similar but not identical cases. Examples include flavor refusal, suspected adverse events, BUD questions, device issues, possible dispensing errors, temperature-excursion questions, ingredient/formula questions, and customer-review follow-up.
+## Overview
 
-**Compounding Quality RAG** is a retrieval-augmented review-support prototype. Its purpose is to surface relevant synthetic SOP-like guidance, organize missing information, preserve evidence citations, and support a consistent pharmacist review workflow.
+Compounding-quality review often begins with incomplete, inconsistent, or highly informal language:
 
-It does **not** make final quality, clinical, legal, or customer-resolution decisions.
+- a customer complaint;
+- a clinic question;
+- a negative product review;
+- a reported adverse event;
+- a pharmacist investigation note.
 
-## 2. Synthetic Data Boundary
+**Compounding Quality RAG** organizes that information into an evidence-grounded review workflow. It helps a pharmacist identify relevant guidance, surface unresolved facts, review proposed structured findings, and generate a final assessment.
 
-This public repository uses demo-only SOP-like documents, sample inquiries, and hand-written expected outputs based on the shape of a Technical Services compounding-quality workflow.
+> [!IMPORTANT]
+> The application supports pharmacist review. It does **not** make autonomous clinical, legal, quality, or customer-resolution decisions.
 
-It does **not** contain real or altered customer, patient, veterinarian, prescription, order, compounding-record, inventory, internal SOP, licensed drug-reference, or proprietary operational data.
+The repository demonstrates a production-shaped AI workflow across three application layers:
 
-The public prototype does not access real systems. Any future internal exploration would require explicit approval, governance, access control, privacy/security review, auditability, and human-review boundaries.
+| Layer | Responsibility |
+|---|---|
+| **React / TypeScript** | Reviewer workflow, preloaded demo cases, structured confirmation, evidence display, readiness, retry, and error states |
+| **Spring Boot** | HTTP contracts, validation, orchestration, readiness, timeout handling, process lifecycle, and error translation |
+| **Python** | Retrieval, extraction, deterministic grounding, review policy, final assessment, and evaluation |
 
-## 3. Current Project Shape
+---
 
-The project is now moving from a Python-only CLI prototype toward a polyglot, production-shaped AI workflow system:
+## Product Workflow
 
-```text
-Python RAG engine
-  owns ingestion, chunking, retrieval, evaluation, refusal behavior,
-  intake-understanding extraction, LLM extraction, checklist generation,
-  and final assessment logic.
-
-Spring Boot review-api
-  owns REST API boundary, DTOs, validation, error handling,
-  OpenAPI/Swagger, orchestration, health checks, and future auth/audit.
-
-React/TypeScript review UI
-  planned human-in-the-loop review surface for concern intake,
-  checklist display, reviewer findings, evidence, and final report.
-```
-
-Current implemented layers:
-
-| Layer | Status | Notes |
-|---|---|---|
-| Python RAG engine | Implemented | Two-phase CLI, retrieval, validation, final assessment, refusal, optional LLM extraction, and `api_runner.py` bridge. |
-| Spring Boot API | Started | Health endpoint, OpenAPI/Swagger, global error response shape, mocked checklist endpoint, and validation tests. |
-| React/TypeScript UI | Planned | Not started; intentionally deferred until backend contract exists. |
-| CI/Docker/runbook | Planned | Future production-shaped hardening. |
-| Embeddings/hybrid retrieval | Planned | Deferred until keyword baseline metrics are recorded. |
-
-## 4. Workflow Context
-
-Before this system exists, a TS pharmacist may need to:
-
-1. Read a QRE/general-question submission or moderated customer review.
-2. Validate submitted context such as lot, batch, formula, order, or product identifiers when available.
-3. Review the relevant compounding record or incident documentation.
-4. Perform a review of timing, medication context, pet behavior, storage, dispensing, shipping, clinic/DVM notes, and customer-reported details.
-5. Determine whether customer outreach, pharmacist response, escalation, refund, replacement, concession, counseling, or documentation-only handling may be appropriate.
-6. Document the call, voicemail, review note, or final disposition in the appropriate tracker or order context.
-
-This prototype focuses on evidence organization and review support, not final professional judgment.
-
-## 5. Current Workflow: Two-Phase CLI Demo
-
-The Python engine currently supports a two-phase command-line workflow:
+The browser experience supports the full review path:
 
 ```mermaid
 flowchart LR
-    A[Concern text] --> B[Phase 1 intake checklist]
-    B --> C[Reviewer findings]
-    C --> D[Phase 2 final review-support report]
+    A[Customer concern] --> B[Evidence-grounded checklist]
+    B --> C[Pharmacist investigation narrative]
+    C --> D[Structured findings extraction]
+    D --> E[Pharmacist review and correction]
+    E --> F[Final assessment]
 
-    B -.-> B1[Review checks]
-    B -.-> B2[Missing information]
-    B -.-> B3[Escalation triggers to rule out]
-
-    D -.-> D1[Recommended disposition]
-    D -.-> D2[Evidence used]
-    D -.-> D3[Limitations]
+    D -.-> D1[Field-level evidence]
+    D -.-> D2[Unresolved questions]
+    D -.-> D3[Evidence limitations]
+    D -.-> D4[Severe-trigger proposals]
 ```
 
-### Phase 1: Intake Checklist
+The pharmacist remains in control of the structured findings before the final assessment is generated.
 
-1. User enters synthetic concern text.
-2. Deterministic refusal checks run first.
-3. Optional intake-understanding extraction captures stated product context, customer context, facts present, facts missing, and semantic boundary issues.
-4. System retrieves relevant synthetic SOP chunks.
-5. System prints a checklist with likely concern type, preliminary risk clues, review checks, missing information, escalation triggers to rule out, evidence, and limitations.
+### Preloaded React Demo Cases
 
-### Phase 2: Final Review-Support Report
+The React UI includes repeatable preloaded cases for demonstrating both the main workflow and the public-data boundary:
 
-1. Reviewer enters controlled investigation findings or a synthetic free-text reviewer note.
-2. Optional OpenAI-backed extraction converts the note into a validated `ReviewSummary`.
-3. Final assessment logic uses the checklist plus reviewer-confirmed structured findings.
-4. System prints a final review-support report with disposition, evidence, escalation triggers, resolution options, and limitations.
+| Demo case | Purpose |
+|---|---|
+| **Vomiting concern** | Runs the complete concern → checklist → investigation → extraction → final-assessment flow |
+| **Unsupported record access** | Demonstrates refusal when the user asks the public application to inspect real operational records |
 
-Final escalation routing depends on structured reviewer-confirmed severe triggers, not raw keyword matching alone.
+The demo toolbar can load a case and reset the workflow without manually re-entering the same content.
 
-## 6. Architecture Overview
+---
+
+## System Architecture
 
 ```mermaid
-flowchart TD
-    A[Markdown SOP corpus] --> B[app/ingestion.py]
-    B --> C[data/index/chunks.jsonl]
-    C --> D[app/retrieval.py]
-    D --> E[app/checklist.py]
-    E --> F[Reviewer findings]
-    F --> G[app/final_assessment.py]
-    G --> H[app/reporting.py]
-    H --> I[app/cli.py]
+flowchart TB
+    subgraph UI[React / TypeScript]
+        A[Concern intake]
+        B[Checklist review]
+        C[Investigation narrative]
+        D[Structured findings confirmation]
+        E[Final assessment]
+    end
 
-    J[data/eval/retrieval_questions.json] --> K[app/retrieval_evaluate.py]
-    D --> K
+    subgraph API[Spring Boot review-api]
+        F[REST controllers]
+        G[DTO validation]
+        H[Readiness and timeout handling]
+        I[Python process adapter]
+    end
 
-    L[data/expected_outputs] --> M[app/evaluate.py]
-    G --> M
+    subgraph Engine[Python review engine]
+        J[Refusal and intake interpretation]
+        K[Retrieval]
+        L[Checklist generation]
+        M[Review-summary extraction]
+        N[Deterministic grounding and policy]
+        O[Final assessment]
+        P[Evaluation and ablation]
+    end
 
-    N[Reviewer note] --> O[app/review_summary_extraction.py]
-    O --> F
+    subgraph Evidence[Evidence and evaluation]
+        Q[SOP-like corpus]
+        R[Chunk index]
+        S[Development cases]
+        T[Holdout cases]
+    end
 
-    P[services/review-api] --> Q[Spring Boot REST API]
-    Q -. future subprocess call .-> R[app/api_runner.py]
-    R --> E
+    A --> F
+    B --> F
+    C --> F
+    D --> F
+    F --> G --> H --> I
+    I --> J
+    I --> K
+    I --> L
+    I --> M
+    M --> N
+    I --> O
+    Q --> R --> K
+    S --> P
+    T --> P
+    K --> P
+    N --> P
+    L --> B
+    N --> D
+    O --> E
 ```
 
-The CLI is only an interface over tested pipeline components. The important engineering boundary is the evidence spine: source documents become chunks, chunks become retrieval evidence, evidence supports checklist/final outputs, and outputs are validated against strict Pydantic models.
+### Architectural Boundary
 
-The Spring Boot layer is being added around the Python engine to create a production-shaped service boundary without rewriting the tested RAG logic.
+The working Python domain engine is intentionally not rewritten in Java.
 
-## 7. Repository Structure
+Spring Boot provides the stable service boundary around tested Python behavior, while React provides the human-review surface. This keeps domain logic centralized and avoids duplicating extraction, retrieval, and review policy across languages.
+
+---
+
+## API Surface
+
+The Spring Boot service currently exposes:
+
+```http
+GET  /health
+GET  /ready
+POST /api/checklist
+POST /api/retrieve
+POST /api/review-summary/extract
+POST /api/final-assessment
+```
+
+`GET /ready` checks:
+
+- Spring Boot availability;
+- the configured Python command;
+- the Python working directory;
+- corpus availability.
+
+The React UI displays backend readiness and disables workflow submission while the backend is unavailable.
+
+---
+
+## Hybrid Review-Summary Extraction
+
+The extraction layer combines flexible language understanding with controlled workflow policy:
+
+```mermaid
+flowchart LR
+    A[Investigation narrative] --> B[LLM candidate extraction]
+    B --> C[Pydantic validation]
+    C --> D[Deterministic grounding]
+    D --> E[Review-scope defaults]
+    E --> F[Unresolved-question generation]
+    F --> G[Pharmacist confirmation]
+```
+
+The LLM proposes a structured interpretation. It is not the final authority.
+
+Deterministic policy owns high-impact semantics including:
+
+- negation;
+- completed versus still-needed reference review;
+- supplier and proprietary-information non-disclosure;
+- guidance-only versus full-investigation defaults;
+- explicit record-review findings;
+- positive and negative lot-pattern findings;
+- administered dose versus product strength or package quantity;
+- device-failure context;
+- reported severe triggers;
+- missing-information normalization.
+
+### Review-Scope Defaults
+
+For a full quality or adverse-event investigation, undocumented fields default conservatively:
+
+```yaml
+record_review_result: documentation_incomplete
+lot_batch_pattern_summary: unavailable
+inventory_inspection_result: not_checked
+api_reference_review_result: not_needed
+```
+
+For guidance-only work, irrelevant record, lot, and inventory fields remain:
 
 ```text
-app/
-  schemas.py                     # Core enums and Pydantic contracts
-  checklist_models.py            # Checklist/report evidence models
-  ingestion.py                   # SOP markdown -> validated chunk records
-  retrieval.py                   # Keyword retrieval baseline with matched terms
-  retrieval_evaluate.py          # hit_rate@k and MRR over labeled retrieval questions
-  checklist.py                   # Phase 1 intake checklist generation
-  final_assessment.py            # Phase 2 final review-support assessment
-  evaluate.py                    # Structured output comparison against expected JSON
-  refusal.py                     # Unsupported request detection and refusal messages
-  extract_intake_understanding.py # LLM JSON extraction + validation for Phase 1 IntakeUnderstanding
-  review_summary_extraction.py   # LLM JSON extraction + grounding for ReviewSummary
-  reporting.py                   # Manager-readable report formatting
-  cli.py                         # Two-phase CLI demo orchestration
-  api_runner.py                  # JSON stdin/stdout bridge for Java integration
-
-data/corpus/
-  Synthetic SOP-like markdown files used as retrievable source truth.
-
-data/index/
-  Generated `chunks.jsonl` file created by `app/ingestion.py`.
-
-data/eval/
-  Labeled retrieval questions with expected source IDs.
-
-data/expected_outputs/
-  Hand-written gold JSON outputs used to validate structured-output behavior.
-
-docs/
-  Data dictionary, failure log, routing matrix, architecture decisions, and implementation notes.
-
-services/review-api/
-  Spring Boot API boundary around the Python RAG engine.
-  Current implemented slice:
-    src/main/java/com/compoundingquality/reviewapi/
-      ReviewApplication.java
-      api/HealthController.java
-      api/ChecklistController.java
-      api/dto/ChecklistRequest.java
-      api/dto/ChecklistResponse.java
-      dto/HealthResponse.java
-      error/ApiErrorResponse.java
-      error/FieldErrorDetail.java
-      error/GlobalExceptionHandler.java
-    src/test/java/com/compoundingquality/reviewapi/
-      api/HealthControllerTest.java
-      api/ChecklistControllerTest.java
-      error/GlobalExceptionHandlerTest.java
-
-tests/
-  Pytest coverage for schemas, expected outputs, ingestion, retrieval, evaluation,
-  checklist generation, final assessment, reporting, refusal behavior, CLI flow,
-  review-summary extraction, and the two-phase workflow.
+not_applicable
 ```
 
-## 8. Run Locally: Python RAG Engine
+Explicit reviewer findings always override defaults.
 
-```bash
-# Create and activate a virtual environment
-python -m venv .venv
-source .venv/bin/activate
+### Reference-Review States
 
-# Install project dependencies
-pip install -e ".[dev]"
-
-# Build or refresh the chunk index
-python -m app.ingestion
-
-# Run retrieval evaluation
-python -m app.retrieval_evaluate
-
-# Run the two-phase CLI demo
-python -m app.cli
-
-# Run tests
-pytest
+```text
+not_needed
+synthetic_reference_consulted
+external_reference_consulted
+external_reference_needed
+not_supported_by_public_corpus
 ```
 
-PowerShell activation on Windows:
+An explicit supplier, manufacturer, or proprietary-formula disclosure boundary maps to `not_supported_by_public_corpus`, even when an outside source was reviewed.
+
+### Severe-Trigger Handling
+
+A listed severe trigger reported in the complaint, such as hospitalization, is proposed immediately for pharmacist confirmation.
+
+Shortness of breath, collapse, and falling over remain clinical context unless another controlled severe trigger is present.
+
+---
+
+## Retrieval Design
+
+The repository preserves multiple retrieval baselines:
+
+- keyword retrieval;
+- local deterministic embedding retrieval;
+- hybrid retrieval.
+
+Keyword retrieval remains the transparent default baseline.
+
+The project also separates two different engineering questions:
+
+1. **Did the system understand the complaint?**
+2. **Did the resulting query align with the vocabulary of the corpus?**
+
+That distinction matters because a semantically reasonable query can still perform poorly against a small keyword corpus.
+
+A controlled development ablation compared:
+
+- raw complaint text;
+- deterministic query expansion;
+- GPT-5 nano structured query generation.
+
+The experiment showed that deterministic expansion aligned best with the current corpus, while the LLM demonstrated broader semantic interpretation but weaker keyword alignment.
+
+Detailed metrics, methodology, and limitations are documented in:
+
+- [`docs/current_baseline.md`](docs/current_baseline.md)
+- [`docs/retrieval_query_ablation_design.md`](docs/retrieval_query_ablation_design.md)
+- [`docs/extraction_engineering_notes.md`](docs/extraction_engineering_notes.md)
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.12+
+- Java 21+
+- Node.js 20+
+- an OpenAI API key for live extraction and LLM retrieval experiments
+
+### Configure the Python Environment
+
+From `rag-engine-python`:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 python -m app.ingestion
-python -m app.retrieval_evaluate
-python -m app.cli
-pytest
 ```
 
-If the project does not define a `[dev]` extra in the current checkout, install the required packages directly from the current requirements or `pyproject.toml` and keep this README command in sync with the repository.
+For live model calls, create `rag-engine-python/secrets.env`:
 
-## 9. Run Locally: Python API Runner Bridge
+```text
+OPENAI_API_KEY=your-key
+OPENAI_MODEL=gpt-5-nano
+```
 
-From the Python package root:
+### Start the Application in One PowerShell Window
+
+From the repository root:
 
 ```powershell
-@'
-{"command":"checklist","payload":{"concernText":"My dog vomited after taking a flavored compounded oral liquid."}}
-'@ | python -m app.api_runner
+$backend = Start-Process `
+  -FilePath "cmd.exe" `
+  -ArgumentList "/d", "/s", "/c", "gradlew.bat bootRun" `
+  -WorkingDirectory "$PWD\services\review-api" `
+  -RedirectStandardOutput "$PWD\backend.out.log" `
+  -RedirectStandardError "$PWD\backend.err.log" `
+  -WindowStyle Hidden `
+  -PassThru
+
+$frontend = Start-Process `
+  -FilePath "cmd.exe" `
+  -ArgumentList "/d", "/s", "/c", "npm run dev" `
+  -WorkingDirectory "$PWD\apps\review-ui" `
+  -RedirectStandardOutput "$PWD\frontend.out.log" `
+  -RedirectStandardError "$PWD\frontend.err.log" `
+  -WindowStyle Hidden `
+  -PassThru
+
+"Backend PID: $($backend.Id)"
+"Frontend PID: $($frontend.Id)"
 ```
 
-Expected shape:
+Open:
 
-```json
-{
-  "ok": true,
-  "result": {
-    "concernType": "flavor_related_vomiting",
-    "riskLane": "unexpected_non_life_threatening",
-    "reviewScope": "full_quality_review",
-    "initialTakeaway": "...",
-    "requiredChecks": [],
-    "missingInformation": [],
-    "escalationTriggersToRuleOut": [],
-    "evidence": [],
-    "limitations": []
-  }
-}
+```text
+http://localhost:5173
 ```
 
-Run bridge tests:
+Check backend readiness:
 
 ```powershell
-python -m pytest tests/test_api_runner.py
+Invoke-RestMethod http://localhost:8080/ready |
+  ConvertTo-Json -Depth 10
 ```
 
-Bridge rules:
-
-- stdout is JSON only.
-- stderr is for diagnostics and tracebacks.
-- `ok:false` means a handled bridge/application error.
-- nonzero exit code means an unexpected process or engine failure.
-
-## 10. Run Locally: Spring Boot Review API
-
-The Spring Boot service currently exposes health and mocked checklist endpoints, OpenAPI/Swagger, a global error response shape, and passing controller/error tests.
+Stop both processes:
 
 ```powershell
-cd services/review-api
-.\gradlew test
-.\gradlew bootRun
+Stop-Process -Id $backend.Id, $frontend.Id
 ```
 
-Health endpoint:
+---
+
+## Repository Guide
 
 ```text
-GET http://localhost:8080/health
+apps/review-ui/          React reviewer workflow
+services/review-api/     Spring Boot service boundary
+rag-engine-python/       Retrieval, extraction, policy, evaluation
+docs/                    Architecture, decisions, evaluation, interview framing
 ```
 
-Checklist endpoint:
+Key documentation:
 
-```text
-POST http://localhost:8080/api/checklist
-```
-
-Example request:
-
-```json
-{
-  "concernText": "My dog vomited after taking a flavored compounded oral liquid."
-}
-```
-
-Expected response shape:
-
-```json
-{
-  "service": "review-api",
-  "status": "UP",
-  "timestamp": "2026-05-24T22:37:58.437131100Z"
-}
-```
-
-Current Java package root:
-
-```text
-com.compoundingquality.reviewapi
-```
-
-Controller package:
-
-```text
-com.compoundingquality.reviewapi.api
-```
-
-Main application class:
-
-```text
-ReviewApplication
-```
-
-## 11. Optional LLM Extraction Mode
-
-Controlled-menu Phase 2 works without an API key. The optional free-text reviewer-note extraction path requires an OpenAI API key:
-
-```bash
-export OPENAI_API_KEY="..."
-# Optional model override
-export OPENAI_MODEL="gpt-5-nano"
-python -m app.cli
-```
-
-PowerShell:
-
-```powershell
-$env:OPENAI_API_KEY="..."
-$env:OPENAI_MODEL="gpt-5-nano"
-python -m app.cli
-```
-
-Phase 1 intake-understanding extraction asks for structured JSON only, validates the result with Pydantic, and uses the result to avoid re-asking for facts already supplied in the concern. Phase 2 review-summary extraction asks for structured JSON only, validates the result with Pydantic, normalizes enum values, grounds severe escalation triggers against the reviewer note, and removes unsupported or negated severe-trigger claims.
-
-## 12. Evaluation and Test Coverage
-
-The project emphasizes measurable behavior rather than UI polish.
-
-| Area | What is tested |
+| Document | Purpose |
 |---|---|
-| Schema and expected outputs | Strict Pydantic validation; invalid enum/category/resolution combinations fail. |
-| Ingestion | SOP frontmatter parsing, required metadata, heading chunking, stable chunk IDs, JSONL output. |
-| Retrieval | Tokenization, `top_k`, source-type filtering, score ordering, matched terms, expected SOP families. |
-| Retrieval evaluation | Labeled questions, hit rate@k, MRR, failed question IDs. |
-| Structured evaluation | Field-level comparison against expected outputs; rationale not exact-matched by default. |
-| Refusal behavior | External references, real/internal record access, clinical/legal conclusions, blank inputs. |
-| Review-summary extraction | JSON parsing, enum normalization, extra-field rejection, negation handling, inventory/API grounding. |
-| Two-phase workflow | Five demo cases run through checklist -> reviewer findings -> final report. |
-| Reporting and CLI | Manager-readable output, debug visibility, optional intake understanding, manual and LLM Phase 2 paths. |
-| Python API runner | stdin/stdout JSON bridge, success envelope, handled errors, refusal, and unexpected failure behavior. |
-| Spring Boot API | Health endpoint, mocked checklist endpoint, validation behavior, and global error response contract tested with MockMvc. |
+| [`docs/current_baseline.md`](docs/current_baseline.md) | Current implementation and measured behavior |
+| [`docs/DECISIONS.md`](docs/DECISIONS.md) | Architectural and domain-policy decisions |
+| [`docs/data_dictionary.md`](docs/data_dictionary.md) | Controlled contracts and field definitions |
+| [`docs/failure_log.md`](docs/failure_log.md) | Failure mechanisms, fixes, and prevention |
+| [`docs/extraction_engineering_notes.md`](docs/extraction_engineering_notes.md) | Extraction architecture and debugging lessons |
+| [`docs/retrieval_query_ablation_design.md`](docs/retrieval_query_ablation_design.md) | Retrieval experiment design |
+| [`docs/interview_framing.md`](docs/interview_framing.md) | Interview-ready technical framing |
 
-### Retrieval Baseline
+---
 
-The current keyword retrieval baseline has been evaluated with labeled retrieval questions using `top_k=5`.
+## Data and Safety Boundary
 
-| Metric | Result |
-|---|---:|
-| Retrieval questions | 12 |
-| top_k | 5 |
-| hit_rate@5 | 0.833 |
-| MRR | 0.750 |
-| Failed IDs before SOP update | RET-007, RET-009 |
+> [!CAUTION]
+> This public repository is a demonstration and evaluation project. It is not a production pharmacy system.
 
-These metrics are treated as a baseline for future weighted-keyword, embedding, or hybrid retrieval comparisons. Embeddings should be added only after the baseline is recorded and failure cases are understood.
+The repository contains generalized workflow documents and curated demonstration cases. It does not provide access to:
 
-## 13. Demo Case: Flavor-Related Vomiting
+- customer or patient records;
+- prescription or order systems;
+- compounding records;
+- inventory;
+- internal SOPs;
+- licensed drug references;
+- supplier identities;
+- proprietary formulas.
 
-### Input Concern
+The system is:
 
-```text
-My dog received chicken flavored oral liquid, ran around frantically, and vomited once about 10 minutes after administration.
-```
+- read-only;
+- evidence-grounded;
+- human-reviewed;
+- explicit about unsupported access;
+- designed to preserve pharmacist authority.
 
-### Phase 1 Output Summary
+---
 
-The system should first extract already-stated facts such as species, dosage form, flavor, timing, and symptom course. It should then retrieve suspected-ADE and flavor/palatability guidance and print:
+## Current Limitations
 
-- review checks such as record review, lot/batch context review, trend scan, and clinical context follow-up;
-- missing information that was not already supplied, such as dose administered, veterinarian contact, hospitalization status, and lot/batch information if available;
-- severe escalation triggers to rule out;
-- evidence citations from the synthetic SOP corpus;
-- limitations stating that this is not real record access or clinical causality determination.
+- The strongest extraction result is on the development set.
+- The holdout remains separate and should not be tuned against.
+- The evaluation set is still small.
+- Canonicalized cases are cleaner than unrestricted production narratives.
+- Keyword retrieval remains vocabulary-sensitive.
+- Deterministic expansion is precise but may be brittle on unfamiliar language.
+- The current nano query strategy is versatile but insufficiently aligned with corpus vocabulary.
+- Authentication, authorization, audit storage, production monitoring, and approved private integrations are not implemented.
+- The Spring-to-Python boundary uses a local process adapter rather than a separately deployed Python service.
 
-### Reviewer Findings Entered
+---
 
-```text
-Record review result: no_discrepancy_found
-Lot/batch pattern summary: no_similar_batch_concerns_found
-Inventory inspection result: not_checked
-API/reference review result: not_needed
-Severe escalation triggers observed: none
-Customer context summary: Dog vomited once and recovered. No hospitalization was reported.
-```
+## Next Design Work
 
-### Phase 2 Output Summary
-
-The final report should route the scenario as a suspected ADE/flavor-related vomiting review-support case with unexpected non-life-threatening risk unless a structured severe trigger is supplied. It should recommend Technical Services customer outreach, preserve evidence citations, and state that a human pharmacist remains the final decision-maker.
-
-## 14. Demo Case: Unsupported External Reference
-
-### Input Question
+The next retrieval experiment will separate semantic understanding from corpus vocabulary:
 
 ```text
-Can you check Plumb's and tell me whether this medication causes vomiting in dogs?
+raw complaint
+
+rule-based intent detection
+→ shared corpus vocabulary mapper
+→ retrieval
+
+nano intent detection
+→ shared corpus vocabulary mapper
+→ retrieval
 ```
 
-### Expected Refusal
+A separate unseen-language challenge set will test:
 
-The system should refuse because the public synthetic corpus does not include Plumb's or another licensed external drug reference. It should not infer or fabricate medication-specific adverse effects, contraindications, interactions, dose ranges, or species-specific toxicity from synthetic SOP evidence.
+- indirect symptom descriptions;
+- abbreviations and misspellings;
+- multi-issue complaints;
+- irrelevant details;
+- unfamiliar phrasing;
+- categories not directly represented in the original development wording.
 
-## 15. Demo Case: Unsupported Inventory / Order Access
+The goal is to determine whether the LLM adds generalization value without giving it uncontrolled authority over search language or workflow disposition.
 
-### Input Question
+---
 
-```text
-A customer wants to know when this medication will be back in stock so they can order it again.
-```
+## Interview Framing
 
-### Expected Refusal
+> I built a human-in-the-loop compounding-quality review system with React, Spring Boot, and Python. The LLM handles flexible narrative interpretation, Pydantic enforces typed contracts, and deterministic policy controls high-impact workflow semantics. I created adjudicated development and holdout datasets, evaluated extraction and retrieval separately, and ran an ablation comparing raw queries, deterministic expansion, and LLM-generated retrieval intent. The experiment showed that semantic understanding and retrieval vocabulary alignment are separate engineering problems, so the next design uses the LLM for controlled intent detection and deterministic code for corpus-aligned search.
 
-The system should refuse because the public synthetic demo does not access real inventory systems, order pages, or internal ordering capability. It should stop before checklist generation.
+---
 
-## 16. Important Boundaries
+## What This Is Not
 
-- The system is read-only.
-- The system does not mutate any source record.
-- The system does not replace TS pharmacist review.
-- The system does not access real compounding records, inventory, customer history, patient records, order pages, internal systems, or external drug references.
-- Synthetic SOP-like documents can support process guidance.
-- Synthetic inquiry examples can support examples and tests, but they do not override SOP guidance.
-- Reviewer-confirmed structured severe triggers drive final escalation routing.
-- Human pharmacist review remains the final decision point.
+This project does not:
 
-## 17. Current Limitations and Next Improvements
-
-| Limitation | Why it matters | Next step |
-|---|---|---|
-| Keyword retrieval only | Transparent and debuggable, but limited semantic recall. | Add embeddings or hybrid retrieval only after baseline metrics are recorded. |
-| Stubbed/gold-label path exists | Useful for spine validation but not model accuracy. | Label stubbed paths clearly and compare deterministic/LLM outputs to gold labels separately. |
-| Citation precision can improve | Same evidence can be attached too broadly. | Map each checklist item to directly supporting chunks. |
-| Phase 1 risk wording is heuristic | Raw text may contain vague or negated severe terms. | Treat Phase 1 as risk clues to confirm; final escalation uses structured triggers. |
-| Spring Boot API is early | Mocked checklist endpoint proves the HTTP boundary, but it is not connected to Python yet. | Add `RagEngineClient` and `PythonProcessRagEngineClient`, then connect `/api/checklist` to `api_runner.py`. |
-| No React UI yet | CLI proves logic, not nontechnical workflow usability. | Add thin React/TypeScript UI only after backend API contract exists. |
-| No CI/Docker/runbook yet | Local tests pass, but production-shaped operations are not yet demonstrated. | Add GitHub Actions, Docker Compose, structured logs, health checks, and runbook after backend vertical slice. |
-
-## 18. Next Engineering Milestones
-
-Near-term sequence:
-
-1. Add Java `RagEngineClient` interface.
-2. Add `PythonProcessRagEngineClient` with timeout handling and stdout JSON parsing.
-3. Connect Spring Boot `POST /api/checklist` to the Python `api_runner.py` bridge.
-4. Translate Python bridge handled errors into Spring API errors.
-5. Add retrieve, final-assessment, and review-summary extraction endpoints.
-6. Add embeddings/hybrid retrieval comparison after the API shell is stable.
-7. Add React/TypeScript review UI after backend contracts exist.
-8. Add GitHub Actions, Docker Compose, structured logs, health checks, and runbook.
-
-## 19. Interview Framing
-
-This project is strongest when framed as a domain-specific, human-in-the-loop AI workflow system, not as a generic chatbot.
-
-> I built a local-first synthetic-data RAG assistant for compounding-quality inquiry review. It validates structured outputs with Pydantic, chunks SOP-like guidance with citation metadata, retrieves evidence with authority rules, refuses unsupported requests, supports a two-phase reviewer workflow, and evaluates retrieval and structured-output behavior with tests. I am now wrapping the tested Python RAG engine with a Spring Boot API and, later, a React/TypeScript review UI to demonstrate production-shaped service boundaries around an AI workflow.
-
-## 20. What This Is Not
-
-This is not a production pharmacy system.
-
-It does not access live systems, make final clinical determinations, replace pharmacist judgment, promise customer resolutions, or use proprietary records. The goal is to demonstrate a safe architecture for evidence-grounded review support using synthetic data.
+- make final clinical determinations;
+- establish causality;
+- access live records;
+- disclose restricted information;
+- replace pharmacist judgment.
