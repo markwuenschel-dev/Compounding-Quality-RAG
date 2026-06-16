@@ -1,77 +1,90 @@
-## Spring Boot API Shell
+# Current Baseline
 
-- Added `GET /health`.
-- Added `HealthResponse` DTO record.
-- Added `HealthControllerTest` with MockMvc.
-- Added Swagger/OpenAPI UI.
-- Added centralized `ApiErrorResponse` and `GlobalExceptionHandler` with a stable JSON error contract.
-- Added mocked `POST /api/checklist` endpoint with request/response DTOs.
-- Added validation coverage for blank checklist concern text.
-- Added `GlobalExceptionHandlerTest` coverage for invalid request-body validation, malformed JSON bodies, `ResponseStatusException`, and generic fallback errors.
-- Preserved incoming `X-Request-Id` on validation failures and generated request IDs when one is not supplied.
-- Confirmed `./gradlew clean test` passes from `services/review-api`.
+## Runtime architecture
 
-## Python RAG / CLI Update
+- React/TypeScript provides the human-review workflow.
+- Spring Boot owns HTTP routes, DTO validation, orchestration, readiness, error translation, OpenAPI, and the Python process boundary.
+- Python owns intake structuring, refusal, retrieval, checklist generation, review-summary extraction, deterministic grounding, unresolved-question generation, final assessment, and evaluation.
+- `GET /ready` checks Spring availability, the configured Python command, the Python working directory, and corpus availability.
+- The React workflow displays backend readiness, disables submission while unavailable, distinguishes timeout/network/validation/engine/refusal errors, and supports retry.
 
-- Added schema-level `RefusalReason`, `RefusalResult`, and `IntakeUnderstanding` contracts.
-- Added optional OpenAI-backed intake-understanding extraction.
-- Wired intake understanding into Phase 1 so known concern facts can suppress redundant missing-information items.
-- Added semantic boundary detection for unsupported inventory/order, external drug-reference, and clinical/legal conclusion requests.
-- Updated reporting tests to avoid brittle exact-copy assertions.
-- Confirmed Python tests pass after intake-understanding wiring.
+## Review-summary extraction
 
-## Python API Runner Bridge
+The extraction pipeline is now a hybrid system:
 
-- Added `app/api_runner.py` as the JSON stdin/stdout bridge for the future Java process client.
-- Added `checklist` command support using the existing Python checklist engine.
-- Added bridge envelope:
-  - request: `{"command":"checklist","payload":{"concernText":"..."}}`
-  - success: `{"ok":true,"result":{...}}`
-  - handled error: `{"ok":false,"error":{"code":"...","message":"..."}}`
-- Reserved stdout for machine-readable JSON only.
-- Reserved stderr for unexpected tracebacks and diagnostics.
-- Added nonzero exit code behavior only for unexpected bridge/engine failures.
-- Added `tests/test_api_runner.py` coverage for success, invalid JSON, blank/missing concern text, unknown command, refusal, invalid `topK`, and unexpected engine failure.
+1. The LLM converts the reviewer note into a candidate `ReviewSummary`.
+2. Pydantic validates the controlled schema.
+3. Deterministic grounding corrects explicit facts such as negation, completed reference review, non-disclosure boundaries, severe triggers, missing-information phrases, record review, lot patterns, and inventory findings.
+4. A review-scope policy decides whether undocumented checks mean `not_applicable` or incomplete/not checked.
+5. Decision-relevant unresolved questions are generated separately.
+6. Evaluation compares controlled scalar fields and set-valued outputs against adjudicated cases.
 
-## Test Hardening
+### Development extraction benchmark
 
-- Added `tests/test_helpers.py` to normalize expected-output fixtures to current schema enum values during tests.
-- Updated evaluation and pipeline tests to treat `app/schemas.py` as the source of truth.
-- Updated CLI tests to isolate `cli.main()` from external LLM configuration when LLM behavior is not under test.
-- Updated intake-understanding fake client to tolerate the current prompt-call contract.
-- Updated reporting assertions to check stable behavior instead of incidental capitalization or exact report prose.
-- Updated Spring MVC tests to distinguish controller registration failures from actual exception-handler failures.
-- Removed temporary diagnostic assertions from the global exception-handler path after the handler behavior was confirmed.
+- Cases: `20`
+- Scalar-field accuracy: `1.0`
+- Missing-information precision: `1.0`
+- Missing-information recall: `1.0`
+- Severe-trigger precision: `1.0`
+- Severe-trigger recall: `1.0`
+- Unresolved-question precision: `1.0`
+- Unresolved-question recall: `1.0`
+- Failed case IDs: none
 
-## Retrieval Closeout
+This is a development-set result, not proof of generalization. The holdout remains separate and should not be used for tuning.
 
-Retrieval comparison work is functionally complete.
+## Reference-review policy
 
-The project now includes:
+- `not_needed`: no reference review was mentioned or required.
+- `synthetic_reference_consulted`: a reference contained in the public project corpus was used.
+- `external_reference_consulted`: USP, manufacturer information, internal clinical guidance, a veterinary drug reference, or a package insert was already reviewed.
+- `external_reference_needed`: outside information still needs to be reviewed.
+- `not_supported_by_public_corpus`: the requested conclusion or disclosure cannot be supported publicly.
 
-- `KeywordRetriever`
-- local deterministic `EmbeddingRetriever`
-- `HybridRetriever`
-- shared retrieval comparison
-- `reports/retrieval_comparison.md`
+Explicit supplier, manufacturer, or proprietary-formula non-disclosure overrides a completed external review and routes back to the frontline pharmacist.
 
-`KeywordRetriever` remains the default retrieval path for API/checklist behavior.
+## Severe-trigger policy
 
-Embedding and hybrid retrieval are evaluation baselines only. They are not currently promoted as production semantic search and are not the default behavior.
+- A listed severe trigger reported in the complaint, such as hospitalization, is proposed immediately for reviewer confirmation.
+- Shortness of breath, collapse, and falling over remain clinical context unless another controlled severe trigger is present.
+- Final escalation routing uses structured triggers rather than free-text keyword scanning.
 
-Current retrieval comparison baseline:
+## Review-scope defaults
 
-| Retriever | hit_rate@5 | MRR | Failed question IDs |
-|---|---:|---:|---|
-| Keyword | 0.8333 | 0.7500 | `RET-007`, `RET-009` |
-| Embedding | 0.9167 | 0.8125 | `RET-007` |
-| Hybrid | 0.8333 | 0.7500 | `RET-007`, `RET-009` |
+For a full quality or ADE investigation:
 
-Interpretation:
+- undocumented record review -> `documentation_incomplete`
+- undocumented lot/batch result -> `unavailable`
+- undocumented inventory inspection -> `not_checked`
+- unmentioned reference review -> `not_needed`
 
-Embedding outperformed keyword and hybrid on this small synthetic evaluation set, but this does not establish production semantic-search superiority. The embedding implementation remains a deterministic local baseline for comparison. Keyword retrieval remains the default because it is transparent, predictable, and already integrated into the API/checklist path.
+For guidance-only work:
 
-Known retrieval misses:
+- irrelevant record, lot, and inventory fields -> `not_applicable`
+- unmentioned reference review -> `not_needed`
 
-- `RET-007`: low-star customer review with no review text should retrieve SOP-006.
-- `RET-009`: temperature-excursion unsupported product-specific stability boundary should retrieve SOP-005/SOP-006.
+Explicit reviewer findings always override these defaults.
+
+## Retrieval baseline
+
+The development retrieval benchmark is not yet stable:
+
+- Hit rate@5: `0.75`
+- Mean reciprocal rank: `0.5875`
+- Negative-constraint pass rate: `0.85`
+- Failed questions: `5`
+- Forbidden-source hits: `3`
+
+The next retrieval work is label correction, adverse-event query expansion/reranking, ingredient/disclosure retrieval support, and only then targeted SOP wording changes if a genuine source-truth gap remains.
+
+## SOP status
+
+No SOP or chunk content was changed during the recent extraction work.
+
+Earlier retrieval work did make narrow corpus changes:
+
+- `SOP-006`: explicit low-star/no-review-text document-only guidance.
+- `SOP-005`: explicit unsupported product-specific stability boundary outside the limited temperature-excursion guidance.
+- `SOP-006`: associated frontline/document-only routing language.
+
+Do not change chunking or add broad SOP content merely to improve benchmark scores. Change source text only when the intended policy is genuinely absent or under-specified.

@@ -19,7 +19,6 @@ This reference summarizes the controlled values used by the synthetic SOP set an
 - `review_summary`: reviewer-entered or synthetic summary of completed review findings.
 - `handling_path`: what Technical Services does next.
 - `resolution_options`: possible customer-facing closure or support options.
-- `intake_understanding`: structured facts extracted from the initial concern before checklist generation.
 
 ## Workflow Stages
 
@@ -124,73 +123,6 @@ A submission is a QRE if it falls into one of the five formal QRE categories. If
 - `pet_death`
 - `threatened_legal_action`
 
-
-## Intake Understanding
-
-`IntakeUnderstanding` is an optional Phase 1 structure that captures facts already present in the concern before checklist generation.
-
-Fields:
-
-- `raw_intake`: original concern metadata and verbatim concern narrative.
-- `product_context`: stated species, dosage form, product placeholder, flavor/attribute, BUD presence, and batch/lot presence.
-- `possible_boundary_issue`: semantic boundary reason such as `internal_record_access`, `external_drug_reference`, or `clinical_or_legal_conclusion`.
-- `boundary_supporting_phrase`: shortest supporting phrase from the concern when a boundary issue is present.
-- `extracted_customer_context`: neutral factual summary of customer-provided context.
-- `facts_present`: short facts explicitly stated in the concern.
-- `facts_missing`: relevant missing facts, not a generic exhaustive checklist.
-
-The LLM may populate this structure, but deterministic application logic still owns refusal, checklist generation, and final routing.
-
-## Boundary / Refusal Reasons
-
-- `internal_record_access`: real order status, stock availability, inventory, customer history, compounding records, patient records, or internal-system access.
-- `external_drug_reference`: Plumb's, package inserts, drug handbooks, dose ranges, contraindications, interactions, toxicity, published adverse effects, or medication-specific safety claims.
-- `clinical_or_legal_conclusion`: causality, diagnosis, safety determination, death causation, liability, legal advice, or another final clinical/legal conclusion.
-
-## API Runner Bridge
-
-The Python bridge accepts a command envelope from stdin and returns a response envelope on stdout.
-
-Current command:
-
-```json
-{
-  "command": "checklist",
-  "payload": {
-    "concernText": "..."
-  }
-}
-```
-
-Response envelopes:
-
-- `{"ok": true, "result": {...}}` for successful checklist generation.
-- `{"ok": false, "error": {...}}` for handled validation, refusal, unknown command, or engine errors.
-
-stdout is reserved for JSON. stderr is reserved for diagnostics.
-
-## Spring API Error Contract
-
-The Spring Boot API shell uses a centralized `ApiErrorResponse` for handled API failures.
-
-Fields:
-
-- `timestamp`: time the error response was built.
-- `status`: HTTP status code.
-- `error`: HTTP reason phrase.
-- `message`: stable user-facing message.
-- `path`: request path.
-- `requestId`: incoming `X-Request-Id` when supplied, otherwise generated.
-- `fieldErrors`: validation details, empty for non-validation failures.
-
-Current mappings:
-
-- Invalid request body validation → `400` with `Validation failed` and field errors.
-- Handler-method validation → `400` with `Validation failed`.
-- Malformed JSON request body → `400` with the centralized bad-request shape.
-- `ResponseStatusException` → the exception's explicit HTTP status.
-- Unexpected exception → `500` with a generic message that does not leak internal exception details.
-
 ## Review Scopes
 
 - `full_quality_review`
@@ -264,8 +196,31 @@ Review-summary fields are human-entered or synthetic review findings. The public
 
 - `not_needed`
 - `synthetic_reference_consulted`
+- `external_reference_consulted`
 - `external_reference_needed`
 - `not_supported_by_public_corpus`
+
+Use `external_reference_consulted` when an outside source was already reviewed. Explicit supplier, manufacturer, or proprietary-formula non-disclosure maps to `not_supported_by_public_corpus`, even if outside information was reviewed.
+
+## Review-Summary Defaulting Rule
+
+When a review-summary field is not documented, the default depends on review scope.
+
+### Guidance only
+
+- record review: `not_applicable`
+- lot/batch review: `not_applicable`
+- inventory inspection: `not_applicable`
+- reference review: `not_needed`
+
+### Full quality or ADE investigation
+
+- record review: `documentation_incomplete`
+- lot/batch review: `unavailable`
+- inventory inspection: `not_checked`
+- reference review: `not_needed`
+
+Explicit findings override defaults. For example, `One additional quality complaint was identified for the lot` maps to `similar_concern_same_batch_found`.
 
 ## Handling Paths
 
@@ -303,7 +258,7 @@ Resolution options are separate from handling path. They describe possible custo
 - `repeat_issue_same_lot_or_batch_with_conditions`
 - `rare_regulatory_or_compliance_concern`
 
-Escalation triggers should be treated as structured reviewer-confirmed findings in `review_summary.severe_triggers_observed`. Final escalation routing should not rely on bare keyword matching in free-text summaries, because negated phrases such as “no hospitalization” or “no wrong medication concern” can otherwise be misread.
+Escalation triggers are structured findings in `review_summary.severe_triggers_observed`. A listed severe trigger reported in the complaint, such as hospitalization, may be proposed immediately for reviewer confirmation. Final routing should not rely on bare keyword matching in free text, because negated phrases such as “no hospitalization” or “no wrong medication concern” can otherwise be misread. Shortness of breath, collapse, and falling over remain clinical context unless another controlled severe trigger is present.
 
 ## Delegate-Back Reasons
 

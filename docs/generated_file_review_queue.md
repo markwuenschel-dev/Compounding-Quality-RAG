@@ -101,7 +101,6 @@ The purpose is to revisit generated code after the demo and perform a slower man
 - [ ] `rag-engine-python/tests/test_contextual_missing_information.py`
 - [ ] `rag-engine-python/tests/test_review_summary_evaluate.py`
 
-
 ## Full-stack narrative extraction integration
 
 - [ ] `services/review-api/src/main/java/com/compoundingquality/reviewapi/api/ReviewSummaryExtractionController.java`
@@ -131,3 +130,35 @@ The purpose is to revisit generated code after the demo and perform a slower man
 - [ ] `apps/review-ui/src/extraction.css`
 - [ ] `docs/generated_file_review_queue.md`
 
+## Unseen holdout evaluation scaffold
+
+- [ ] `rag-engine-python/app/holdout_evaluate.py`
+- [ ] `rag-engine-python/data/eval/review_summary_extraction_holdout.json`
+- [ ] `rag-engine-python/data/eval/retrieval_questions_holdout.json`
+- [ ] `rag-engine-python/tests/test_holdout_evaluate.py`
+- [ ] `docs/evaluation_case_authoring.md`
+- [ ] `docs/holdout_case_capture_worksheet.md`
+- [ ] `docs/generated_file_review_queue.md`
+
+
+## Reference and reported-trigger policy batch
+
+- [ ] `rag-engine-python/app/schemas.py`
+- [ ] `rag-engine-python/app/review_summary_extraction.py`
+- [ ] `rag-engine-python/app/contextual_missing_information.py`
+- [ ] `apps/review-ui/src/components/ReviewSummaryForm.tsx`
+- [ ] `rag-engine-python/tests/test_reference_and_trigger_policy.py`
+- [ ] `rag-engine-python/tests/test_contextual_question_boundaries.py`
+- [ ] `apps/review-ui/src/components/ReviewSummaryForm.reference.test.tsx`
+- [ ] `docs/reference_review_labeling_policy.md`
+- [ ] `docs/reported_trigger_and_clinical_context_policy.md`
+
+## Review-scope defaults batch
+
+- [ ] `rag-engine-python/app/review_summary_policy.py`
+- [ ] `rag-engine-python/app/review_summary_extraction.py`
+- [ ] `rag-engine-python/app/contextual_missing_information.py`
+- [ ] `rag-engine-python/tests/test_review_summary_policy.py`
+- [ ] `rag-engine-python/tests/test_contextual_missing_information_regressions.py`
+- [ ] `rag-engine-python/data/eval/review_summary_extraction_development.json`
+- [ ] `docs/review_summary_default_policy.md`
