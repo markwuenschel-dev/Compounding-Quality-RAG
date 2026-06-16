@@ -14,7 +14,12 @@ from pydantic import ValidationError
 from app.checklist import build_intake_checklist
 from app.checklist_models import EvidenceCitation, ChecklistItem, IntakeChecklist
 from app.final_assessment import build_final_assessment
+from app.llm_client import LLMClientError, openai_json_client_from_env
 from app.refusal import evaluate_refusal
+from app.review_summary_extraction import (
+    ReviewSummaryExtractionError,
+    extract_review_summary_result,
+)
 from app.retrieval import SearchResult, retrieve
 from app.schemas import (
     ConcernType,
@@ -31,6 +36,7 @@ EXIT_UNEXPECTED_FAILURE = 1
 COMMAND_CHECKLIST = "checklist"
 COMMAND_RETRIEVE = "retrieve"
 COMMAND_FINAL_ASSESSMENT = "final_assessment"
+COMMAND_EXTRACT_REVIEW_SUMMARY = "extract_review_summary"
 
 CHECK_KEYS_BY_NAME = {
     "Record review": "record_review",
@@ -127,6 +133,9 @@ def handle_request(raw_input: str) -> dict[str, Any]:
     if command == COMMAND_FINAL_ASSESSMENT:
         return success_response(handle_final_assessment(payload))
 
+    if command == COMMAND_EXTRACT_REVIEW_SUMMARY:
+        return success_response(handle_extract_review_summary(payload))
+
     raise BridgeRequestError(
         "UNKNOWN_COMMAND",
         f"Unsupported command: {command}",
@@ -204,6 +213,47 @@ def handle_final_assessment(payload: dict[str, Any]) -> dict[str, Any]:
         to_camel_case,
     )
 
+
+
+def handle_extract_review_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    concern_text = require_string(
+        payload,
+        "concernText",
+        "payload.concernText",
+    )
+    pharmacist_notes = require_string(
+        payload,
+        "pharmacistNotes",
+        "payload.pharmacistNotes",
+    )
+
+    clean_concern_text = require_non_blank_text(
+        concern_text,
+        "payload.concernText must not be blank",
+    )
+    clean_pharmacist_notes = require_non_blank_text(
+        pharmacist_notes,
+        "payload.pharmacistNotes must not be blank",
+    )
+
+    enforce_refusal_boundary(clean_concern_text)
+
+    try:
+        result = extract_review_summary_result(
+            reviewer_note=clean_pharmacist_notes,
+            llm_client=openai_json_client_from_env(),
+            concern_text=clean_concern_text,
+        )
+    except (ReviewSummaryExtractionError, LLMClientError) as exc:
+        raise BridgeRequestError(
+            "EXTRACTION_FAILURE",
+            str(exc),
+        ) from exc
+
+    return convert_keys(
+        result.model_dump(mode="json"),
+        to_camel_case,
+    )
 
 def checklist_to_api_result(checklist: IntakeChecklist) -> dict[str, Any]:
     return {

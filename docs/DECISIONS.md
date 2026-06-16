@@ -219,87 +219,132 @@ This requires one additional structured reviewer field, but it is safer and easi
 ### Revisit when
 The LLM review-summary extraction layer is added and must map normal English reviewer notes into `ReviewSummary`.
 
+---
+
+## 2026-06-15 — Hybrid review-summary extraction
+
+### Decision
+Use the LLM to propose a structured `ReviewSummary`, then apply Pydantic validation and deterministic grounding before downstream workflow logic uses it.
+
+### Reason
+Reviewer notes contain flexible language, but high-impact fields such as severe triggers, reference-review status, lot patterns, negation, and missing investigation steps require repeatable semantics.
+
+### Consequence
+The extraction path is:
+
+```text
+LLM candidate -> schema validation -> deterministic grounding -> scope defaults
+```
+
+The LLM is not the final authority for workflow-critical fields.
+
+### Tradeoff
+The policy layer adds code and regression-test maintenance, but reduces prompt sensitivity and makes failures diagnosable.
+
+### Revisit when
+A larger holdout shows that deterministic rules are overfitting or suppressing valid language variation.
 
 ---
 
-## 2026-05-30 — Python process bridge contract
+## 2026-06-15 — Reference-review states and precedence
 
 ### Decision
-Add `app/api_runner.py` as a JSON stdin/stdout process bridge between the Spring Boot API and the existing Python checklist engine.
+Add `external_reference_consulted` and use the following precedence:
+
+1. explicit unsupported or non-disclosure boundary;
+2. completed external review;
+3. completed synthetic-corpus review;
+4. external review still needed;
+5. no reference review needed.
 
 ### Reason
-The Python package already owns the tested RAG/checklist behavior. The Java/Spring layer should wrap that behavior behind a stable API boundary instead of rewriting it. A process bridge gives Spring Boot a narrow integration point now while keeping the option to replace the subprocess with FastAPI or another HTTP service later.
-
-### Contract
-The bridge accepts one JSON request object from stdin:
-
-```json
-{
-  "command": "checklist",
-  "payload": {
-    "concernText": "..."
-  }
-}
-```
-
-It returns one JSON response object on stdout:
-
-```json
-{
-  "ok": true,
-  "result": {}
-}
-```
-
-or:
-
-```json
-{
-  "ok": false,
-  "error": {
-    "code": "INVALID_REQUEST",
-    "message": "payload.concernText must not be blank"
-  }
-}
-```
+A completed manufacturer, USP, veterinary-reference, internal-clinical-guidance, or package-insert review is different from an external review that still needs to occur.
 
 ### Consequence
-Java can treat `ok:false` as a handled engine/application response and treat nonzero process exit, timeout, or invalid stdout as bridge/process failure.
+`ApiReferenceReviewResult` includes:
+
+- `not_needed`
+- `synthetic_reference_consulted`
+- `external_reference_consulted`
+- `external_reference_needed`
+- `not_supported_by_public_corpus`
+
+Explicit supplier, manufacturer, or proprietary-formula non-disclosure maps to `not_supported_by_public_corpus` and returns to the frontline pharmacist.
 
 ### Tradeoff
-A subprocess bridge is simpler than running a separate Python web service, but it requires strict stdout discipline, timeout handling, and careful error translation in the future Java client.
+The public benchmark records that an outside review occurred without publishing or reproducing licensed source content.
 
 ### Revisit when
-The Spring Boot `RagEngineClient` interface and `PythonProcessRagEngineClient` are implemented, or when the bridge needs to become a long-running Python service.
+Reference provenance needs a separate object rather than one controlled status.
 
 ---
 
-## 2026-06-01 — Centralized Spring API error response contract
+## 2026-06-15 — Review-scope defaults for undocumented checks
 
 ### Decision
-Use `GlobalExceptionHandler` and `ApiErrorResponse` as the centralized Spring Boot error boundary for the review API.
+Infer whether the case is guidance-only or a full investigation before defaulting undocumented review-summary fields.
 
 ### Reason
-The API needs predictable HTTP semantics and a stable JSON shape before the Java layer starts calling the Python RAG bridge. Validation failures, malformed request bodies, explicit `ResponseStatusException`s, and unexpected exceptions should all return the same top-level shape so clients and tests do not need one-off parsing paths.
-
-### Contract
-The response includes `timestamp`, `status`, `error`, `message`, `path`, `requestId`, and `fieldErrors`.
-
-Current mappings:
-
-| Failure case | Status | Rule |
-|---|---:|---|
-| Invalid request body validation | `400` | Return `Validation failed` with field errors. |
-| Handler-method validation | `400` | Return `Validation failed`; field errors may be empty until mapped. |
-| Malformed JSON request body | `400` | Return the centralized bad-request shape. |
-| `ResponseStatusException` | Exception status | Preserve the explicit HTTP status and provide a non-empty message. |
-| Unexpected exception | `500` | Return a generic message without leaking the internal exception detail. |
+Silence does not have one meaning. A record review may be irrelevant for a narrow guidance question, but missing documentation in an ADE or product-quality investigation should not be treated as `not_applicable`.
 
 ### Consequence
-`GlobalExceptionHandlerTest` now covers invalid body validation, malformed JSON, response-status errors, and generic fallback errors. `ChecklistControllerTest` also confirms checklist validation failures use the same global error shape and preserve incoming `X-Request-Id` values.
+
+For full investigations:
+
+- absent record result -> `documentation_incomplete`
+- absent lot result -> `unavailable`
+- absent inventory result -> `not_checked`
+- absent reference result -> `not_needed`
+
+For guidance-only work:
+
+- absent record, lot, and inventory results -> `not_applicable`
+- absent reference result -> `not_needed`
+
+Explicit findings override defaults.
 
 ### Tradeoff
-The handler-method validation branch currently returns an empty `fieldErrors` list. That is acceptable for the current API shell because request-body validation is the active contract being exercised, but it can be expanded later if method-parameter validation becomes user-facing.
+Scope inference uses controlled pattern logic and therefore requires representative regression tests.
 
 ### Revisit when
-The API adds query/path parameter validation, the Python bridge maps engine errors to HTTP responses, or the React UI starts consuming field-level validation errors directly.
+Review scope becomes a first-class extracted field supplied directly by the reviewer.
+
+---
+
+## 2026-06-15 — Complaint-reported severe triggers
+
+### Decision
+A listed severe trigger reported in the complaint, such as hospitalization, is proposed immediately for reviewer confirmation.
+
+### Reason
+Waiting for the investigation note to repeat hospitalization could silently drop a high-impact reported fact.
+
+### Consequence
+Complaint text may supply evidence for a proposed controlled trigger. The reviewer confirms or corrects it before final assessment.
+
+Shortness of breath, collapse, and falling over remain context only unless another controlled escalation trigger is present.
+
+### Tradeoff
+The system distinguishes reported context from final reviewer confirmation, which requires clear UI wording.
+
+### Revisit when
+The schema separates `reported_severe_context` from `confirmed_severe_triggers`.
+
+---
+
+## 2026-06-15 — Development and holdout separation
+
+### Decision
+Use 20 selected paired cases for development/error analysis and reserve 20 separate cases as holdout.
+
+### Reason
+Tuning and evaluating on the same cases would produce an inflated estimate.
+
+### Consequence
+The current 20/20 extraction result is described as a development result. The holdout remains untouched until extraction and retrieval development behavior stabilize.
+
+### Tradeoff
+The benchmark is small, so even the holdout will be a directional estimate rather than production evidence.
+
+### Revisit when
+More adjudicated complaint/investigation pairs are available.

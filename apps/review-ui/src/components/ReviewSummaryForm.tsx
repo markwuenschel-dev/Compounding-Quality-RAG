@@ -96,6 +96,10 @@ const API_REFERENCE_OPTIONS: Option[] = [
     label: "Synthetic reference consulted",
   },
   {
+    value: "external_reference_consulted",
+    label: "External reference consulted",
+  },
+  {
     value: "external_reference_needed",
     label: "External reference needed",
   },

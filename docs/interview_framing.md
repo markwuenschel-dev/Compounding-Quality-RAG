@@ -2,63 +2,118 @@
 
 This project is strongest when framed as a domain-specific AI workflow system, not as a generic chatbot.
 
-> I built a local-first synthetic-data RAG assistant for compounding-quality inquiry review. It validates structured outputs with Pydantic, chunks SOP-like guidance with citation metadata, retrieves evidence with authority rules, refuses unsupported requests, supports a two-phase reviewer workflow, and evaluates retrieval and structured-output behavior with a passing pytest suite.
+> I built a local-first, synthetic-data RAG assistant for compounding-quality review. React provides the reviewer workflow, Spring Boot owns the API boundary and runtime orchestration, and Python owns retrieval, structured extraction, policy grounding, evaluation, and final assessment.
 
-> Swagger/OpenAPI gives consumers a visible API contract. In this project, the Spring Boot layer is becoming the service boundary around the Python RAG engine, so documenting endpoints early helps keep request/response shapes explicit before I add the Python bridge.
+## Core architecture answer
 
-## Spring / Backend Talking Points
+### Why this architecture?
 
-### Why add Swagger/OpenAPI early?
+Python already contained the tested RAG and domain-evaluation engine. Spring Boot provides an enterprise-shaped service boundary with HTTP routes, DTO validation, OpenAPI, structured errors, readiness checks, and a future path to authentication and audit. React provides a human-review interface rather than pretending the model should make an autonomous decision.
 
-Swagger/OpenAPI gives consumers a visible API contract. In this project, the Spring Boot layer is becoming the service boundary around the Python RAG engine, so documenting endpoints early helps keep request/response shapes explicit before I add the Python bridge.
+### Why not rewrite the Python logic in Java?
 
-### Why put Spring Boot in front of Python?
+A rewrite would duplicate tested behavior and create migration risk. The better engineering choice was to preserve the working Python domain engine behind a stable Java contract. The process bridge can later become an HTTP service without changing the public API.
 
-The Python package already owns the tested RAG behavior: ingestion, retrieval, evaluation, LLM extraction, refusal, and final assessment. Spring Boot adds the enterprise service boundary: HTTP routes, DTO validation, OpenAPI documentation, structured errors, logging, and future authentication/audit controls.
+## Review-summary extraction answer
 
-### Why not rewrite the RAG engine in Java?
+### What did you build?
 
-A rewrite would duplicate tested domain logic and slow down the project. The better engineering choice is to preserve the working Python engine and wrap it behind a stable service contract. Later, the subprocess bridge could be replaced with a FastAPI or HTTP service without changing the public Java API.
+I built a hybrid extraction pipeline for messy complaint and investigation narratives.
 
+```text
+LLM candidate
+-> Pydantic validation
+-> deterministic grounding
+-> review-scope defaults
+-> unresolved questions
+-> evidence mapping
+-> evaluation
+```
 
-### How do validation and error handling work in the Spring API?
+The LLM handles language variation. Deterministic code handles workflow-critical semantics such as negation, same-lot patterns, completed versus needed references, non-disclosure, missing investigation steps, device-failure context, and severe triggers.
 
-The Spring layer rejects malformed or invalid requests at the boundary before the Python engine is involved. `GlobalExceptionHandler` turns validation failures, malformed JSON, explicit response-status exceptions, and unexpected errors into one `ApiErrorResponse` shape with status, message, path, request ID, and field errors when available.
+### Why not use an LLM alone?
 
-### Why keep a generic fallback handler?
+An LLM-only system was inconsistent about omitted fields and phrases with overlapping meaning. For example:
 
-A generic fallback prevents internal implementation details from leaking to API consumers. The logs can preserve diagnostic detail, but the HTTP response should be stable and safe: a `500` status, an `Internal Server Error` reason, and a generic message such as `Unexpected server error`.
+- `No external reference needed` contains the positive phrase `external reference needed`.
+- `15 mg/mL, 30 mL` describes strength and package size, not the administered dose.
+- `Worksheet review found no discrepancy` is a completed record review even though it does not say `record review`.
+- `One additional quality complaint was identified for the lot` must normalize to a controlled lot-pattern value.
 
-### What did the `GlobalExceptionHandlerTest` debugging teach you?
+I used the LLM for semantic normalization and deterministic policy for fields where repeatability and safety mattered more than flexibility.
 
-The important lesson was separating framework setup failures from real handler failures. A `404` in the validation test meant the nested test controller was not registered in the WebMvc slice, not that validation was broken. Once the test controller was imported, the request reached validation and the global handler returned the expected `400` shape.
+### How did you evaluate it?
 
-## Python Bridge / Java Integration Talking Points
+I selected 40 strongly paired complaint/investigation cases and split them into 20 development cases and 20 holdout cases. I tuned only against development cases.
 
-### What is `api_runner.py`?
+The current development extraction result is:
 
-`api_runner.py` is a process bridge. It lets a future Java `RagEngineClient` call the Python checklist engine by sending one JSON request through stdin and reading one JSON response from stdout.
+- 100% scalar-field accuracy
+- 100% missing-information precision and recall
+- 100% severe-trigger precision and recall
+- 100% unresolved-question precision and recall
+- 20/20 cases passing
 
-### Why use stdin/stdout instead of calling Python logic from Java directly?
+I would explicitly say that this is a development result, not a production claim. The holdout remains the next unbiased test.
 
-It keeps the boundary simple and explicit. Python remains responsible for RAG/checklist behavior. Java remains responsible for the HTTP service contract, validation, OpenAPI, error translation, and orchestration. The bridge can later be replaced by FastAPI or another service without changing the public Spring controller contract.
+## What were the repair scripts?
 
-### Why use an `ok:true` / `ok:false` envelope?
+They were one-time codemods: small repository migration programs that found exact source blocks, replaced them, compiled the result, and added regression tests.
 
-The envelope separates handled engine/application errors from process failures. `ok:false` means Python ran and returned a structured refusal or validation error. A nonzero exit code, timeout, or invalid stdout means the bridge itself failed.
+That was useful because I was applying repeatable changes to a local repository remotely. It was safer than manual line-by-line edits, but the early sequence became too fragmented. I learned to prefer complete replacement files for small changes and one verified, atomic migration for broad changes.
 
-### Why keep stdout JSON-only?
+## Strong debugging story
 
-The Java client will parse stdout. If logs or tracebacks are mixed into stdout, the integration becomes brittle. Diagnostics belong on stderr; stdout belongs to the machine-readable response contract.
+> I started with a development extraction benchmark around 66% scalar accuracy and 25% missing-information precision/recall. Instead of prompt-tuning blindly, I grouped errors by mechanism. I found negation precedence, missing review-scope semantics, broad substring matching, administered-dose confusion, incomplete reference states, and unnormalized lot language. I fixed each mechanism in deterministic code, wrote a regression test that reproduced it, and reran the same benchmark. The extraction set reached 20/20, while retrieval remained at 75% hit rate@5. That separation told me the extraction layer was stable enough to stop changing and the next bottleneck was retrieval.
 
-### How does this map to production design?
+## What would you improve next?
 
-The current bridge is a local integration adapter. The production-shaped decision is the separation of concerns: controller → service/client interface → Python adapter. That keeps subprocess details out of the controller and makes the integration replaceable later.
+- Correct retrieval labels that conflict with domain policy.
+- Add adverse-event and disclosure-aware query expansion/reranking.
+- Add SOP wording only where the source policy is genuinely missing.
+- Run the untouched holdout.
+- Expand the dataset with newly adjudicated cases.
+- Add production monitoring, authentication, and approved data integrations only in a private environment.
 
-## Retrieval/RAG talking points
+## Interview answer starters
 
-### Why keep keyword retrieval as the default if embedding scored higher?
+### How do you debug a bad result?
 
-The embedding baseline performed better on the small synthetic retrieval comparison, but I did not promote it to the default path because this project is accuracy- and review-support-oriented. Keyword retrieval is transparent, predictable, and easier to debug when a reviewer asks why evidence was returned.
+I decompose the pipeline:
 
-The embedding and hybrid retrievers are intentionally kept as evaluation baselines. That lets me compare lexical, semantic, and combined retrieval behavior without quietly changing production behavior based on one small eval run.
+1. Did refusal or boundary detection route correctly?
+2. Did retrieval return the right source IDs?
+3. Did extraction produce a valid typed object?
+4. Did deterministic grounding preserve negation and explicit findings?
+5. Did the scope policy apply the correct default?
+6. Did unresolved questions reflect only decision-relevant gaps?
+7. Is the expected answer itself correct?
+
+Then I create a minimal regression test for the failure mechanism.
+
+### What makes this production-shaped?
+
+- typed request and response contracts;
+- schema validation;
+- deterministic policy around high-impact fields;
+- explicit readiness and timeout behavior;
+- structured errors;
+- unit, integration, and benchmark tests;
+- development/holdout separation;
+- evidence and limitation reporting;
+- a human confirmation step.
+
+### What is not production yet?
+
+- no real operational integrations;
+- no enterprise authentication or authorization;
+- no production audit store;
+- no deployed monitoring;
+- a small benchmark;
+- a process bridge rather than a separately deployed Python service;
+- public generalized guidance rather than approved internal sources.
+
+### How does your pharmacy background help?
+
+I can distinguish fields that look similar technically but mean different things operationally: a product strength versus an administered dose, a reported symptom versus a controlled escalation trigger, a missing record review versus a truly non-applicable review, and a completed external reference review versus an unsupported disclosure request. That domain precision shaped the schemas, labels, tests, and policy layer.

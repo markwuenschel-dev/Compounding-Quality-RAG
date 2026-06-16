@@ -20,6 +20,7 @@ from app.schemas import (
     ReviewSummaryFieldEvidence,
     ReviewSummary,
 )
+from app.review_summary_policy import apply_review_summary_defaults
 
 
 class LLMClient(Protocol):
@@ -147,6 +148,29 @@ _EXTERNAL_NEEDED_RE = re.compile(
     re.IGNORECASE,
 )
 
+_EXTERNAL_CONSULTED_RE = re.compile(
+    r"\b(?:the\s+)?assessment\s+incorporated\s+[^.\n;]{0,160}"
+    r"\b(?:usp guidance|manufacturer information|internal clinical guidance|"
+    r"(?:a\s+)?veterinary drug reference|(?:the\s+)?commercial package insert)\b"
+    r"|\b(?:consulted|reviewed|used)\s+[^.\n;]{0,80}"
+    r"\b(?:usp guidance|manufacturer information|internal clinical guidance|"
+    r"(?:a\s+)?veterinary drug reference|(?:the\s+)?commercial package insert|"
+    r"external (?:drug )?reference)\b",
+    re.IGNORECASE,
+)
+
+_NON_DISCLOSURE_RE = re.compile(
+    r"\b(?:specific\s+)?(?:supplier|manufacturer)(?:\s+or\s+manufacturer)?"
+    r"\s+(?:details?|identity|information)\s+(?:were|was|cannot be|could not be)"
+    r"\s+(?:not\s+)?disclosed\b"
+    r"|\bfull\s+proprietary\s+(?:formula|formulation|ingredient list)"
+    r"\s+(?:was|were|cannot be|could not be)\s+(?:not\s+)?disclosed\b"
+    r"|\b(?:cannot|can not|could not|unable to)\s+disclose\s+"
+    r"(?:the\s+)?(?:supplier|manufacturer|full proprietary formula|"
+    r"full ingredient list)\b",
+    re.IGNORECASE,
+)
+
 _SYNTHETIC_REFERENCE_RE = re.compile(
     r"\b(synthetic reference consulted|synthetic api reference consulted|public synthetic reference consulted)\b",
     re.IGNORECASE,
@@ -245,7 +269,9 @@ _EXPLICIT_DEVICE_DISPENSE_MISSING_RE = re.compile(
 )
 
 _EXPLICIT_MISSING_SENTENCE_RE = re.compile(
-    r"\b(?:missing|unknown|not known|not documented|still need|need to confirm|could not confirm|couldn't confirm|unable to determine)\b",
+    r"\b(?:missing|unknown|not known|not documented|still need|need to confirm|"
+    r"could not confirm|couldn't confirm|unable to determine|confirm|clarify|"
+    r"determine whether|could not be evaluated|unable to evaluate)\b",
     re.IGNORECASE,
 )
 
@@ -312,6 +338,9 @@ _FIELD_SUPPORT_TERMS: dict[str, tuple[str, ...]] = {
         "plumb",
         "package insert",
         "drug handbook",
+        "usp",
+        "manufacturer",
+        "clinical guidance",
     ),
     "missing_information": (
         "missing",
@@ -365,8 +394,18 @@ def extract_review_summary_result(
         raise ValueError("reviewer_note must not be empty")
 
     summary = extract_review_summary(clean_note, llm_client)
+    summary = merge_reported_severe_triggers(
+        summary,
+        concern_text,
+    )
+    summary = apply_review_summary_defaults(
+        summary,
+        concern_text=concern_text,
+        reviewer_note=clean_note,
+    )
     evidence = build_review_summary_field_evidence(
         reviewer_note=clean_note,
+        concern_text=concern_text,
         review_summary=summary,
     )
     unresolved_questions = build_decision_relevant_questions(
@@ -386,6 +425,7 @@ def build_review_summary_field_evidence(
     *,
     reviewer_note: str,
     review_summary: ReviewSummary,
+    concern_text: str = "",
 ) -> list[ReviewSummaryFieldEvidence]:
     summary_data = review_summary.model_dump(mode="json")
     evidence: list[ReviewSummaryFieldEvidence] = []
@@ -395,6 +435,15 @@ def build_review_summary_field_evidence(
             reviewer_note,
             terms,
         )
+        if (
+            supporting_quote is None
+            and field_name == "severe_triggers_observed"
+            and concern_text.strip()
+        ):
+            supporting_quote = find_supporting_sentence(
+                concern_text,
+                terms,
+            )
         status = field_evidence_status(
             field_name=field_name,
             field_value=summary_data.get(field_name),
@@ -498,7 +547,11 @@ Safety rules:
 - If lot/batch trend information was unavailable, use "unavailable".
 - If a field is irrelevant to the case, use "not_applicable".
 - If no external/API reference was needed, use "not_needed".
-- If external references are outside the public synthetic corpus, use "not_supported_by_public_corpus" and add an evidence limitation.
+- If reference review is not mentioned in the reviewer note, use "not_needed".
+- If a synthetic reference in the public corpus was consulted, use "synthetic_reference_consulted".
+- If USP guidance, manufacturer information, internal clinical guidance, a veterinary drug reference, or a commercial package insert was already reviewed, use "external_reference_consulted".
+- If an outside reference still needs to be reviewed, use "external_reference_needed".
+- If the requested conclusion or supplier/manufacturer/proprietary information cannot be supported or disclosed, use "not_supported_by_public_corpus" and add an evidence limitation.
 - Keep missing_information and evidence_limitations as concise, reviewer-facing strings.
 - Do not create a generic checklist of absent fields.
 - Add missing_information only when the reviewer note explicitly identifies the information as missing, unknown, or still needed.
@@ -688,6 +741,29 @@ def infer_grounded_severe_triggers(
     return sorted(grounded)
 
 
+def merge_reported_severe_triggers(
+    summary: ReviewSummary,
+    concern_text: str,
+) -> ReviewSummary:
+    clean_concern = concern_text.strip()
+    if not clean_concern:
+        return summary
+
+    reported_triggers = infer_grounded_severe_triggers(
+        clean_concern,
+        [],
+    )
+    if not reported_triggers:
+        return summary
+
+    data = summary.model_dump(mode="json")
+    data["severe_triggers_observed"] = sorted(
+        set(data["severe_triggers_observed"]) | set(reported_triggers)
+    )
+
+    return ReviewSummary.model_validate(data)
+
+
 def trigger_is_affirmed(text: str, trigger: EscalationTrigger) -> bool:
     for sentence in split_sentences(text):
         if not contains_trigger_term(sentence, trigger):
@@ -795,27 +871,64 @@ def infer_grounded_missing_information(
 
 def normalize_explicit_missing_sentence(sentence: str) -> str | None:
     lowered = sentence.lower()
+    cleaned = re.sub(
+        r"^unresolved investigation items:\s*",
+        "",
+        sentence.strip(),
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"^(?:confirm|clarify|determine whether)\s+",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    ).strip(" .")
+
+    if "storage" in lowered or "temperature" in lowered:
+        return "Storage and temperature conditions"
+    if "shaking" in lowered or "resuspension" in lowered:
+        return "Shaking and resuspension technique"
+    if "syringe" in lowered or "measurement technique" in lowered:
+        return "Syringe selection and measurement technique"
+    if "other medications" in lowered or "concurrent therapy" in lowered:
+        return "Other medications and concurrent therapy"
+    if "dose appropriateness" in lowered and any(
+        phrase in lowered
+        for phrase in (
+            "could not be evaluated",
+            "unable to evaluate",
+            "could not evaluate",
+        )
+    ):
+        return "Dose appropriateness from the available directions"
 
     if "dose" in lowered:
         return "Exact dose administered"
-
-    if any(term in lowered for term in ("dispense", "dispensed", "came out")):
-        return "Whether medication dispensed from the device"
-
-    if "symptom" in lowered and any(
-        term in lowered
-        for term in ("resolved", "continued", "worsened", "course")
+    if "event timeline" in lowered or "timeline" in lowered:
+        return "Event timeline"
+    if "reported symptoms" in lowered or (
+        "symptom" in lowered and "severity" in lowered
     ):
-        return "Whether symptoms resolved"
-
+        return "Reported symptoms and severity"
+    if "transdermal" in lowered and any(
+        term in lowered for term in ("rotation", "cleaning", "site")
+    ):
+        return "Transdermal application-site rotation and cleaning"
+    if "leakage" in lowered or "physical damage" in lowered:
+        return "Whether leakage or physical damage was observed"
+    if "exposure duration" in lowered or "number of doses" in lowered:
+        return "Exposure duration and number of doses administered"
+    if "device behavior" in lowered or "usable medication" in lowered or any(
+        term in lowered for term in ("dispense", "dispensed", "came out")
+    ):
+        return "Whether medication dispensed from the device"
     if "veterinarian" in lowered or re.search(r"\bvet\b", lowered):
-        return "Whether veterinarian was contacted"
-
+        return "Veterinarian involvement and recommendations"
     if "lot" in lowered or "batch" in lowered:
         return "Lot or batch trend information"
-
-    return sentence.strip()
-
+    if "shortage" in lowered:
+        return "Whether there was a confirmed shortage"
+    return cleaned or None
 
 
 def apply_record_review_grounding(note: str, data: dict[str, Any]) -> None:
@@ -903,24 +1016,42 @@ def apply_inventory_grounding(note: str, data: dict[str, Any]) -> None:
 
 
 def apply_api_reference_grounding(note: str, data: dict[str, Any]) -> None:
-    if _EXTERNAL_UNSUPPORTED_RE.search(note):
-        data["api_reference_review_result"] = ApiReferenceReviewResult.NOT_SUPPORTED_BY_PUBLIC_CORPUS.value
+    if _NON_DISCLOSURE_RE.search(note) or _EXTERNAL_UNSUPPORTED_RE.search(note):
+        data["api_reference_review_result"] = (
+            ApiReferenceReviewResult.NOT_SUPPORTED_BY_PUBLIC_CORPUS.value
+        )
         add_unique(
             data["evidence_limitations"],
-            "External drug-reference information was not supported by the public synthetic corpus.",
+            "The requested external, supplier, manufacturer, or proprietary information is not supported for disclosure by the public corpus.",
+        )
+        return
+
+    if _EXTERNAL_CONSULTED_RE.search(note):
+        data["api_reference_review_result"] = (
+            ApiReferenceReviewResult.EXTERNAL_REFERENCE_CONSULTED.value
+        )
+        return
+
+    if _SYNTHETIC_REFERENCE_RE.search(note):
+        data["api_reference_review_result"] = (
+            ApiReferenceReviewResult.SYNTHETIC_REFERENCE_CONSULTED.value
         )
         return
 
     if _API_NOT_NEEDED_RE.search(note):
-        data["api_reference_review_result"] = ApiReferenceReviewResult.NOT_NEEDED.value
+        data["api_reference_review_result"] = (
+            ApiReferenceReviewResult.NOT_NEEDED.value
+        )
         return
 
     if _EXTERNAL_NEEDED_RE.search(note):
-        data["api_reference_review_result"] = ApiReferenceReviewResult.EXTERNAL_REFERENCE_NEEDED.value
-        return
+        data["api_reference_review_result"] = (
+            ApiReferenceReviewResult.EXTERNAL_REFERENCE_NEEDED.value
+        )
 
-    if _SYNTHETIC_REFERENCE_RE.search(note):
-        data["api_reference_review_result"] = ApiReferenceReviewResult.SYNTHETIC_REFERENCE_CONSULTED.value
+    data["api_reference_review_result"] = (
+        ApiReferenceReviewResult.NOT_NEEDED.value
+    )
 
 def enum_values(enum_cls: type[StrEnum]) -> list[str]:
     return [member.value for member in enum_cls]

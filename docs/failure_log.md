@@ -4,8 +4,8 @@ This log captures implementation failures found while building the synthetic Com
 
 ## Current status
 
-- Test suite is passing.
-- `./gradlew clean test` passes from `services/review-api`.
+- The development review-summary extraction benchmark passes all 20 adjudicated cases.
+- Retrieval development performance remains the current quality bottleneck.
 - The project now has schemas, expected outputs, synthetic SOP corpus, ingestion, retrieval, retrieval evaluation, a stubbed pipeline, structured evaluation, checklist generation, final assessment generation, reporting, a two-phase CLI workflow, and OpenAI-backed review-summary extraction.
 - The current demo boundary remains synthetic only: no real customer data, patient data, pharmacy records, inventory, customer history, or external drug references.
 
@@ -145,82 +145,86 @@ This log captures implementation failures found while building the synthetic Com
 
 **Prevention:** Retrieval eval questions should only expect sources that actually contain the supporting policy concept. When a query combines unsupported-evidence boundaries with routing behavior, either split the query or include all expected source concepts in the query text. Fix corpus/source-truth gaps before using embeddings to compensate for poor source coverage.
 
+---
+
+### 11. Completed external-reference review had no controlled value
+
+**Symptom:** Completed USP, manufacturer, veterinary-reference, internal-clinical-guidance, and package-insert reviews were inconsistently labeled as `synthetic_reference_consulted`, `external_reference_needed`, or `not_supported_by_public_corpus`.
+
+**Root cause:** The enum represented a synthetic reference and a still-needed external review, but not an outside reference that had already been consulted.
+
+**Fix:** Added `external_reference_consulted`, defined explicit precedence, and made non-disclosure override completed-review status.
+
+**Prevention:** Keep reference-state tests for not needed, synthetic consulted, external consulted, external still needed, and unsupported/non-disclosable.
 
 ---
 
-### 11. Expected-output tests became brittle around enum casing
+### 12. Explicit unresolved commands were not extracted
 
-**Symptom:** Tests failed after schema values such as QRE/ADE casing were treated as implementation mistakes even though `app/schemas.py` was the intended source of truth.
+**Symptom:** Investigation notes containing `Confirm`, `Clarify`, or `Determine whether` produced empty or incomplete `missing_information`.
 
-**Root cause:** Tests validated fixture literals too directly and made the expected-output JSON files act like a competing schema definition.
+**Root cause:** The explicit-missing detector recognized phrases such as `unknown` and `need to confirm`, but not the canonical command wording used by the generated investigation summaries.
 
-**Fix:** Added test helper normalization so expected-output fixtures are normalized to current schema enum values at test load time. Evaluation and pipeline tests now test behavior against the schema instead of forcing fixture casing to drive production enums.
+**Fix:** Expanded explicit-missing detection and normalized common investigation questions into stable labels.
 
-**Prevention:** Treat `app/schemas.py` as the controlled source of truth. Fixture normalization is acceptable in tests, but production schema values should not be changed just to satisfy brittle fixture literals.
-
----
-
-### 12. CLI and reporting tests overfit incidental formatting
-
-**Symptom:** Tests failed when headings, capitalization, or report wording changed even though the workflow behavior still worked.
-
-**Root cause:** Tests asserted presentation copy instead of stable behavior and contract-level structure.
-
-**Fix:** Updated CLI/reporting tests to check stable signals: phase labels, boundary text, evidence visibility, absence of debug scores by default, and generated review checks.
-
-**Prevention:** Exact-match public prose only when that prose is itself the contract. Otherwise prefer structural assertions and key concepts.
+**Prevention:** Maintain table-driven tests for every canonical unresolved-question phrase.
 
 ---
 
-### 13. API runner needed clear stdout/stderr and exit-code rules
+### 13. Device and dose matching used overly broad lexical signals
 
-**Symptom:** The bridge needed to be safe for future Java process parsing, but ordinary Python logging or tracebacks on stdout would break JSON parsing.
+**Symptom:** Unrelated oral suspensions and transdermal skin reactions produced `device_dispense_status`, while product strength or package quantity could be mistaken for the administered dose.
 
-**Root cause:** A subprocess bridge creates two contracts at once: process-level behavior and application-level JSON behavior. Without explicit rules, those concerns blur.
+**Root cause:** Device logic relied on broad substrings such as `pen` and `clicks`, and dose logic treated any numeric medication unit as an administered dose.
 
-**Fix:** Added `app/api_runner.py` with a request envelope, success/error response envelopes, stdout-only JSON, stderr diagnostics, handled errors with exit code 0, and unexpected failures with a nonzero exit code plus JSON error output.
+**Fix:** Added word boundaries, required device-failure context, and required administration context for dose detection.
 
-**Prevention:** Keep `tests/test_api_runner.py` focused on bridge invariants: stdout is valid JSON, handled errors return `ok:false`, refusal returns structured details, and unexpected exceptions do not leak tracebacks into stdout.
+**Prevention:** Keep negative tests for `suspension`, dose instructions using clicks, product strength, package quantity, and non-device transdermal concerns.
 
 ---
 
-### 14. Spring error-handler tests were obscured by test-slice setup and diagnostic code
+### 14. Review-summary silence was interpreted inconsistently
 
-**Symptom:** `GlobalExceptionHandlerTest` first failed with a `404` for `/test/validate`, then later the generic-error test surfaced a `ServletException`/`AssertionError` instead of the intended centralized JSON response.
+**Symptom:** Guidance-only cases were labeled as incomplete investigations, while ADE and product-quality cases with undocumented checks were labeled `not_applicable`.
 
-**Root cause:** The nested `TestController` was not registered in the `@WebMvcTest` slice until it was explicitly imported. Temporary diagnostic code also remained in the test and generic exception handler, so the diagnostics proved the handler path but deliberately crashed the test instead of returning the API error shape.
+**Root cause:** The extractor had no deterministic policy for deciding whether an absent result was irrelevant or required-but-undocumented.
 
-**Fix:** Imported `GlobalExceptionHandlerTest.TestController` alongside `GlobalExceptionHandler`, restored real MockMvc assertions for the validation test, and replaced the diagnostic generic handler with a normal `buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected server error", request, List.of())` path. The full `services/review-api` clean test run now passes.
+**Fix:** Added review-scope inference and conservative defaults for record, lot, inventory, and reference fields.
 
-**Prevention:** Keep diagnostic assertions temporary and remove them once the failing path is identified. For `@WebMvcTest`, explicitly import nested test controllers or use a top-level controller fixture when the test depends on custom routes. Keep a targeted `GlobalExceptionHandlerTest` class covering validation, malformed JSON, response-status errors, and generic fallback behavior.
+**Prevention:** Test guidance-only and full-investigation cases in parallel whenever scope rules change.
 
+---
 
-### 15. Retrieval comparison baseline left keyword misses unresolved
+### 15. Explicit worksheet review was overwritten as incomplete
 
-**Symptom:** Retrieval comparison showed known missed questions for the default keyword path. Keyword retrieval returned hit_rate@5 0.8333 and MRR 0.7500, missing `RET-007` and `RET-009`. Hybrid retrieval showed the same misses. The local deterministic embedding baseline performed better on this small evaluation set, with hit_rate@5 0.9167 and MRR 0.8125, missing only `RET-007`.
+**Symptom:** `Worksheet review found no discrepancy` became `documentation_incomplete`.
 
-**Root cause:** The synthetic corpus and keyword scoring still lack enough lexical support for two boundary cases: low-star customer reviews with no review text, and unsupported product-specific stability guidance outside the limited temperature-excursion window. The embedding baseline can recover one of those cases better, but the result comes from a small synthetic evaluation set and does not justify changing the default retrieval path.
+**Root cause:** The record-result matcher recognized `record review` and `compounding-record review`, but not the domain synonym `worksheet review`.
 
-**Fix:** Documented the retrieval comparison baseline and kept `KeywordRetriever` as the default API/checklist retrieval path. Preserved `EmbeddingRetriever` and `HybridRetriever` as evaluation baselines only, not production semantic search.
+**Fix:** Added `worksheet review` as an explicit record-review phrase and added a bridge-level regression test.
 
-**Prevention:** Do not promote a retriever based on one small eval run. Keep retrieval comparisons visible in `reports/retrieval_comparison.md`, preserve known miss IDs in the baseline docs, and only change the default retrieval path after a deliberate evaluation-backed decision.
+**Prevention:** Add domain-language aliases only from observed cases and protect each with a regression test.
 
-### 16. Clipboard tests targeted a stale browser API mock
+---
 
-**Symptom:** `FinalAssessmentPanel` clipboard tests reported that `navigator.clipboard.writeText` was never called. The expected copy-success and copy-failure messages did not render, and Vitest also reported an unhandled worker timeout.
+### 16. Explicit same-lot pattern remained unavailable
 
-**Root cause:** The test replaced `navigator.clipboard` before calling `userEvent.setup()`. Testing Library then installed its own clipboard stub, so the assertion was watching a different `writeText` function from the one the component called. The component also used a feedback-reset timer that added unnecessary asynchronous work during the test run.
+**Symptom:** `One additional quality complaint was identified for the lot` remained `unavailable`.
 
-**Fix:** Created the `userEvent` instance before spying on `navigator.clipboard.writeText`, awaited the asynchronous UI feedback, and removed the unnecessary automatic feedback-reset timer.
+**Root cause:** The policy detected that lot information existed but did not normalize the statement into a controlled lot-pattern value.
 
-**Prevention:** Mock browser APIs only after test helpers have installed their own stubs. Await asynchronous UI transitions with `findBy*` or `waitFor`, and avoid timers unless the timed behavior is an explicit product requirement.
+**Fix:** Added deterministic positive and negative lot-pattern grounding.
 
-### 17. Python subprocess output used an inconsistent Windows encoding
+**Prevention:** Separate tests for field presence and value normalization.
 
-**Symptom:** Refusal text rendered `can�t` instead of `can't` in the browser.
+---
 
-**Root cause:** Java correctly decoded Python stdout and stderr as UTF-8, but the Python subprocess was not explicitly configured to emit UTF-8. On Windows, Python could therefore write output using a different code page, causing Java's UTF-8 decoder to replace the incompatible apostrophe bytes with the Unicode replacement character.
+### 17. Patch packages installed tests before runtime changes
 
-**Fix:** Added `PYTHONIOENCODING=utf-8` and `PYTHONUTF8=1` to the `ProcessBuilder` environment before starting the Python RAG process.
+**Symptom:** New fixtures and tests failed because the implementation files still had the old enum, helper signature, and matching behavior.
 
-**Prevention:** Explicitly define both sides of every subprocess encoding boundary: configure the child process to emit UTF-8 and configure the parent process to decode UTF-8. Include non-ASCII punctuation in process-boundary tests.
+**Root cause:** The package required an additional application script, and the repository entered a partially migrated state.
+
+**Fix:** Added fail-closed repair scripts, structural verification, Python compilation, and later switched isolated changes to complete replacement files.
+
+**Prevention:** Prefer one atomic verified migration for broad edits and complete replacement files for small edits. Do not declare success until implementation and tests are both present.

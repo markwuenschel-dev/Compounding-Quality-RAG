@@ -1,0 +1,384 @@
+[
+  {
+    "case_id": "HOLD-EXT-001-PAIR-0039",
+    "concern_text": "the veterinarian wants the customer to give 2000mg Taurine daily, highest amount in OTC supplements are 500mg and she would like to know if we can compound since it is becoming more recommended in heart disease",
+    "reviewer_note": "The assessment incorporated internal clinical guidance. The requested product, strength, flavor, base, or dosage form was not currently offered and was routed for product-request consideration.",
+    "expected_review_summary": {
+      "record_review_result": "not_applicable",
+      "lot_batch_pattern_summary": "not_applicable",
+      "inventory_inspection_result": "not_applicable",
+      "customer_context_summary": null,
+      "api_reference_review_result": "synthetic_reference_consulted",
+      "missing_information": [],
+      "evidence_limitations": [],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-002-PAIR-0048",
+    "concern_text": "the customer wants to be 100% sure this product does not contain chicken dog is highly allergic checked formula and did not see chicken, but for peace of mind the customer would like a call from compounding team",
+    "reviewer_note": "The assessment incorporated manufacturer information. Ingredient review confirmed that the relevant flavoring was vegan and did not contain animal-derived protein. The investigation considered palatability or flavor intolerance as possible contributors. Documented next steps included an alternate formulation or flavor.",
+    "expected_review_summary": {
+      "record_review_result": "not_applicable",
+      "lot_batch_pattern_summary": "not_applicable",
+      "inventory_inspection_result": "not_applicable",
+      "customer_context_summary": null,
+      "api_reference_review_result": "synthetic_reference_consulted",
+      "missing_information": [],
+      "evidence_limitations": [],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-003-PAIR-0057",
+    "concern_text": "the customer called in inquiring if the suspension should be cloudy Previous of the same compound has been clear",
+    "reviewer_note": "Compounding-record review found no documented discrepancy. No additional quality complaints were identified for the lot or source stock. The beyond-use date had not passed. No recent formulation change was identified. The assessment incorporated USP guidance. Documented next steps included product discard. Unresolved investigation items: Confirm shaking and resuspension technique.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "not_checked",
+      "customer_context_summary": null,
+      "api_reference_review_result": "synthetic_reference_consulted",
+      "missing_information": [
+        "Shaking and resuspension technique"
+      ],
+      "evidence_limitations": [],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-004-PAIR-0059",
+    "concern_text": "bm is reporting amlodipine cream is weirdly runny and separated and that she hasn't stored it any differently then the other transdermal medication she's had",
+    "reviewer_note": "Compounding-record review identified a documented process or documentation discrepancy. No additional quality complaints were identified for the lot or source stock. The beyond-use date had not passed. No recent formulation change was identified. The investigation considered phase separation or loss of uniformity as possible contributors.",
+    "expected_review_summary": {
+      "record_review_result": "documentation_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "not_checked",
+      "customer_context_summary": null,
+      "api_reference_review_result": "not_needed",
+      "missing_information": [],
+      "evidence_limitations": [],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-005-PAIR-0071",
+    "concern_text": "She says the pet has always loved the chicken flavor Telmesartan compound She wanted to know if the formulation changed or if the mediation could be a bad batch Dog is refusing medication, and barely getting any of her dose",
+    "reviewer_note": "Compounding-record review found no documented discrepancy. No additional quality complaints were identified for the lot or source stock. No recent formulation change was identified. The investigation considered palatability or flavor intolerance as possible contributors. Documented next steps included replacement or reship. Unresolved investigation items: Clarify the event timeline.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "not_checked",
+      "customer_context_summary": null,
+      "api_reference_review_result": "not_needed",
+      "missing_information": [
+        "Event timeline"
+      ],
+      "evidence_limitations": [],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-006-PAIR-0073",
+    "concern_text": "Reporting that Doxycycline Compounded Chicken Oral Oil Suspension, 100 mg/mL, 90 mL has only #60ml in vial the customer works in a lab and had a 75ml syringe (from clinic they work with, large pets etc) and confirmed (after shaking vial) that the new bottle only had 60ml exactly the customer and I spoke about proper syringe technique, if they were able to read the qty on the liquid vial (they could not as the label covered the markings), and the customer also measured the 60ml in a graduated cylinder",
+    "reviewer_note": "Compounding-record review found no documented discrepancy. No additional quality complaints were identified for the lot or source stock. Documented next steps included refund or concession. Unresolved investigation items: Clarify whether leakage or physical damage was observed.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "not_checked",
+      "customer_context_summary": null,
+      "api_reference_review_result": "not_needed",
+      "missing_information": [
+        "Whether leakage or physical damage was observed"
+      ],
+      "evidence_limitations": [],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-007-PAIR-0090",
+    "concern_text": "Took first dose on Monday 1/19, started having by next day- itching, hot spots, missing hair",
+    "reviewer_note": "Compounding-record review found no documented discrepancy. No additional quality complaints were identified for the lot or source stock. No retained inventory was available for direct inspection. The documented dose was within the reviewed guidance. The investigation considered an intolerance or sensitivity to an inactive ingredient as possible contributors. Documented next steps included refund or concession.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "no_inventory_available",
+      "customer_context_summary": null,
+      "api_reference_review_result": "not_needed",
+      "missing_information": [],
+      "evidence_limitations": [
+        "Inventory was not available to inspect."
+      ],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-008-PAIR-0095",
+    "concern_text": "the customer is stating she received bottle with only 22ml in it This is the second bottle she has received that she has been shorted",
+    "reviewer_note": "Compounding-record review found no documented discrepancy. No additional quality complaints were identified for the lot or source stock. No retained inventory was available for direct inspection. Customer technique review addressed appropriate storage, shaking before dosing, use of the intended dosing syringe. Documented next steps included refund or concession. Unresolved investigation items: Confirm storage and temperature conditions. Confirm shaking and resuspension technique. Confirm syringe selection and measurement technique. Confirm the dose actually administered.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "no_inventory_available",
+      "customer_context_summary": null,
+      "api_reference_review_result": "not_needed",
+      "missing_information": [
+        "Storage and temperature conditions",
+        "Shaking and resuspension technique",
+        "Syringe selection and measurement technique",
+        "Exact dose administered"
+      ],
+      "evidence_limitations": [
+        "Inventory was not available to inspect."
+      ],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-009-PAIR-0099",
+    "concern_text": "the customer received Trilostane Compounded Oral Oil Liquid Marshmallow Flavored for Dogs & Cats, 10-mg/mL, 90 mL which the customer has received before but says this time it is really hard to resuspend the customer says that product is still within expiration date but has concerns about safety and expiration since this has never happened before Explained some settling may be normal but she is unable to shake sufficiently to get rid of residue at the bottom",
+    "reviewer_note": "Compounding-record review identified a documented process or documentation discrepancy. No additional quality complaints were identified for the lot or source stock. Documented next steps included replacement or reship. Unresolved investigation items: Confirm storage and temperature conditions. Clarify exposure duration and number of doses administered. Clarify the event timeline.",
+    "expected_review_summary": {
+      "record_review_result": "documentation_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "not_checked",
+      "customer_context_summary": null,
+      "api_reference_review_result": "not_needed",
+      "missing_information": [
+        "Storage and temperature conditions",
+        "Exposure duration and number of doses administered",
+        "Event timeline"
+      ],
+      "evidence_limitations": [],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-010-PAIR-0101",
+    "concern_text": "the customer states it looks like something white has settled in the bottom of the bottle of trilostane that does not resuspend upon shaking",
+    "reviewer_note": "Compounding-record review found no documented discrepancy. No additional quality complaints were identified for the lot or source stock. Inventory inspection reproduced or confirmed a product-quality concern. The beyond-use date had not passed. No recent formulation change was identified. The assessment incorporated USP guidance. The investigation considered caking, sediment, or incomplete resuspension as possible contributors. Unresolved investigation items: Confirm shaking and resuspension technique.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "visual_concern_found",
+      "customer_context_summary": null,
+      "api_reference_review_result": "synthetic_reference_consulted",
+      "missing_information": [
+        "Shaking and resuspension technique"
+      ],
+      "evidence_limitations": [],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-011-PAIR-0118",
+    "concern_text": "Received email of picture of pen At the neck of the pen, it had broken and medications are coming out at the neck and not the tip of pen",
+    "reviewer_note": "Compounding-record review found no documented discrepancy. No additional quality complaints were identified for the lot or source stock. No retained inventory was available for direct inspection. The investigation considered shipping or transit damage as possible contributors. Documented next steps included replacement or reship. Unresolved investigation items: Clarify whether leakage or physical damage was observed. Clarify the event timeline.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "no_inventory_available",
+      "customer_context_summary": null,
+      "api_reference_review_result": "not_needed",
+      "missing_information": [
+        "Event timeline"
+      ],
+      "evidence_limitations": [
+        "Inventory was not available to inspect."
+      ],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-012-PAIR-0135",
+    "concern_text": "issue started last night, was administering w/ no issues prior - confirmed using applicator correctly no medication came out on 1st or 2nd click last night this morning tried 2 clicks but no medication released",
+    "reviewer_note": "Compounding-record review found no documented discrepancy. No additional quality complaints were identified for the lot or source stock. No retained inventory was available for direct inspection. The beyond-use date had not passed. The assessment incorporated USP guidance. The investigation considered air pockets or bubbles in the dispensing device, shipping or transit damage as possible contributors. Documented next steps included product discard. Unresolved investigation items: Confirm storage and temperature conditions.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "no_inventory_available",
+      "customer_context_summary": null,
+      "api_reference_review_result": "synthetic_reference_consulted",
+      "missing_information": [
+        "Storage and temperature conditions"
+      ],
+      "evidence_limitations": [
+        "Inventory was not available to inspect."
+      ],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-013-PAIR-0185",
+    "concern_text": "the chicken flavor i think is good but it is in oil that gets thick in the fridge",
+    "reviewer_note": "Compounding-record review found no documented discrepancy. No additional quality complaints were identified for the lot or source stock. No retained inventory was available for direct inspection. The assessment incorporated USP guidance. The investigation considered palatability or flavor intolerance, storage or temperature conditions as possible contributors. Documented next steps included an alternate formulation or flavor. Unresolved investigation items: Confirm storage and temperature conditions. Confirm shaking and resuspension technique. Confirm syringe selection and measurement technique.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "no_inventory_available",
+      "customer_context_summary": null,
+      "api_reference_review_result": "synthetic_reference_consulted",
+      "missing_information": [
+        "Storage and temperature conditions",
+        "Shaking and resuspension technique",
+        "Syringe selection and measurement technique"
+      ],
+      "evidence_limitations": [
+        "Inventory was not available to inspect."
+      ],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-014-PAIR-0201",
+    "concern_text": "the customer called in stating most recent GS-441524 received is separated and will not form a suspension no matter how much she shakes it",
+    "reviewer_note": "Compounding-record review identified a documented process or documentation discrepancy. No additional quality complaints were identified for the lot or source stock. No retained inventory was available for direct inspection. The beyond-use date had not passed. No recent formulation change was identified.",
+    "expected_review_summary": {
+      "record_review_result": "documentation_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "no_inventory_available",
+      "customer_context_summary": null,
+      "api_reference_review_result": "not_needed",
+      "missing_information": [],
+      "evidence_limitations": [
+        "Inventory was not available to inspect."
+      ],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-015-PAIR-0202",
+    "concern_text": "the customer states when she went to use the pen this morning, only 1 click's worth of medication came out the customer states that the pen had been functioning properly when she started using it at the end of January",
+    "reviewer_note": "Compounding-record review found no documented discrepancy. No additional quality complaints were identified for the lot or source stock. No retained inventory was available for direct inspection. The beyond-use date had not passed. No recent formulation change was identified. The assessment incorporated USP guidance. The investigation considered air pockets or bubbles in the dispensing device as possible contributors. Documented next steps included replacement or reship. Unresolved investigation items: Clarify device behavior and whether product remained in the pen.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "no_inventory_available",
+      "customer_context_summary": null,
+      "api_reference_review_result": "synthetic_reference_consulted",
+      "missing_information": [
+        "Device behavior and whether usable medication remained in the pen"
+      ],
+      "evidence_limitations": [
+        "Inventory was not available to inspect."
+      ],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": [
+      "device_dispense_status"
+    ]
+  },
+  {
+    "case_id": "HOLD-EXT-016-PAIR-0249",
+    "concern_text": "the customer reports the veterinarian d/c piroxicam for the pet due to bloody stools Initially on 10mg in November and about a month later pet had bloody stools About a month after 5mg dose and issue with bloody stools returned",
+    "reviewer_note": "Compounding-record review found no documented discrepancy. No additional quality complaints were identified for the lot or source stock. No retained inventory was available for direct inspection. The beyond-use date had not passed. No recent formulation change was identified. The documented dose was within the reviewed guidance. The assessment incorporated a veterinary drug reference.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "no_inventory_available",
+      "customer_context_summary": null,
+      "api_reference_review_result": "synthetic_reference_consulted",
+      "missing_information": [],
+      "evidence_limitations": [
+        "Inventory was not available to inspect."
+      ],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-017-PAIR-0312",
+    "concern_text": "the customer shows medication not suspended, the customer tried shaking vigorously, requested exp date on bottle, BUD on bottle",
+    "reviewer_note": "Compounding-record review identified a documented process or documentation discrepancy. The assessment incorporated USP guidance. The investigation considered phase separation or loss of uniformity as possible contributors. Unresolved investigation items: Confirm shaking and resuspension technique.",
+    "expected_review_summary": {
+      "record_review_result": "documentation_discrepancy_found",
+      "lot_batch_pattern_summary": "unavailable",
+      "inventory_inspection_result": "not_checked",
+      "customer_context_summary": null,
+      "api_reference_review_result": "synthetic_reference_consulted",
+      "missing_information": [
+        "Shaking and resuspension technique"
+      ],
+      "evidence_limitations": [
+        "Lot or batch trend result was not documented."
+      ],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": [
+      "bud_date_context"
+    ]
+  },
+  {
+    "case_id": "HOLD-EXT-018-PAIR-0320",
+    "concern_text": "Has had history of Telmisartan Compounded Caps in different strengths with no issues opening them up and sprinkling on food Cannot open the 8mg caps to sprinkle in food, must cut them open, states this is dangerous",
+    "reviewer_note": "Compounding-record review found no documented discrepancy. No additional quality complaints were identified for the lot or source stock. No retained inventory was available for direct inspection. The beyond-use date had not passed. The assessment incorporated USP guidance. The investigation considered palatability or flavor intolerance as possible contributors.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "no_inventory_available",
+      "customer_context_summary": null,
+      "api_reference_review_result": "synthetic_reference_consulted",
+      "missing_information": [],
+      "evidence_limitations": [
+        "Inventory was not available to inspect."
+      ],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  },
+  {
+    "case_id": "HOLD-EXT-019-PAIR-0322",
+    "concern_text": "the customer says dog had vomiting about 6 hours after taking 2nd and 3rd doses of piroxicam with food on two consecutive days Dog was fine on first dose",
+    "reviewer_note": "Compounding-record review found no documented discrepancy. No additional quality complaints were identified for the lot or source stock. The beyond-use date had not passed. The assessment incorporated a veterinary drug reference. The investigation considered an adverse drug effect as possible contributors.",
+    "expected_review_summary": {
+      "record_review_result": "no_discrepancy_found",
+      "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+      "inventory_inspection_result": "not_checked",
+      "customer_context_summary": null,
+      "api_reference_review_result": "synthetic_reference_consulted",
+      "missing_information": [],
+      "evidence_limitations": [],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": [
+      "hospitalization_status",
+      "symptom_resolution",
+      "veterinarian_contact",
+      "dose_administered"
+    ]
+  },
+  {
+    "case_id": "HOLD-EXT-020-PAIR-0338",
+    "concern_text": "the veterinarian has called in to inquire about the allergen safety associated with the Chicken flavoring I have gone over the resource of SpecializedRX flavor concentrates, but would like for a compound pharmacist to touch base about any specifics",
+    "reviewer_note": "The assessment incorporated manufacturer information. Specific supplier or manufacturer details were not disclosed; available quality-assurance information was provided instead. Ingredient review confirmed that the relevant flavoring was vegan and did not contain animal-derived protein. The investigation considered palatability or flavor intolerance as possible contributors. Documented next steps included veterinarian follow-up. Unresolved investigation items: Confirm veterinarian involvement and recommendations.",
+    "expected_review_summary": {
+      "record_review_result": "not_applicable",
+      "lot_batch_pattern_summary": "not_applicable",
+      "inventory_inspection_result": "not_applicable",
+      "customer_context_summary": null,
+      "api_reference_review_result": "synthetic_reference_consulted",
+      "missing_information": [
+        "Veterinarian recommendations"
+      ],
+      "evidence_limitations": [
+        "Specific supplier details were not disclosed."
+      ],
+      "severe_triggers_observed": []
+    },
+    "expected_unresolved_field_names": []
+  }
+]
