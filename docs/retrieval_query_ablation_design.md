@@ -1,100 +1,130 @@
-# Retrieval Query Ablation
+# Controlled Retrieval Intent Ablation
 
-## Purpose
+## Goal
 
-This experiment measures whether query interpretation improves retrieval while holding the rest of the retrieval system constant.
+Measure whether semantic query interpretation improves retrieval while holding the rest of the retrieval system constant.
+
+```text
+complaint
+→ semantic intent detector
+→ deterministic workflow derivation
+→ shared deterministic vocabulary mapper
+→ unchanged keyword retriever
+```
 
 The compared strategies are:
 
 1. `raw`
 2. `deterministic_expansion`
-3. `nano_structured`
+3. `rule_intent`
+4. `nano_intent`
 
-The corpus, chunks, keyword retriever, `top_k`, development questions, expected sources, forbidden sources, and scoring functions are unchanged.
+The corpus, chunks, keyword retriever, scoring, `top_k`, expected sources, forbidden sources, deterministic policy, and shared mapper remain fixed within each comparison.
 
-## Architecture
+## Why This Is Separate from Retriever Comparison
 
-```text
-development question
-        |
-        v
-query strategy
-        |
-        v
-RetrievalQueryIntent.search_text
-        |
-        v
-existing keyword retriever
-        |
-        v
-existing holdout-style scoring
-```
+Retriever comparison asks which retrieval implementation performs best:
 
-The retriever still receives one string. The experiment changes only how that string is built.
+- keyword;
+- local embedding;
+- hybrid.
 
-## Why this is separate from `retrieval_compare.py`
+This ablation asks whether changing query interpretation improves retrieval while using the same retriever.
 
-`retrieval_compare.py` compares retriever implementations:
+Combining both variables in one experiment would make the result difficult to interpret.
 
-- keyword
-- local hashing embedding
-- hybrid
-
-This ablation compares query-building strategies while using the same retriever. Combining both questions in one comparison would make the result hard to interpret.
-
-## Strategy definitions
+## Strategy Definitions
 
 ### Raw
 
-Uses the original complaint unchanged.
+Uses the original concern unchanged.
 
-This is the control.
+This is the transparent control.
 
 ### Deterministic expansion
 
-Keeps the original complaint and appends controlled retrieval concepts for observed failure classes:
+Keeps the original concern and appends controlled concepts using the legacy expansion rules.
 
-- hospitalization and gastrointestinal adverse events;
-- neurologic signs;
-- respiratory context;
-- inactive-ingredient and proprietary-formula questions;
-- supplier/manufacturer disclosure;
-- BUD and stability boundaries;
-- dispensing-device concerns;
-- therapeutic-response concerns.
+This remains a low-complexity comparator.
 
-### Nano structured
+### Rule intent
 
-Calls the configured OpenAI JSON client and asks for:
+Uses `RuleIntentDetector` to produce `SemanticRetrievalIntent`.
 
-- a concise retrieval-oriented phrase;
-- issue tags;
-- required policy topics;
-- excluded topics.
+Deterministic policy then derives `RetrievalIntent`, and the shared mapper produces the final search text.
 
-The original complaint is retained and the generated concepts are appended. The returned object is validated with Pydantic.
+Properties:
 
-If the model returns malformed structured output, the strategy records a fallback and uses deterministic expansion for that question. Provider errors still fail the run rather than silently creating a fake nano comparison.
+- local;
+- deterministic;
+- negligible latency;
+- no external API dependency;
+- suitable fallback;
+- vulnerable to unfamiliar phrasing.
 
-## Nano cache
+### Nano intent
 
-Nano intents are stored in:
+Uses GPT-5 Nano to produce `SemanticRetrievalIntent`.
 
-```text
-rag-engine-python/artifacts/runs/<run-id>/nano_intents.jsonl
+Nano returns semantic facts only. It does not emit workflow tags or final search text.
+
+Deterministic policy derives workflow consequences, and the same shared mapper produces the final search text.
+
+Properties:
+
+- strongest measured frozen-holdout generalization;
+- external API dependency;
+- materially higher latency;
+- model cost;
+- cache and fallback complexity.
+
+## Intent Contracts
+
+### Semantic contract
+
+`SemanticRetrievalIntent` contains only `SemanticIntentTag` values.
+
+Example:
+
+```json
+{"tags": ["adverse_event", "neurologic_signs"]}
 ```
 
-The key contains:
+Unknown tags fail validation.
 
-- question ID;
-- SHA-256 of the complaint text;
-- model name.
+### Derived contract
 
-A second run with the same run ID reuses the cached, validated intent. Use `--refresh-nano` to call the model again.
+`derive_retrieval_intent()` adds deterministic workflow consequences such as:
+
+- quality review;
+- trend review;
+- adverse-event review;
+- pharmacist outreach;
+- disclosure boundaries;
+- public-corpus boundaries;
+- reference review;
+- reference boundaries.
+
+The resulting `RetrievalIntent` is passed to `map_intent_to_search_text()`.
+
+## Cache and Fallback Contract
+
+Successful Nano output may be cached using:
+
+```text
+question ID
++ normalized concern SHA-256
++ model name
++ intent schema version
+```
+
+If Nano returns invalid JSON, an unknown tag, a validation failure, or a provider error, the request falls back to the rule detector.
+
+Rule fallback output is not stored as a Nano prediction. This preserves provenance and allows a later request to retry Nano.
 
 ## Metrics
 
-Each strategy records:
+### Retrieval
 
 - hit rate at K;
 - mean reciprocal rank;
@@ -105,79 +135,257 @@ Each strategy records:
 - retrieval latency;
 - total latency;
 - model calls;
-- nano cache hits and misses;
-- fallback count;
-- structured-output failures;
-- provider errors.
+- cache hits and misses;
+- fallbacks.
 
-Question-level output records the original query, actual search text, tags, topics, retrieved sources, rank, forbidden hits, and fallback status.
+### Semantic intent
 
-## Artifacts
+Available when expected semantic labels are present:
 
-A run writes:
+- micro precision;
+- micro recall;
+- exact-match rate;
+- per-semantic-tag precision and recall.
+
+### Derived intent
+
+Available when expected derived labels are present:
+
+- micro precision;
+- micro recall;
+- exact-match rate;
+- per-derived-tag precision and recall.
+
+### Operational diagnostics
+
+- unknown tag count;
+- unmapped tag count;
+- structured-output failure count;
+- model error count.
+
+The development and frozen-holdout datasets currently evaluate retrieval behavior only. Their semantic and derived metric fields remain null because they do not contain adjudicated intent labels.
+
+## Recorded Evaluations
+
+### Controlled intent challenge
+
+Dataset:
 
 ```text
-rag-engine-python/artifacts/runs/<run-id>/
-├── run_manifest.json
-├── raw_results.json
-├── deterministic_expansion_results.json
-├── nano_structured_results.json
-├── nano_intents.jsonl
-├── comparison.json
-└── comparison.md
+data/eval/retrieval_intent_challenge.json
 ```
 
-The directory is ignored by Git except for its `.gitignore`.
+Configuration:
 
-## Development-label correction
-
-Two development questions previously treated shortness of breath or collapse-like context as escalation-oriented retrieval.
-
-Confirmed policy is:
-
-- hospitalization remains a severe escalation topic;
-- shortness of breath alone is clinical context and favors outreach;
-- collapse or falling over alone is clinical context;
-- both still require adverse-event guidance.
-
-Therefore `DEV-RET-014-PAIR-0157` and `DEV-RET-020-PAIR-0304` now expect `SOP-005`, not `SOP-007`.
-
-## Run
-
-From `rag-engine-python`:
-
-```powershell
-python -m app.holdout_evaluate retrieval-ablation `
-  --questions data/eval/retrieval_questions_development.json `
-  --strategies raw,deterministic_expansion,nano_structured `
-  --top-k 5 `
-  --run-id retrieval-dev-ablation
+```text
+questions: 14
+top_k: 5
+intent schema: 4
+Nano: not used in the recorded local challenge run
 ```
 
-The configured model comes from `OPENAI_MODEL`, defaulting through the existing client to `gpt-5-nano`.
+Results:
 
-To replay the cached nano intents, run the same command again.
+| Strategy | Hit rate@5 | MRR | Negative pass |
+|---|---:|---:|---:|
+| Raw | 0.714 | 0.679 | 0.786 |
+| Deterministic expansion | 0.714 | 0.643 | 0.786 |
+| Rule intent | 1.000 | 1.000 | 1.000 |
 
-To call nano again:
+Rule intent also achieved:
+
+| Intent metric | Result |
+|---|---:|
+| Semantic micro precision | 1.000 |
+| Semantic micro recall | 1.000 |
+| Semantic exact match | 1.000 |
+| Derived micro precision | 1.000 |
+| Derived micro recall | 1.000 |
+| Derived exact match | 1.000 |
+
+This fixture is a targeted challenge set and does not establish production accuracy.
+
+### Development retrieval evaluation
+
+Dataset:
+
+```text
+data/eval/retrieval_questions_development.json
+```
+
+Configuration:
+
+```text
+questions: 20
+top_k: 5
+intent schema: 4
+Nano model: gpt-5-nano
+```
+
+Final results after the development-only supplier-language repair:
+
+| Strategy | Hit rate@5 | MRR | Negative pass |
+|---|---:|---:|---:|
+| Raw | 0.700 | 0.563 | 0.850 |
+| Deterministic expansion | 1.000 | 0.804 | 0.900 |
+| Rule intent | 1.000 | 0.950 | 1.000 |
+| Nano intent | 0.900 | 0.900 | 1.000 |
+
+Recorded uncached runtime:
+
+| Strategy | Runtime |
+|---|---:|
+| Rule intent | approximately 0.026 seconds total |
+| Nano intent | approximately 116.648 seconds for 20 calls |
+
+The development set was used for error analysis and tuning.
+
+### Frozen holdout retrieval evaluation
+
+Dataset:
+
+```text
+data/eval/retrieval_questions_holdout.json
+```
+
+Configuration:
+
+```text
+questions: 20
+top_k: 5
+intent schema: 4
+Nano model: gpt-5-nano
+```
+
+Results:
+
+| Strategy | Hit rate@5 | MRR | Negative pass |
+|---|---:|---:|---:|
+| Raw | 0.700 | 0.567 | 0.850 |
+| Deterministic expansion | 0.850 | 0.733 | 0.850 |
+| Rule intent | 0.750 | 0.725 | 0.900 |
+| Nano intent | 0.950 | 0.950 | 1.000 |
+
+Nano diagnostics:
+
+```text
+failed questions: 1
+forbidden-hit questions: 0
+model calls: 20
+cache hits: 0
+cache misses: 20
+fallbacks: 0
+structured-output failures: 0
+model errors: 0
+unknown tags: 0
+unmapped tags: 0
+total uncached runtime: approximately 103.361 seconds
+```
+
+Nano missed:
+
+```text
+HOLD-RET-001-PAIR-0039
+```
+
+The holdout establishes Nano as the strongest measured generalization path in the current corpus and evaluation.
+
+## Interpretation
+
+### Nano intent
+
+Current accuracy-oriented winner:
+
+- highest frozen-holdout hit rate;
+- highest frozen-holdout MRR;
+- perfect frozen-holdout negative-constraint pass rate;
+- no output-validation or model failures in the recorded run.
+
+Tradeoffs:
+
+- external API dependency;
+- materially higher latency;
+- model cost;
+- cache and fallback complexity.
+
+### Rule intent
+
+Current local deterministic fallback:
+
+- negligible latency;
+- no model dependency;
+- perfect targeted challenge result;
+- perfect development hit rate and negative pass after development tuning;
+- weaker frozen-holdout generalization than Nano.
+
+### Deterministic expansion
+
+Retained as a low-complexity comparator.
+
+It improved frozen-holdout hit rate relative to raw retrieval but did not match Nano's rank quality or negative-constraint behavior.
+
+### Raw
+
+Retained as the transparent baseline.
+
+## Commands
+
+From `rag-engine-python`.
+
+Challenge:
 
 ```powershell
-python -m app.holdout_evaluate retrieval-ablation `
+uv run python -m app.holdout_evaluate retrieval-ablation `
+  --questions data/eval/retrieval_intent_challenge.json `
+  --strategies raw,deterministic_expansion,rule_intent `
+  --run-id retrieval-intent-challenge-local
+```
+
+Development:
+
+```powershell
+uv run python -m app.holdout_evaluate retrieval-ablation `
   --questions data/eval/retrieval_questions_development.json `
-  --strategies raw,deterministic_expansion,nano_structured `
-  --top-k 5 `
-  --run-id retrieval-dev-ablation `
+  --strategies raw,deterministic_expansion,rule_intent,nano_intent `
+  --run-id retrieval-intent-development-v4 `
   --refresh-nano
 ```
 
-## How to interpret the experiment
+Frozen holdout:
 
-- Raw miss, deterministic hit, nano hit: semantic expansion helps; an LLM may not be necessary.
-- Raw miss, deterministic miss, nano hit: measurable marginal value from nano.
-- All three miss: likely corpus wording, chunking, or scoring rather than query interpretation.
-- Nano creates forbidden hits: the model expansion is too broad.
-- Deterministic nearly matches nano: use rules by default and reserve nano for difficult cases.
-- Nano clearly wins: consider nano normalization with deterministic fallback.
+```powershell
+uv run python -m app.holdout_evaluate retrieval-ablation `
+  --questions data/eval/retrieval_questions_holdout.json `
+  --strategies raw,deterministic_expansion,rule_intent,nano_intent `
+  --run-id retrieval-intent-holdout-v4 `
+  --refresh-nano
+```
 
-## Interview framing
+## Holdout Policy
 
-> I held the corpus, chunks, retriever, labels, and scoring constant and changed only query construction. Raw text, deterministic expansion, and nano-generated structured intent all implemented the same typed interface. Nano results were cached by input hash and model for reproducibility, and unit tests used stubs rather than live API calls. That let me measure the model's marginal retrieval value instead of assuming an LLM call improved the system.
+The recorded v4 holdout is the frozen generalization baseline.
+
+Future fixes may be informed by its failures, but after that happens this dataset must be treated as a regression benchmark. New generalization claims require a new untouched holdout.
+
+## Decision
+
+Preserve:
+
+- Nano as the strongest measured generalization path;
+- rule intent as the deterministic fallback;
+- deterministic workflow derivation;
+- shared corpus vocabulary mapping;
+- keyword retrieval;
+- deterministic expansion and raw query as comparators.
+
+Retrieval experimentation is closed for the current product milestone. Further Nano optimization belongs in a later performance milestone.
+
+The next product milestone is operational hardening:
+
+- CI;
+- Docker Compose;
+- structured logging;
+- readiness verification;
+- environment configuration;
+- operational runbook;
+- end-to-end smoke testing.
