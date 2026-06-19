@@ -133,6 +133,13 @@ def test_manufacturer_reporting_is_not_supplier_request() -> None:
     assert SemanticIntentTag.SUPPLIER_QUESTION not in tags
     assert SemanticIntentTag.NEUROLOGIC_SIGNS in tags
 
+def test_supplier_question_detects_ask_about_source_phrasing() -> None:
+    tags = detect(
+        "The customer is reaching out to ask about where we source "
+        "the ingredients from."
+    )
+
+    assert SemanticIntentTag.SUPPLIER_QUESTION in tags
 
 def test_food_timing_context_is_not_administration_question() -> None:
     tags = detect(
