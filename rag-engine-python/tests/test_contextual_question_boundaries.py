@@ -5,14 +5,16 @@ from app.schemas import ReviewSummary
 
 
 def summary() -> ReviewSummary:
-    return ReviewSummary(
-        record_review_result="not_applicable",
-        lot_batch_pattern_summary="not_applicable",
-        inventory_inspection_result="not_applicable",
-        api_reference_review_result="not_needed",
-        missing_information=[],
-        evidence_limitations=[],
-        severe_triggers_observed=[],
+    return ReviewSummary.model_validate(
+        {
+            "record_review_result": "not_applicable",
+            "lot_batch_pattern_summary": "not_applicable",
+            "inventory_inspection_result": "not_applicable",
+            "api_reference_review_result": "not_needed",
+            "missing_information": [],
+            "evidence_limitations": [],
+            "severe_triggers_observed": [],
+        }
     )
 
 

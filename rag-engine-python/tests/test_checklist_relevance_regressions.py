@@ -61,34 +61,47 @@ def test_missing_information_uses_explicit_customer_facts() -> None:
     assert "Whether the pet was hospitalized" in missing
 
 
-def sample_chunks() -> list[ChunkRecord]:
-    common = {
+def chunk(
+    *,
+    chunk_id: str,
+    source_id: str,
+    source_title: str,
+    section_heading: str,
+    text: str,
+) -> ChunkRecord:
+    return {
+        "chunk_id": chunk_id,
+        "source_id": source_id,
         "source_file": "test.md",
+        "source_title": source_title,
         "source_type": "sop",
+        "section_heading": section_heading,
         "process_area": "compounding_quality",
         "version": "1.0",
         "effective_date": "2026-01-01",
         "synthetic": True,
+        "text": text,
     }
 
+
+def sample_chunks() -> list[ChunkRecord]:
     return [
-        {
-            **common,
-            "chunk_id": "SOP-SHORTAGE::oral-liquid",
-            "source_id": "SOP-SHORTAGE",
-            "source_title": "Oral Liquid Shortage",
-            "section_heading": "Oral Liquid Shortage",
-            "text": "Routine oral liquid shortage and fill appearance guidance.",
-        },
-        {
-            **common,
-            "chunk_id": "SOP-ADE::vomiting",
-            "source_id": "SOP-ADE",
-            "source_title": "Adverse Event Review",
-            "section_heading": "Vomiting and Clinical Context",
-            "text": (
+        chunk(
+            chunk_id="SOP-SHORTAGE::oral-liquid",
+            source_id="SOP-SHORTAGE",
+            source_title="Oral Liquid Shortage",
+            section_heading="Oral Liquid Shortage",
+            text="Routine oral liquid shortage and fill appearance guidance.",
+        ),
+        chunk(
+            chunk_id="SOP-ADE::vomiting",
+            source_id="SOP-ADE",
+            source_title="Adverse Event Review",
+            section_heading="Vomiting and Clinical Context",
+            text=(
                 "For a suspected adverse event involving vomiting, review "
-                "customer clinical context, hospitalization, and veterinarian contact."
+                "customer clinical context, hospitalization, and veterinarian "
+                "contact."
             ),
-        },
+        ),
     ]

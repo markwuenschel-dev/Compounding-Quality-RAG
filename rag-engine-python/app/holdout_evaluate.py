@@ -5,9 +5,13 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, NotRequired, TypedDict
+from typing import NotRequired, TypedDict
 
 from app.retrieval import DEFAULT_CHUNKS_PATH, Retriever
+from app.retrieval_intent import (
+    RetrievalIntent,
+    SemanticRetrievalIntent,
+)
 from app.retrieval_evaluate import (
     RetrievalQuestion,
     evaluate_retrieval_questions,
@@ -67,6 +71,8 @@ DEFAULT_MANIFEST_PATH = (
 class RetrievalHoldoutQuestion(RetrievalQuestion):
     forbidden_source_ids: NotRequired[list[str]]
     rationale: NotRequired[str]
+    expected_semantic_intent_tags: NotRequired[list[str]]
+    expected_intent_tags: NotRequired[list[str]]
 
 
 class RetrievalHoldoutQuestionResult(TypedDict):
@@ -142,6 +148,10 @@ def parse_retrieval_holdout_question(
 
     forbidden_raw = raw_question.get("forbidden_source_ids", [])
     rationale_raw = raw_question.get("rationale")
+    expected_semantic_intent_raw = raw_question.get(
+        "expected_semantic_intent_tags"
+    )
+    expected_intent_raw = raw_question.get("expected_intent_tags")
 
     if not isinstance(forbidden_raw, list):
         raise ValueError(
@@ -165,6 +175,34 @@ def parse_retrieval_holdout_question(
         **base_question,
         "forbidden_source_ids": forbidden_source_ids,
     }
+
+    if expected_semantic_intent_raw is not None:
+        if not isinstance(expected_semantic_intent_raw, list):
+            raise ValueError(
+                f"Retrieval question {base_question['question_id']} "
+                "expected_semantic_intent_tags must be a list"
+            )
+        validated_semantic_intent = (
+            SemanticRetrievalIntent.model_validate(
+                {"tags": expected_semantic_intent_raw}
+            )
+        )
+        question["expected_semantic_intent_tags"] = [
+            tag.value for tag in validated_semantic_intent.tags
+        ]
+
+    if expected_intent_raw is not None:
+        if not isinstance(expected_intent_raw, list):
+            raise ValueError(
+                f"Retrieval question {base_question['question_id']} "
+                "expected_intent_tags must be a list"
+            )
+        validated_intent = RetrievalIntent.model_validate(
+            {"tags": expected_intent_raw}
+        )
+        question["expected_intent_tags"] = [
+            tag.value for tag in validated_intent.tags
+        ]
 
     if rationale_raw is not None:
         rationale = str(rationale_raw).strip()
@@ -549,8 +587,8 @@ def build_parser() -> argparse.ArgumentParser:
     ablation_parser = subparsers.add_parser(
         "retrieval-ablation",
         help=(
-            "Compare raw, deterministic, and nano-structured "
-            "query strategies on the development retrieval set."
+            "Compare raw, legacy deterministic, rule-intent, and "
+            "nano-intent query strategies on a retrieval fixture set."
         ),
     )
     ablation_parser.add_argument(
@@ -571,7 +609,7 @@ def build_parser() -> argparse.ArgumentParser:
     ablation_parser.add_argument(
         "--strategies",
         default=(
-            "raw,deterministic_expansion,nano_structured"
+            "raw,deterministic_expansion,rule_intent,nano_intent"
         ),
     )
     ablation_parser.add_argument(
@@ -638,6 +676,7 @@ def add_fixture_arguments(
 
 def main() -> None:
     args = build_parser().parse_args()
+    result: object
 
     if args.command == "validate":
         result = validate_holdout_files(

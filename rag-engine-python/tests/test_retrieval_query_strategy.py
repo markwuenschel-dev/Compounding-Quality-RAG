@@ -5,118 +5,98 @@ import json
 import pytest
 from pydantic import ValidationError
 
+from app.retrieval_intent import (
+    INTENT_SCHEMA_VERSION,
+    NanoIntentDetector,
+    RetrievalIntentTag,
+)
 from app.retrieval_query_strategy import (
+    BuiltRetrievalQuery,
     DeterministicExpansionStrategy,
-    NanoStructuredQueryStrategy,
+    NanoIntentQueryStrategy,
     RawQueryStrategy,
     RetrievalIntentCache,
-    RetrievalQueryIntent,
+    RuleIntentQueryStrategy,
 )
 
 
 class StubJsonClient:
     def __init__(self, payload: dict[str, object]) -> None:
         self.payload = payload
-        self.prompts: list[str] = []
 
     def complete_json(self, prompt: str) -> str:
-        self.prompts.append(prompt)
         return json.dumps(self.payload)
 
 
 def test_raw_strategy_preserves_original_query() -> None:
-    intent = RawQueryStrategy().build(
+    query = RawQueryStrategy().build(
         "The dog vomited after the medication."
     )
 
-    assert intent.strategy == "raw"
-    assert intent.search_text == intent.original_text
-    assert intent.issue_tags == []
+    assert query.strategy == "raw"
+    assert query.search_text == query.original_text
+    assert query.intent is None
 
 
-def test_deterministic_strategy_expands_hospitalization_and_gi_context() -> None:
-    intent = DeterministicExpansionStrategy().build(
-        "The dog was hospitalized after vomiting and blood in the stool."
+def test_legacy_deterministic_strategy_remains_comparator() -> None:
+    query = DeterministicExpansionStrategy().build(
+        "The dog was hospitalized after vomiting."
     )
 
-    assert intent.strategy == "deterministic_expansion"
-    assert "adverse event" in intent.search_text
-    assert "pet_hospitalization" in intent.issue_tags
-    assert "severe_escalation" in intent.required_topics
+    assert query.strategy == "deterministic_expansion"
+    assert "adverse event" in query.search_text
+    assert "pet_hospitalization" in query.legacy_issue_tags
+    assert query.intent is None
 
 
-def test_shortness_of_breath_does_not_create_automatic_severe_escalation() -> None:
-    intent = DeterministicExpansionStrategy().build(
-        "The pet looked short of breath after the first dose."
+def test_legacy_device_topics_use_quality_and_trend_without_device_review() -> None:
+    query = DeterministicExpansionStrategy().build(
+        "The pen clicks but nothing comes out."
     )
 
-    assert "respiratory_context" in intent.issue_tags
-    assert "automatic_severe_escalation" in intent.excluded_topics
-    assert "severe_escalation" not in intent.required_topics
+    assert "quality_review" in query.legacy_required_topics
+    assert "trend_review" in query.legacy_required_topics
+    assert "device_review" not in query.legacy_required_topics
 
 
-def test_disclosure_request_gets_boundary_terms() -> None:
-    intent = DeterministicExpansionStrategy().build(
-        "Where do you source the ingredients and who is the manufacturer?"
+def test_rule_intent_strategy_uses_shared_mapper() -> None:
+    query = RuleIntentQueryStrategy().build(
+        "The pet had difficulty walking and weakness after the dose."
     )
 
-    assert "supplier_question" in intent.issue_tags
-    assert "public_corpus_boundary" in intent.required_topics
-    assert "leadership_escalation" in intent.excluded_topics
+    assert query.strategy == "rule_intent"
+    assert query.intent is not None
+    assert RetrievalIntentTag.NEUROLOGIC_SIGNS in query.intent.tags
+    assert "neurologic signs" in query.search_text
 
 
-def test_nano_strategy_validates_and_normalizes_structured_output() -> None:
-    client = StubJsonClient(
-        {
-            "search_text": "hospitalization adverse event escalation",
-            "issue_tags": [
-                "Adverse Event",
-                "pet-hospitalization",
-                "Adverse Event",
-            ],
-            "required_topics": ["Severe Escalation"],
-            "excluded_topics": [],
-        }
-    )
-
-    intent = NanoStructuredQueryStrategy(client).build(
-        "The pet was hospitalized."
-    )
-
-    assert intent.strategy == "nano_structured"
-    assert intent.issue_tags == [
-        "adverse_event",
-        "pet_hospitalization",
-    ]
-    assert intent.required_topics == ["severe_escalation"]
-    assert len(client.prompts) == 1
-
-
-def test_nano_strategy_rejects_blank_search_text() -> None:
-    client = StubJsonClient(
-        {
-            "search_text": " ",
-            "issue_tags": [],
-            "required_topics": [],
-            "excluded_topics": [],
-        }
-    )
-
-    with pytest.raises(ValueError):
-        NanoStructuredQueryStrategy(client).build(
-            "The pet was hospitalized."
+def test_nano_intent_strategy_does_not_accept_search_text() -> None:
+    strategy = NanoIntentQueryStrategy(
+        NanoIntentDetector(
+            StubJsonClient(
+                {
+                    "tags": [
+                        "adverse_event",
+                        "pet_hospitalization",
+                    ]
+                }
+            )
         )
+    )
+
+    query = strategy.build("The pet was hospitalized.")
+
+    assert query.strategy == "nano_intent"
+    assert query.intent is not None
+    assert "hospitalization" in query.search_text
 
 
-def test_intent_contract_rejects_unknown_fields() -> None:
+def test_query_contract_rejects_unknown_fields() -> None:
     with pytest.raises(ValidationError):
-        RetrievalQueryIntent.model_validate(
+        BuiltRetrievalQuery.model_validate(
             {
                 "original_text": "Concern",
                 "search_text": "Concern",
-                "issue_tags": [],
-                "required_topics": [],
-                "excluded_topics": [],
                 "strategy": "raw",
                 "unexpected": True,
             }
@@ -126,50 +106,60 @@ def test_intent_contract_rejects_unknown_fields() -> None:
 def test_cache_round_trip_and_input_invalidation(tmp_path) -> None:
     cache_path = tmp_path / "nano_intents.jsonl"
     cache = RetrievalIntentCache(cache_path)
-    intent = RawQueryStrategy().build("Original concern")
+    semantic_intent = NanoIntentDetector(
+        StubJsonClient({"tags": ["adverse_event"]})
+    ).detect("Original concern")
 
     cache.put(
         question_id="Q-001",
         concern_text="Original concern",
         model="gpt-5-nano",
-        intent=intent,
+        semantic_intent=semantic_intent,
     )
     cache.flush()
-
     loaded = RetrievalIntentCache(cache_path)
 
     assert loaded.get(
         question_id="Q-001",
         concern_text="Original concern",
         model="gpt-5-nano",
-    ) == intent
+    ) == semantic_intent
     assert loaded.get(
         question_id="Q-001",
         concern_text="Changed concern",
         model="gpt-5-nano",
     ) is None
 
-def test_nano_strategy_preserves_original_text_and_accepts_json_fence() -> None:
-    class FencedClient:
-        def complete_json(self, prompt: str) -> str:
-            return """```json
-{
-  "search_text": "hospitalization adverse event",
-  "issue_tags": ["adverse_event"],
-  "required_topics": ["adverse_event_review"],
-  "excluded_topics": []
-}
-```"""
 
-    intent = NanoStructuredQueryStrategy(FencedClient()).build(
-        "The pet was hospitalized."
+def test_cache_invalidates_when_schema_version_changes(tmp_path) -> None:
+    cache_path = tmp_path / "nano_intents.jsonl"
+    cache = RetrievalIntentCache(cache_path)
+    semantic_intent = NanoIntentDetector(
+        StubJsonClient({"tags": ["adverse_event"]})
+    ).detect("Concern")
+
+    cache.put(
+        question_id="Q-001",
+        concern_text="Concern",
+        model="gpt-5-nano",
+        semantic_intent=semantic_intent,
+        intent_schema_version=INTENT_SCHEMA_VERSION,
+    )
+    cache.flush()
+
+    loaded = RetrievalIntentCache(cache_path)
+    cached = loaded.get(
+        question_id="Q-001",
+        concern_text="Concern",
+        model="gpt-5-nano",
+        intent_schema_version=INTENT_SCHEMA_VERSION,
+    )
+    stale = loaded.get(
+        question_id="Q-001",
+        concern_text="Concern",
+        model="gpt-5-nano",
+        intent_schema_version="different-version",
     )
 
-    assert intent.search_text.startswith(
-        "The pet was hospitalized."
-    )
-    assert (
-        "Retrieval concepts: hospitalization adverse event"
-        in intent.search_text
-    )
-
+    assert cached == semantic_intent
+    assert stale is None

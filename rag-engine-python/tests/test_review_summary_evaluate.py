@@ -1,11 +1,13 @@
 from app.review_summary_evaluate import (
+    ReviewSummaryExtractionCase,
     evaluate_review_summary_extraction_cases,
+    format_evaluation_report,
 )
 from app.schemas import ReviewSummaryExtractionResult
 
 
 def test_evaluation_reports_perfect_scores_for_exact_extractor() -> None:
-    case = {
+    case: ReviewSummaryExtractionCase = {
         "case_id": "case-1",
         "concern_text": "Dog vomited.",
         "reviewer_note": "No hospitalization.",
@@ -56,9 +58,7 @@ def test_evaluation_reports_perfect_scores_for_exact_extractor() -> None:
 
 
 def test_evaluation_report_contains_actionable_failure_diagnostics() -> None:
-    from app.review_summary_evaluate import format_evaluation_report
-
-    case = {
+    case: ReviewSummaryExtractionCase = {
         "case_id": "case-failure",
         "concern_text": "Dog vomited.",
         "reviewer_note": "Dose unknown and no hospitalization.",

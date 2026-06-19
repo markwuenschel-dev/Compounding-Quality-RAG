@@ -1,0 +1,287 @@
+[
+  {
+    "question_id": "INTENT-CH-001",
+    "query": "About thirty minutes after the dose, the dog started walking like the floor was moving under him and his back legs seemed weak.",
+    "expected_source_ids": [
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "expected_semantic_intent_tags": [
+      "adverse_event",
+      "neurologic_signs"
+    ],
+    "expected_intent_tags": [
+      "adverse_event",
+      "neurologic_signs",
+      "adverse_event_review"
+    ],
+    "rationale": "Indirect neurologic wording after administration should map to adverse-event review."
+  },
+  {
+    "question_id": "INTENT-CH-002",
+    "query": "Pet had vmtg and loose stool after the new bottle but is acting normal now.",
+    "expected_source_ids": [
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "expected_semantic_intent_tags": [
+      "adverse_event",
+      "gastrointestinal"
+    ],
+    "expected_intent_tags": [
+      "adverse_event",
+      "gastrointestinal",
+      "adverse_event_review"
+    ],
+    "rationale": "Abbreviated gastrointestinal symptom language should retain ADE meaning."
+  },
+  {
+    "question_id": "INTENT-CH-003",
+    "query": "The pen is clicking but barely anything comes out, and the customer says the last refill from the same lot behaved normally.",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-006",
+      "SOP-008"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "expected_semantic_intent_tags": [
+      "device_concern"
+    ],
+    "expected_intent_tags": [
+      "device_concern",
+      "quality_review",
+      "trend_review"
+    ],
+    "rationale": "A device failure requires full quality review, including trend review."
+  },
+  {
+    "question_id": "INTENT-CH-004",
+    "query": "The customer spent several minutes discussing shipping delays, then mentioned the suspension now smells sour and looks darker than the first bottle.",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-004"
+    ],
+    "forbidden_source_ids": [
+      "SOP-002"
+    ],
+    "expected_semantic_intent_tags": [
+      "appearance_concern"
+    ],
+    "expected_intent_tags": [
+      "appearance_concern",
+      "quality_review",
+      "trend_review",
+      "lot_batch_review"
+    ],
+    "rationale": "Irrelevant shipping detail should not hide an appearance and odor concern requiring full quality review, including trend review."
+  },
+  {
+    "question_id": "INTENT-CH-005",
+    "query": "Can Technical Services tell us who actually makes the raw drug powder and which company ships it to the compounding site?",
+    "expected_source_ids": [
+      "SOP-002",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "expected_semantic_intent_tags": [
+      "supplier_question"
+    ],
+    "expected_intent_tags": [
+      "supplier_question",
+      "frontline_pharmacist_response",
+      "disclosure_boundary",
+      "public_corpus_boundary"
+    ],
+    "rationale": "Paraphrased supplier and manufacturer requests require disclosure boundaries, not escalation."
+  },
+  {
+    "question_id": "INTENT-CH-006",
+    "query": "The label says BUD 6/1. The owner continued using it through 6/12 and wants the exact potency loss per day.",
+    "expected_source_ids": [
+      "SOP-002",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-008"
+    ],
+    "expected_semantic_intent_tags": [
+      "bud_question"
+    ],
+    "expected_intent_tags": [
+      "bud_question",
+      "reference_review",
+      "reference_boundary"
+    ],
+    "rationale": "Standalone BUD wording and a degradation request require date and reference boundaries."
+  },
+  {
+    "question_id": "INTENT-CH-007",
+    "query": "The clinic wants to give pimobendan mixed into breakfast because the dog fights the syringe. Does food change absorption?",
+    "expected_source_ids": [
+      "SOP-004",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-008"
+    ],
+    "expected_semantic_intent_tags": [
+      "administration_question"
+    ],
+    "expected_intent_tags": [
+      "administration_question",
+      "administration_review"
+    ],
+    "rationale": "Food and absorption language should route to administration review."
+  },
+  {
+    "question_id": "INTENT-CH-008",
+    "query": "The bottle should have lasted ninety days, but only a small amount remains after six weeks. The owner may have been reading the syringe from the wrong side.",
+    "expected_source_ids": [
+      "SOP-003",
+      "SOP-004"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "expected_semantic_intent_tags": [
+      "administration_question",
+      "quantity_discrepancy"
+    ],
+    "expected_intent_tags": [
+      "administration_question",
+      "quantity_discrepancy",
+      "quality_review",
+      "trend_review",
+      "administration_review"
+    ],
+    "rationale": "A quantity concern complicated by syringe use requires full quality review, including trend review, plus administration review."
+  },
+  {
+    "question_id": "INTENT-CH-009",
+    "query": "The cat drools, shakes her head, and tries to spit the liquid out, but there are no other symptoms.",
+    "expected_source_ids": [
+      "SOP-004"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "expected_semantic_intent_tags": [
+      "palatability_concern"
+    ],
+    "expected_intent_tags": [
+      "palatability_concern",
+      "administration_review"
+    ],
+    "rationale": "Palatability behavior without other clinical signs should not become severe escalation."
+  },
+  {
+    "question_id": "INTENT-CH-010",
+    "query": "After applying the transdermal cream, the customer noticed red irritated spots inside both ears and asked whether the base changed.",
+    "expected_source_ids": [
+      "SOP-004",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-008"
+    ],
+    "expected_semantic_intent_tags": [
+      "transdermal_site_concern"
+    ],
+    "expected_intent_tags": [
+      "transdermal_site_concern",
+      "administration_review"
+    ],
+    "rationale": "Application-site irritation needs transdermal administration context."
+  },
+  {
+    "question_id": "INTENT-CH-011",
+    "query": "The owner thought the dog looked winded and gagged after the first dose. The dog recovered by morning and was never hospitalized.",
+    "expected_source_ids": [
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "expected_semantic_intent_tags": [
+      "adverse_event",
+      "respiratory_context"
+    ],
+    "expected_intent_tags": [
+      "adverse_event",
+      "respiratory_context",
+      "pharmacist_outreach",
+      "adverse_event_review"
+    ],
+    "rationale": "Respiratory context needs ADE review and outreach, while the explicit negation of hospitalization must not create a severe trigger."
+  },
+  {
+    "question_id": "INTENT-CH-012",
+    "query": "The veterinarian says the thyroid values are still moving in the wrong direction despite consistent administration and wants to know whether the compound is working.",
+    "expected_source_ids": [
+      "SOP-004",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-006"
+    ],
+    "expected_semantic_intent_tags": [
+      "efficacy_concern"
+    ],
+    "expected_intent_tags": [
+      "efficacy_concern",
+      "administration_review",
+      "reference_review"
+    ],
+    "rationale": "Unfamiliar efficacy wording should map to response and reference review."
+  },
+  {
+    "question_id": "INTENT-CH-013",
+    "query": "The medication became easier to spread after being kept cold, and the clinic wants proof it remains stable after refrigeration.",
+    "expected_source_ids": [
+      "SOP-002",
+      "SOP-004",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-006"
+    ],
+    "expected_semantic_intent_tags": [
+      "storage_concern"
+    ],
+    "expected_intent_tags": [
+      "storage_concern",
+      "administration_review",
+      "reference_boundary"
+    ],
+    "rationale": "Refrigeration and product-specific stability require storage context and evidence boundaries."
+  },
+  {
+    "question_id": "INTENT-CH-014",
+    "query": "Before ordering, the customer wants every inactive component, including whether the flavor contains an animal-derived oil.",
+    "expected_source_ids": [
+      "SOP-002",
+      "SOP-005"
+    ],
+    "forbidden_source_ids": [
+      "SOP-007"
+    ],
+    "expected_semantic_intent_tags": [
+      "ingredient_question"
+    ],
+    "expected_intent_tags": [
+      "ingredient_question",
+      "frontline_pharmacist_response",
+      "disclosure_boundary",
+      "public_corpus_boundary"
+    ],
+    "rationale": "A detailed inactive-ingredient request needs ingredient guidance and disclosure limitations."
+  }
+]

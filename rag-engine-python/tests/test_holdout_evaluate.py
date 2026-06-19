@@ -5,6 +5,7 @@ import pytest
 
 from app.holdout_evaluate import (
     build_parser,
+    RetrievalHoldoutQuestion,
     evaluate_retrieval_holdout,
     freeze_holdout_files,
     load_retrieval_holdout_questions,
@@ -47,9 +48,114 @@ def test_load_retrieval_holdout_preserves_negative_constraints(
 
     questions = load_retrieval_holdout_questions(path)
 
-    assert questions[0]["forbidden_source_ids"] == ["SOP-002"]
-    assert "Adverse-event" in questions[0]["rationale"]
+    assert questions[0].get("forbidden_source_ids") == ["SOP-002"]
+    assert "Adverse-event" in questions[0].get("rationale", "")
 
+
+
+def test_load_retrieval_holdout_preserves_expected_semantic_intent_tags(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "retrieval.json"
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "question_id": "RET-H-SEMANTIC-001",
+                    "query": "The pet became weak after the dose.",
+                    "expected_source_ids": ["SOP-005"],
+                    "expected_semantic_intent_tags": [
+                        "neurologic_signs",
+                        "adverse_event",
+                        "adverse_event",
+                    ],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    questions = load_retrieval_holdout_questions(path)
+
+    assert questions[0].get("expected_semantic_intent_tags") == [
+        "adverse_event",
+        "neurologic_signs",
+    ]
+
+
+def test_load_retrieval_holdout_rejects_unknown_semantic_intent_tag(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "retrieval.json"
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "question_id": "RET-H-SEMANTIC-002",
+                    "query": "The pet became weak after the dose.",
+                    "expected_source_ids": ["SOP-005"],
+                    "expected_semantic_intent_tags": ["trend_review"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError):
+        load_retrieval_holdout_questions(path)
+
+
+def test_load_retrieval_holdout_preserves_expected_intent_tags(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "retrieval.json"
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "question_id": "RET-H-INTENT-001",
+                    "query": "The pet became weak after the dose.",
+                    "expected_source_ids": ["SOP-005"],
+                    "forbidden_source_ids": ["SOP-002"],
+                    "expected_intent_tags": [
+                        "neurologic_signs",
+                        "adverse_event",
+                        "adverse_event",
+                    ],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    questions = load_retrieval_holdout_questions(path)
+
+    assert questions[0].get("expected_intent_tags") == [
+        "adverse_event",
+        "neurologic_signs",
+    ]
+
+
+def test_load_retrieval_holdout_rejects_unknown_intent_tag(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "retrieval.json"
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "question_id": "RET-H-INTENT-002",
+                    "query": "The pet became weak after the dose.",
+                    "expected_source_ids": ["SOP-005"],
+                    "expected_intent_tags": ["unknown_tag"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError):
+        load_retrieval_holdout_questions(path)
 
 def test_load_retrieval_holdout_rejects_expected_forbidden_overlap(
     tmp_path: Path,
@@ -74,7 +180,7 @@ def test_load_retrieval_holdout_rejects_expected_forbidden_overlap(
 
 
 def test_evaluate_retrieval_holdout_flags_forbidden_source() -> None:
-    questions = [
+    questions: list[RetrievalHoldoutQuestion] = [
         {
             "question_id": "RET-H-001",
             "query": "dog vomited",
