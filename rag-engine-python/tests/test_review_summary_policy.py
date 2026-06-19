@@ -7,14 +7,16 @@ from app.schemas import ReviewSummary
 
 
 def model_summary() -> ReviewSummary:
-    return ReviewSummary(
-        record_review_result="no_discrepancy_found",
-        lot_batch_pattern_summary="no_similar_batch_concerns_found",
-        inventory_inspection_result="no_visual_concern_found",
-        api_reference_review_result="external_reference_consulted",
-        missing_information=[],
-        evidence_limitations=[],
-        severe_triggers_observed=[],
+    return ReviewSummary.model_validate(
+        {
+            "record_review_result": "no_discrepancy_found",
+            "lot_batch_pattern_summary": "no_similar_batch_concerns_found",
+            "inventory_inspection_result": "no_visual_concern_found",
+            "api_reference_review_result": "external_reference_consulted",
+            "missing_information": [],
+            "evidence_limitations": [],
+            "severe_triggers_observed": [],
+        }
     )
 
 
@@ -116,14 +118,16 @@ def test_worksheet_review_is_treated_as_an_explicit_record_result() -> None:
     assert result.record_review_result.value == "no_discrepancy_found"
 
 def test_one_additional_lot_complaint_overrides_unavailable_model_output() -> None:
-    summary = ReviewSummary(
-        record_review_result="no_discrepancy_found",
-        lot_batch_pattern_summary="unavailable",
-        inventory_inspection_result="no_inventory_available",
-        api_reference_review_result="not_needed",
-        missing_information=[],
-        evidence_limitations=[],
-        severe_triggers_observed=[],
+    summary = ReviewSummary.model_validate(
+        {
+            "record_review_result": "no_discrepancy_found",
+            "lot_batch_pattern_summary": "unavailable",
+            "inventory_inspection_result": "no_inventory_available",
+            "api_reference_review_result": "not_needed",
+            "missing_information": [],
+            "evidence_limitations": [],
+            "severe_triggers_observed": [],
+        }
     )
 
     result = apply_review_summary_defaults(
@@ -144,14 +148,16 @@ def test_one_additional_lot_complaint_overrides_unavailable_model_output() -> No
 
 
 def test_no_additional_lot_complaints_overrides_unavailable_model_output() -> None:
-    summary = ReviewSummary(
-        record_review_result="no_discrepancy_found",
-        lot_batch_pattern_summary="unavailable",
-        inventory_inspection_result="no_inventory_available",
-        api_reference_review_result="not_needed",
-        missing_information=[],
-        evidence_limitations=[],
-        severe_triggers_observed=[],
+    summary = ReviewSummary.model_validate(
+        {
+            "record_review_result": "no_discrepancy_found",
+            "lot_batch_pattern_summary": "unavailable",
+            "inventory_inspection_result": "no_inventory_available",
+            "api_reference_review_result": "not_needed",
+            "missing_information": [],
+            "evidence_limitations": [],
+            "severe_triggers_observed": [],
+        }
     )
 
     result = apply_review_summary_defaults(

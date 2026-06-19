@@ -4,7 +4,7 @@ import json
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, Protocol, TypedDict, cast
 
 from pydantic import ValidationError
 
@@ -14,46 +14,59 @@ from app.holdout_evaluate import (
     evaluate_retrieval_holdout,
     load_retrieval_holdout_questions,
 )
-from app.llm_client import (
-    LLMClientError,
-    OpenAIJsonClient,
-    openai_json_client_from_env,
-)
-from app.retrieval import (
-    DEFAULT_CHUNKS_PATH,
-    KeywordRetriever,
-    Retriever,
-    load_chunks,
+from app.llm_client import LLMClientError, OpenAIJsonClient, openai_json_client_from_env
+from app.retrieval import DEFAULT_CHUNKS_PATH, KeywordRetriever, Retriever, load_chunks
+from app.retrieval_intent import (
+    INTENT_SCHEMA_VERSION,
+    NanoIntentDetector,
+    RetrievalIntentTag,
+    RuleIntentDetector,
+    SemanticIntentTag,
+    UnknownIntentTagError,
+    unmapped_intent_tags,
 )
 from app.retrieval_query_strategy import (
+    BuiltRetrievalQuery,
     DeterministicExpansionStrategy,
-    NanoStructuredQueryStrategy,
     RawQueryStrategy,
     RetrievalIntentCache,
-    RetrievalQueryIntent,
     RetrievalQueryStrategy,
+    RuleIntentQueryStrategy,
     StrategyName,
+    build_query_from_semantic_intent,
 )
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ARTIFACTS_ROOT = PROJECT_ROOT / "artifacts" / "runs"
-DEFAULT_RUN_ID = "retrieval-dev-ablation"
-DEFAULT_STRATEGIES = (
+DEFAULT_RUN_ID = "retrieval-intent-ablation"
+DEFAULT_STRATEGIES: tuple[StrategyName, ...] = (
     "raw",
     "deterministic_expansion",
-    "nano_structured",
+    "rule_intent",
+    "nano_intent",
 )
 ALLOWED_STRATEGIES = set(DEFAULT_STRATEGIES)
+
+
+class IntentMetric(TypedDict):
+    precision: float
+    recall: float
+    true_positive: int
+    predicted: int
+    expected: int
 
 
 class StrategyQuestionResult(TypedDict):
     question_id: str
     original_query: str
     search_text: str
-    issue_tags: list[str]
-    required_topics: list[str]
-    excluded_topics: list[str]
+    predicted_semantic_intent_tags: list[str]
+    expected_semantic_intent_tags: list[str]
+    semantic_intent_exact_match: bool | None
+    predicted_intent_tags: list[str]
+    expected_intent_tags: list[str]
+    intent_exact_match: bool | None
     expected_source_ids: list[str]
     forbidden_source_ids: list[str]
     retrieved_source_ids: list[str]
@@ -82,6 +95,16 @@ class StrategyEvaluationSummary(TypedDict):
     fallback_count: int
     structured_output_failure_count: int
     model_error_count: int
+    unknown_tag_count: int
+    unmapped_tag_count: int
+    semantic_intent_micro_precision: float | None
+    semantic_intent_micro_recall: float | None
+    semantic_intent_exact_match_rate: float | None
+    per_semantic_tag_metrics: dict[str, IntentMetric]
+    intent_micro_precision: float | None
+    intent_micro_recall: float | None
+    intent_exact_match_rate: float | None
+    per_tag_metrics: dict[str, IntentMetric]
 
 
 class StrategyEvaluationResult(TypedDict):
@@ -97,9 +120,19 @@ class RetrievalAblationResult(TypedDict):
     question_file: str
     chunks_file: str
     nano_model: str | None
+    intent_schema_version: str
     strategies: list[str]
     summaries: list[StrategyEvaluationSummary]
     artifacts_directory: str
+
+
+class NamedJsonCompletionClient(Protocol):
+    @property
+    def model(self) -> str:
+        ...
+
+    def complete_json(self, prompt: str) -> str:
+        ...
 
 
 class NanoBuildStats:
@@ -110,22 +143,22 @@ class NanoBuildStats:
         self.fallback_count = 0
         self.structured_output_failure_count = 0
         self.model_error_count = 0
+        self.unknown_tag_count = 0
 
 
 class NanoIntentBuilder:
     def __init__(
         self,
         *,
-        client: OpenAIJsonClient,
+        client: NamedJsonCompletionClient,
         cache: RetrievalIntentCache,
         model_name: str,
-        fallback_strategy: RetrievalQueryStrategy,
         refresh_cache: bool,
     ) -> None:
-        self._strategy = NanoStructuredQueryStrategy(client)
+        self._detector = NanoIntentDetector(client)
+        self._rule_detector = RuleIntentDetector()
         self._cache = cache
         self._model_name = model_name
-        self._fallback_strategy = fallback_strategy
         self._refresh_cache = refresh_cache
         self.stats = NanoBuildStats()
 
@@ -134,25 +167,34 @@ class NanoIntentBuilder:
         *,
         question_id: str,
         concern_text: str,
-    ) -> tuple[RetrievalQueryIntent, bool]:
+    ) -> tuple[BuiltRetrievalQuery, bool]:
         if not self._refresh_cache:
             cached = self._cache.get(
                 question_id=question_id,
                 concern_text=concern_text,
                 model=self._model_name,
+                intent_schema_version=INTENT_SCHEMA_VERSION,
             )
             if cached is not None:
                 self.stats.cache_hit_count += 1
-                return cached, False
+                return build_query_from_semantic_intent(
+                    concern_text,
+                    cached,
+                    strategy="nano_intent",
+                ), False
 
         self.stats.cache_miss_count += 1
         self.stats.model_call_count += 1
 
         try:
-            intent = self._strategy.build(concern_text)
+            intent = self._detector.detect(concern_text)
+        except UnknownIntentTagError as exc:
+            self.stats.unknown_tag_count += len(exc.unknown_tags)
+            self.stats.structured_output_failure_count += 1
+            return self._fallback(concern_text), True
         except LLMClientError:
             self.stats.model_error_count += 1
-            raise
+            return self._fallback(concern_text), True
         except (
             json.JSONDecodeError,
             KeyError,
@@ -161,30 +203,38 @@ class NanoIntentBuilder:
             ValidationError,
         ):
             self.stats.structured_output_failure_count += 1
-            self.stats.fallback_count += 1
-            return self._fallback_strategy.build(concern_text), True
+            return self._fallback(concern_text), True
 
         self._cache.put(
             question_id=question_id,
             concern_text=concern_text,
             model=self._model_name,
-            intent=intent,
+            semantic_intent=intent,
+            intent_schema_version=INTENT_SCHEMA_VERSION,
         )
-        return intent, False
+        return build_query_from_semantic_intent(
+            concern_text,
+            intent,
+            strategy="nano_intent",
+        ), False
+
+    def _fallback(self, concern_text: str) -> BuiltRetrievalQuery:
+        self.stats.fallback_count += 1
+        semantic_intent = self._rule_detector.detect(concern_text)
+        return build_query_from_semantic_intent(
+            concern_text,
+            semantic_intent,
+            strategy="nano_intent",
+        )
 
     def flush(self) -> None:
         self._cache.flush()
 
 
 def parse_strategy_names(value: str | list[str]) -> list[StrategyName]:
-    raw_values = (
-        value.split(",")
-        if isinstance(value, str)
-        else value
-    )
+    raw_values = value.split(",") if isinstance(value, str) else value
     names: list[StrategyName] = []
     seen: set[str] = set()
-
     for raw_name in raw_values:
         name = raw_name.strip()
         if not name:
@@ -197,11 +247,9 @@ def parse_strategy_names(value: str | list[str]) -> list[StrategyName]:
         if name in seen:
             continue
         seen.add(name)
-        names.append(name)  # type: ignore[arg-type]
-
+        names.append(cast(StrategyName, name))
     if not names:
         raise ValueError("At least one retrieval query strategy is required")
-
     return names
 
 
@@ -216,7 +264,7 @@ def run_retrieval_ablation(
     nano_model: str | None = None,
     refresh_nano: bool = False,
     retriever: Retriever | None = None,
-    nano_client: OpenAIJsonClient | None = None,
+    nano_client: NamedJsonCompletionClient | None = None,
 ) -> RetrievalAblationResult:
     if top_k < 1:
         raise ValueError("top_k must be at least 1")
@@ -224,24 +272,18 @@ def run_retrieval_ablation(
     clean_run_id = normalize_run_id(run_id)
     active_strategies = strategy_names or list(DEFAULT_STRATEGIES)
     questions = load_retrieval_holdout_questions(questions_path)
-    active_retriever = retriever or KeywordRetriever(
-        load_chunks(chunks_path)
-    )
+    active_retriever = retriever or KeywordRetriever(load_chunks(chunks_path))
     run_directory = artifacts_root / clean_run_id
     run_directory.mkdir(parents=True, exist_ok=True)
     nano_cache_path = run_directory / "nano_intents.jsonl"
 
-    active_nano_client: OpenAIJsonClient | None = None
+    active_nano_client: NamedJsonCompletionClient | None = None
     active_nano_model: str | None = None
-
-    if "nano_structured" in active_strategies:
-        active_nano_client = nano_client or build_nano_client(
-            nano_model
-        )
+    if "nano_intent" in active_strategies:
+        active_nano_client = nano_client or build_nano_client(nano_model)
         active_nano_model = active_nano_client.model
 
     strategy_results: list[StrategyEvaluationResult] = []
-
     for strategy_name in active_strategies:
         result = evaluate_query_strategy(
             strategy_name=strategy_name,
@@ -254,10 +296,7 @@ def run_retrieval_ablation(
             refresh_nano=refresh_nano,
         )
         strategy_results.append(result)
-        write_json(
-            run_directory / f"{strategy_name}_results.json",
-            result,
-        )
+        write_json(run_directory / f"{strategy_name}_results.json", result)
 
     comparison: RetrievalAblationResult = {
         "generated_at": utc_timestamp(),
@@ -267,23 +306,14 @@ def run_retrieval_ablation(
         "question_file": display_path(questions_path),
         "chunks_file": display_path(chunks_path),
         "nano_model": active_nano_model,
+        "intent_schema_version": INTENT_SCHEMA_VERSION,
         "strategies": list(active_strategies),
-        "summaries": [
-            result["summary"]
-            for result in strategy_results
-        ],
+        "summaries": [result["summary"] for result in strategy_results],
         "artifacts_directory": display_path(run_directory),
     }
-
-    write_json(
-        run_directory / "comparison.json",
-        comparison,
-    )
+    write_json(run_directory / "comparison.json", comparison)
     (run_directory / "comparison.md").write_text(
-        format_comparison_markdown(
-            comparison,
-            strategy_results,
-        ),
+        format_comparison_markdown(comparison, strategy_results),
         encoding="utf-8",
     )
     write_json(
@@ -298,9 +328,9 @@ def run_retrieval_ablation(
             "top_k": top_k,
             "strategies": list(active_strategies),
             "nano_model": active_nano_model,
+            "intent_schema_version": INTENT_SCHEMA_VERSION,
         },
     )
-
     return comparison
 
 
@@ -310,54 +340,49 @@ def evaluate_query_strategy(
     questions: list[RetrievalHoldoutQuestion],
     retriever: Retriever,
     top_k: int,
-    nano_client: OpenAIJsonClient | None,
+    nano_client: NamedJsonCompletionClient | None,
     nano_model: str | None,
     nano_cache_path: Path,
     refresh_nano: bool,
 ) -> StrategyEvaluationResult:
     query_build_start = time.perf_counter()
-    intents: dict[str, RetrievalQueryIntent] = {}
+    built_queries: dict[str, BuiltRetrievalQuery] = {}
     fallback_by_question: dict[str, bool] = {}
     nano_stats = NanoBuildStats()
 
+    strategy: RetrievalQueryStrategy
+
     if strategy_name == "raw":
-        strategy: RetrievalQueryStrategy = RawQueryStrategy()
+        strategy = RawQueryStrategy()
         for question in questions:
-            intents[question["question_id"]] = strategy.build(
-                question["query"]
-            )
+            built_queries[question["question_id"]] = strategy.build(question["query"])
             fallback_by_question[question["question_id"]] = False
     elif strategy_name == "deterministic_expansion":
         strategy = DeterministicExpansionStrategy()
         for question in questions:
-            intents[question["question_id"]] = strategy.build(
-                question["query"]
-            )
+            built_queries[question["question_id"]] = strategy.build(question["query"])
+            fallback_by_question[question["question_id"]] = False
+    elif strategy_name == "rule_intent":
+        strategy = RuleIntentQueryStrategy()
+        for question in questions:
+            built_queries[question["question_id"]] = strategy.build(question["query"])
             fallback_by_question[question["question_id"]] = False
     else:
         if nano_client is None or nano_model is None:
-            raise ValueError(
-                "nano_structured requires an OpenAI JSON client"
-            )
-
+            raise ValueError("nano_intent requires an OpenAI JSON client")
         builder = NanoIntentBuilder(
             client=nano_client,
             cache=RetrievalIntentCache(nano_cache_path),
             model_name=nano_model,
-            fallback_strategy=DeterministicExpansionStrategy(),
             refresh_cache=refresh_nano,
         )
-
         for question in questions:
-            intent, used_fallback = builder.build(
+            built, used_fallback = builder.build(
                 question_id=question["question_id"],
                 concern_text=question["query"],
             )
-            intents[question["question_id"]] = intent
-            fallback_by_question[question["question_id"]] = (
-                used_fallback
-            )
-
+            built_queries[question["question_id"]] = built
+            fallback_by_question[question["question_id"]] = used_fallback
         builder.flush()
         nano_stats = builder.stats
 
@@ -365,7 +390,8 @@ def evaluate_query_strategy(
     transformed_questions = [
         transform_question(
             question,
-            intents[question["question_id"]],
+            built_queries[question["question_id"]],
+            strategy_name=strategy_name,
         )
         for question in questions
     ]
@@ -381,8 +407,17 @@ def evaluate_query_strategy(
     question_results = enrich_question_results(
         original_questions=questions,
         evaluation=evaluation,
-        intents=intents,
+        built_queries=built_queries,
         fallback_by_question=fallback_by_question,
+    )
+    semantic_intent_metrics = calculate_semantic_intent_metrics(
+        question_results
+    )
+    intent_metrics = calculate_intent_metrics(question_results)
+    unmapped_count = sum(
+        len(unmapped_intent_tags(query.intent))
+        for query in built_queries.values()
+        if query.intent is not None
     )
 
     summary: StrategyEvaluationSummary = {
@@ -390,57 +425,58 @@ def evaluate_query_strategy(
         "total_questions": evaluation["total_questions"],
         "top_k": evaluation["top_k"],
         "hit_rate_at_k": evaluation["hit_rate_at_k"],
-        "mean_reciprocal_rank": evaluation[
-            "mean_reciprocal_rank"
-        ],
-        "negative_constraint_pass_rate": evaluation[
-            "negative_constraint_pass_rate"
-        ],
-        "failed_question_ids": list(
-            evaluation["failed_question_ids"]
-        ),
-        "forbidden_hit_question_ids": list(
-            evaluation["forbidden_hit_question_ids"]
-        ),
+        "mean_reciprocal_rank": evaluation["mean_reciprocal_rank"],
+        "negative_constraint_pass_rate": evaluation["negative_constraint_pass_rate"],
+        "failed_question_ids": list(evaluation["failed_question_ids"]),
+        "forbidden_hit_question_ids": list(evaluation["forbidden_hit_question_ids"]),
         "query_build_latency_seconds": query_build_latency,
         "retrieval_latency_seconds": retrieval_latency,
-        "total_latency_seconds": (
-            query_build_latency + retrieval_latency
-        ),
+        "total_latency_seconds": query_build_latency + retrieval_latency,
         "model_call_count": nano_stats.model_call_count,
         "cache_hit_count": nano_stats.cache_hit_count,
         "cache_miss_count": nano_stats.cache_miss_count,
         "fallback_count": nano_stats.fallback_count,
-        "structured_output_failure_count": (
-            nano_stats.structured_output_failure_count
-        ),
+        "structured_output_failure_count": nano_stats.structured_output_failure_count,
         "model_error_count": nano_stats.model_error_count,
+        "unknown_tag_count": nano_stats.unknown_tag_count,
+        "unmapped_tag_count": unmapped_count,
+        "semantic_intent_micro_precision": semantic_intent_metrics[
+            "precision"
+        ],
+        "semantic_intent_micro_recall": semantic_intent_metrics["recall"],
+        "semantic_intent_exact_match_rate": semantic_intent_metrics[
+            "exact_match_rate"
+        ],
+        "per_semantic_tag_metrics": semantic_intent_metrics["per_tag"],
+        "intent_micro_precision": intent_metrics["precision"],
+        "intent_micro_recall": intent_metrics["recall"],
+        "intent_exact_match_rate": intent_metrics["exact_match_rate"],
+        "per_tag_metrics": intent_metrics["per_tag"],
     }
-
-    return {
-        "summary": summary,
-        "question_results": question_results,
-    }
+    return {"summary": summary, "question_results": question_results}
 
 
 def transform_question(
     question: RetrievalHoldoutQuestion,
-    intent: RetrievalQueryIntent,
+    built_query: BuiltRetrievalQuery,
+    *,
+    strategy_name: StrategyName,
 ) -> RetrievalHoldoutQuestion:
+    forbidden = list(question.get("forbidden_source_ids", []))
     transformed: RetrievalHoldoutQuestion = {
         "question_id": question["question_id"],
-        "query": intent.search_text,
-        "expected_source_ids": list(
-            question["expected_source_ids"]
-        ),
-        "forbidden_source_ids": list(
-            question.get("forbidden_source_ids", [])
-        ),
+        "query": built_query.search_text,
+        "expected_source_ids": list(question["expected_source_ids"]),
+        "forbidden_source_ids": forbidden,
     }
-
     if "rationale" in question:
         transformed["rationale"] = question["rationale"]
-
+    if "expected_semantic_intent_tags" in question:
+        transformed["expected_semantic_intent_tags"] = list(
+            question["expected_semantic_intent_tags"]
+        )
+    if "expected_intent_tags" in question:
+        transformed["expected_intent_tags"] = list(question["expected_intent_tags"])
     return transformed
 
 
@@ -448,63 +484,165 @@ def enrich_question_results(
     *,
     original_questions: list[RetrievalHoldoutQuestion],
     evaluation: RetrievalHoldoutEvaluationResult,
-    intents: dict[str, RetrievalQueryIntent],
+    built_queries: dict[str, BuiltRetrievalQuery],
     fallback_by_question: dict[str, bool],
 ) -> list[StrategyQuestionResult]:
     questions_by_id = {
         question["question_id"]: question
         for question in original_questions
     }
+    output: list[StrategyQuestionResult] = []
+    for result in evaluation["question_results"]:
+        question_id = result["question_id"]
+        original = questions_by_id[question_id]
+        built = built_queries[question_id]
 
-    return [
-        {
-            "question_id": result["question_id"],
-            "original_query": questions_by_id[
-                result["question_id"]
-            ]["query"],
-            "search_text": intents[
-                result["question_id"]
-            ].search_text,
-            "issue_tags": list(
-                intents[result["question_id"]].issue_tags
-            ),
-            "required_topics": list(
-                intents[result["question_id"]].required_topics
-            ),
-            "excluded_topics": list(
-                intents[result["question_id"]].excluded_topics
-            ),
-            "expected_source_ids": list(
-                result["expected_source_ids"]
-            ),
-            "forbidden_source_ids": list(
-                result["forbidden_source_ids"]
-            ),
-            "retrieved_source_ids": list(
-                result["retrieved_source_ids"]
-            ),
-            "hit": result["hit"],
-            "reciprocal_rank": result["reciprocal_rank"],
-            "forbidden_source_hits": list(
-                result["forbidden_source_hits"]
-            ),
-            "negative_constraints_passed": result[
-                "negative_constraints_passed"
-            ],
-            "used_fallback": fallback_by_question[
-                result["question_id"]
-            ],
-        }
-        for result in evaluation["question_results"]
+        predicted_semantic = (
+            [tag.value for tag in built.semantic_intent.tags]
+            if built.semantic_intent is not None
+            else []
+        )
+        expected_semantic = list(
+            original.get("expected_semantic_intent_tags", [])
+        )
+        semantic_exact: bool | None = None
+        if expected_semantic and built.semantic_intent is not None:
+            semantic_exact = set(predicted_semantic) == set(expected_semantic)
+
+        predicted = (
+            [tag.value for tag in built.intent.tags]
+            if built.intent is not None
+            else []
+        )
+        expected = list(original.get("expected_intent_tags", []))
+        exact: bool | None = None
+        if expected and built.intent is not None:
+            exact = set(predicted) == set(expected)
+
+        output.append(
+            {
+                "question_id": question_id,
+                "original_query": original["query"],
+                "search_text": built.search_text,
+                "predicted_semantic_intent_tags": predicted_semantic,
+                "expected_semantic_intent_tags": expected_semantic,
+                "semantic_intent_exact_match": semantic_exact,
+                "predicted_intent_tags": predicted,
+                "expected_intent_tags": expected,
+                "intent_exact_match": exact,
+                "expected_source_ids": list(result["expected_source_ids"]),
+                "forbidden_source_ids": list(result["forbidden_source_ids"]),
+                "retrieved_source_ids": list(result["retrieved_source_ids"]),
+                "hit": result["hit"],
+                "reciprocal_rank": result["reciprocal_rank"],
+                "forbidden_source_hits": list(result["forbidden_source_hits"]),
+                "negative_constraints_passed": result[
+                    "negative_constraints_passed"
+                ],
+                "used_fallback": fallback_by_question[question_id],
+            }
+        )
+    return output
+
+
+def calculate_semantic_intent_metrics(
+    results: list[StrategyQuestionResult],
+) -> dict[str, Any]:
+    rows = [
+        (
+            result["predicted_semantic_intent_tags"],
+            result["expected_semantic_intent_tags"],
+            result["semantic_intent_exact_match"],
+        )
+        for result in results
     ]
+    return calculate_tag_metrics(
+        rows,
+        [tag.value for tag in SemanticIntentTag],
+    )
 
 
-def build_nano_client(
-    model_name: str | None,
-) -> OpenAIJsonClient:
+def calculate_intent_metrics(
+    results: list[StrategyQuestionResult],
+) -> dict[str, Any]:
+    rows = [
+        (
+            result["predicted_intent_tags"],
+            result["expected_intent_tags"],
+            result["intent_exact_match"],
+        )
+        for result in results
+    ]
+    return calculate_tag_metrics(
+        rows,
+        [tag.value for tag in RetrievalIntentTag],
+    )
+
+
+def calculate_tag_metrics(
+    rows: list[tuple[list[str], list[str], bool | None]],
+    known_tags: list[str],
+) -> dict[str, Any]:
+    scored = [row for row in rows if row[2] is not None]
+    if not scored:
+        return {
+            "precision": None,
+            "recall": None,
+            "exact_match_rate": None,
+            "per_tag": {},
+        }
+
+    expected_total = 0
+    predicted_total = 0
+    true_positive_total = 0
+    exact_matches = 0
+    counts = {
+        tag: {"tp": 0, "predicted": 0, "expected": 0}
+        for tag in sorted(known_tags)
+    }
+
+    for predicted_values, expected_values, _ in scored:
+        predicted = set(predicted_values)
+        expected = set(expected_values)
+        intersection = predicted & expected
+        expected_total += len(expected)
+        predicted_total += len(predicted)
+        true_positive_total += len(intersection)
+        exact_matches += int(predicted == expected)
+        for tag in predicted:
+            counts[tag]["predicted"] += 1
+        for tag in expected:
+            counts[tag]["expected"] += 1
+        for tag in intersection:
+            counts[tag]["tp"] += 1
+
+    per_tag: dict[str, IntentMetric] = {}
+    for tag, values in counts.items():
+        if values["predicted"] == 0 and values["expected"] == 0:
+            continue
+        per_tag[tag] = {
+            "precision": safe_divide(values["tp"], values["predicted"]),
+            "recall": safe_divide(values["tp"], values["expected"]),
+            "true_positive": values["tp"],
+            "predicted": values["predicted"],
+            "expected": values["expected"],
+        }
+
+    return {
+        "precision": safe_divide(true_positive_total, predicted_total),
+        "recall": safe_divide(true_positive_total, expected_total),
+        "exact_match_rate": exact_matches / len(scored),
+        "per_tag": per_tag,
+    }
+
+
+def safe_divide(numerator: int, denominator: int) -> float:
+    return 0.0 if denominator == 0 else numerator / denominator
+
+
+def build_nano_client(model_name: str | None) -> OpenAIJsonClient:
     if model_name is None:
         return openai_json_client_from_env()
-
     return OpenAIJsonClient(model=model_name)
 
 
@@ -513,27 +651,20 @@ def format_comparison_markdown(
     strategy_results: list[StrategyEvaluationResult],
 ) -> str:
     lines = [
-        "# Retrieval Query Ablation",
+        "# Controlled Retrieval Intent Ablation",
         "",
         f"Generated: `{comparison['generated_at']}`",
         f"Run ID: `{comparison['run_id']}`",
         f"Question count: `{comparison['question_count']}`",
         f"Top K: `{comparison['top_k']}`",
         f"Nano model: `{comparison['nano_model'] or 'not used'}`",
+        f"Intent schema: `{comparison['intent_schema_version']}`",
         "",
         "## Summary",
         "",
-        (
-            "| Strategy | Hit Rate@K | MRR | Negative Pass Rate | "
-            "Failed | Forbidden Hits | Total Seconds | "
-            "Model Calls | Cache Hits | Fallbacks |"
-        ),
-        (
-            "|---|---:|---:|---:|---:|---:|---:|"
-            "---:|---:|---:|"
-        ),
+        "| Strategy | Hit Rate@K | MRR | Negative Pass | Semantic P | Semantic R | Semantic Exact | Derived Exact | Seconds | Calls | Cache | Fallbacks |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
-
     for summary in comparison["summaries"]:
         lines.append(
             "| "
@@ -541,110 +672,46 @@ def format_comparison_markdown(
             f"{summary['hit_rate_at_k']:.3f} | "
             f"{summary['mean_reciprocal_rank']:.3f} | "
             f"{summary['negative_constraint_pass_rate']:.3f} | "
-            f"{len(summary['failed_question_ids'])} | "
-            f"{len(summary['forbidden_hit_question_ids'])} | "
+            f"{format_optional(summary['semantic_intent_micro_precision'])} | "
+            f"{format_optional(summary['semantic_intent_micro_recall'])} | "
+            f"{format_optional(summary['semantic_intent_exact_match_rate'])} | "
+            f"{format_optional(summary['intent_exact_match_rate'])} | "
             f"{summary['total_latency_seconds']:.3f} | "
             f"{summary['model_call_count']} | "
             f"{summary['cache_hit_count']} | "
             f"{summary['fallback_count']} |"
         )
-
     lines.extend(
         [
             "",
-            "## Question-Level Changes",
+            "## Guardrails",
+            "",
+            "- Corpus, chunks, retriever, scoring, top-K, and source labels are held constant.",
+            "- Rule and nano detectors predict semantic tags only.",
+            "- Deterministic policy derives workflow tags before the shared mapper runs.",
+            "- Legacy deterministic expansion remains a comparator.",
+            "- Do not tune against the frozen holdout.",
             "",
         ]
     )
-
-    by_strategy = {
-        result["summary"]["strategy"]: {
-            question["question_id"]: question
-            for question in result["question_results"]
-        }
-        for result in strategy_results
-    }
-    question_ids = [
-        question["question_id"]
-        for question in strategy_results[0]["question_results"]
-    ]
-
-    lines.extend(
-        [
-            "| Question | "
-            + " | ".join(comparison["strategies"])
-            + " |",
-            "|---|"
-            + "|".join("---" for _ in comparison["strategies"])
-            + "|",
-        ]
-    )
-
-    for question_id in question_ids:
-        cells = []
-
-        for strategy_name in comparison["strategies"]:
-            result = by_strategy[strategy_name][question_id]
-            status = (
-                f"hit@{format_rank(result['reciprocal_rank'])}"
-                if result["hit"]
-                else "miss"
-            )
-            if not result["negative_constraints_passed"]:
-                status += " + forbidden"
-            if result["used_fallback"]:
-                status += " + fallback"
-            cells.append(status)
-
-        lines.append(
-            f"| {question_id} | "
-            + " | ".join(cells)
-            + " |"
-        )
-
-    lines.extend(
-        [
-            "",
-            "## Interpretation",
-            "",
-            "- The retriever, corpus, chunks, top-K, labels, and scoring are held constant.",
-            "- Only the query-building strategy changes.",
-            "- A nano fallback means the structured output was unusable and deterministic expansion was used.",
-            "- Cache hits replay the exact previously validated nano intent.",
-            "- This development comparison should not be used to tune the frozen holdout.",
-            "",
-        ]
-    )
-
     return "\n".join(lines)
 
 
-def format_rank(reciprocal_rank: float) -> str:
-    if reciprocal_rank <= 0:
-        return "-"
-    return str(round(1 / reciprocal_rank))
+def format_optional(value: float | None) -> str:
+    return "-" if value is None else f"{value:.3f}"
 
 
 def normalize_run_id(value: str) -> str:
     clean = value.strip()
     if not clean:
         raise ValueError("run_id must not be blank")
-    if any(
-        character not in "abcdefghijklmnopqrstuvwxyz"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
-        for character in clean
-    ):
-        raise ValueError(
-            "run_id may contain only letters, numbers, hyphens, and underscores"
-        )
+    if any(character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for character in clean):
+        raise ValueError("run_id may contain only letters, numbers, hyphens, and underscores")
     return clean
 
 
 def write_json(path: Path, value: Any) -> None:
-    path.write_text(
-        json.dumps(value, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
 
 
 def sha256_file(path: Path) -> str:
@@ -657,16 +724,10 @@ def sha256_file(path: Path) -> str:
 
 def display_path(path: Path) -> str:
     try:
-        return str(
-            path.resolve().relative_to(
-                PROJECT_ROOT.resolve()
-            )
-        )
+        return str(path.resolve().relative_to(PROJECT_ROOT.resolve()))
     except ValueError:
         return str(path.resolve())
 
 
 def utc_timestamp() -> str:
-    return datetime.now(UTC).isoformat(
-        timespec="seconds"
-    ).replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")

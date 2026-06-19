@@ -1,36 +1,45 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from pathlib import Path
 from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.retrieval_intent import (
+    INTENT_SCHEMA_VERSION,
+    NanoIntentDetector,
+    RetrievalIntent,
+    RetrievalIntentDetector,
+    SemanticRetrievalIntent,
+    RuleIntentDetector,
+    derive_retrieval_intent,
+    map_intent_to_search_text,
+)
+
 
 StrategyName = Literal[
     "raw",
     "deterministic_expansion",
-    "nano_structured",
+    "rule_intent",
+    "nano_intent",
 ]
 
 
-class RetrievalQueryIntent(BaseModel):
+class BuiltRetrievalQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     original_text: str = Field(min_length=1)
     search_text: str = Field(min_length=1)
-    issue_tags: list[str] = Field(default_factory=list)
-    required_topics: list[str] = Field(default_factory=list)
-    excluded_topics: list[str] = Field(default_factory=list)
     strategy: StrategyName
+    semantic_intent: SemanticRetrievalIntent | None = None
+    intent: RetrievalIntent | None = None
+    legacy_issue_tags: list[str] = Field(default_factory=list)
+    legacy_required_topics: list[str] = Field(default_factory=list)
+    legacy_excluded_topics: list[str] = Field(default_factory=list)
 
-    @field_validator(
-        "original_text",
-        "search_text",
-        mode="before",
-    )
+    @field_validator("original_text", "search_text", mode="before")
     @classmethod
     def strip_required_text(cls, value: object) -> str:
         text = str(value).strip()
@@ -39,9 +48,9 @@ class RetrievalQueryIntent(BaseModel):
         return text
 
     @field_validator(
-        "issue_tags",
-        "required_topics",
-        "excluded_topics",
+        "legacy_issue_tags",
+        "legacy_required_topics",
+        "legacy_excluded_topics",
         mode="before",
     )
     @classmethod
@@ -53,14 +62,12 @@ class RetrievalQueryIntent(BaseModel):
 
         output: list[str] = []
         seen: set[str] = set()
-
         for raw_term in value:
             term = normalize_term(str(raw_term))
             if not term or term in seen:
                 continue
             seen.add(term)
             output.append(term)
-
         return output
 
 
@@ -70,27 +77,25 @@ class CachedRetrievalIntent(BaseModel):
     question_id: str = Field(min_length=1)
     input_hash: str = Field(min_length=64, max_length=64)
     model: str = Field(min_length=1)
-    intent: RetrievalQueryIntent
+    intent_schema_version: str = Field(min_length=1)
+    semantic_intent: SemanticRetrievalIntent
 
 
 class RetrievalQueryStrategy(Protocol):
-    name: StrategyName
-
-    def build(self, concern_text: str) -> RetrievalQueryIntent:
+    @property
+    def name(self) -> StrategyName:
         ...
 
-
-class JsonCompletionClient(Protocol):
-    def complete_json(self, prompt: str) -> str:
+    def build(self, concern_text: str) -> BuiltRetrievalQuery:
         ...
 
 
 class RawQueryStrategy:
-    name: StrategyName = "raw"
+    name: Literal["raw"] = "raw"
 
-    def build(self, concern_text: str) -> RetrievalQueryIntent:
+    def build(self, concern_text: str) -> BuiltRetrievalQuery:
         text = require_text(concern_text)
-        return RetrievalQueryIntent(
+        return BuiltRetrievalQuery(
             original_text=text,
             search_text=text,
             strategy=self.name,
@@ -98,9 +103,9 @@ class RawQueryStrategy:
 
 
 class DeterministicExpansionStrategy:
-    name: StrategyName = "deterministic_expansion"
+    name: Literal["deterministic_expansion"] = "deterministic_expansion"
 
-    def build(self, concern_text: str) -> RetrievalQueryIntent:
+    def build(self, concern_text: str) -> BuiltRetrievalQuery:
         text = require_text(concern_text)
         normalized = text.lower()
         search_terms: list[str] = []
@@ -328,8 +333,8 @@ class DeterministicExpansionStrategy:
                 ),
                 tags=("device_concern",),
                 required=(
-                    "device_review",
                     "quality_review",
+                    "trend_review",
                 ),
             )
 
@@ -361,62 +366,87 @@ class DeterministicExpansionStrategy:
 
         expanded_terms = unique_terms(search_terms)
         search_text = text
-
         if expanded_terms:
             search_text = (
                 f"{text}\n\nRetrieval concepts: "
                 f"{' '.join(expanded_terms)}"
             )
 
-        return RetrievalQueryIntent(
+        return BuiltRetrievalQuery(
             original_text=text,
             search_text=search_text,
-            issue_tags=issue_tags,
-            required_topics=required_topics,
-            excluded_topics=excluded_topics,
+            strategy=self.name,
+            legacy_issue_tags=issue_tags,
+            legacy_required_topics=required_topics,
+            legacy_excluded_topics=excluded_topics,
+        )
+
+
+class RuleIntentQueryStrategy:
+    name: Literal["rule_intent"] = "rule_intent"
+
+    def __init__(
+        self,
+        detector: RetrievalIntentDetector | None = None,
+    ) -> None:
+        self._detector = detector or RuleIntentDetector()
+
+    def build(self, concern_text: str) -> BuiltRetrievalQuery:
+        text = require_text(concern_text)
+        semantic_intent = self._detector.detect(text)
+        return build_query_from_semantic_intent(
+            text,
+            semantic_intent,
             strategy=self.name,
         )
 
 
-class NanoStructuredQueryStrategy:
-    name: StrategyName = "nano_structured"
+class NanoIntentQueryStrategy:
+    name: Literal["nano_intent"] = "nano_intent"
 
-    def __init__(
-        self,
-        client: JsonCompletionClient,
-    ) -> None:
-        self._client = client
+    def __init__(self, detector: NanoIntentDetector) -> None:
+        self._detector = detector
 
-    def build(self, concern_text: str) -> RetrievalQueryIntent:
+    def build(self, concern_text: str) -> BuiltRetrievalQuery:
         text = require_text(concern_text)
-        payload = parse_json_object(
-            self._client.complete_json(
-                build_nano_prompt(text)
-            )
-        )
-        generated_search_text = require_text(
-            str(payload["search_text"])
-        )
+        semantic_intent = self._detector.detect(text)
+        return build_query_from_semantic_intent(
+            text,
+            semantic_intent,
+            strategy=self.name,
+    )
 
-        return RetrievalQueryIntent.model_validate(
-            {
-                "original_text": text,
-                "search_text": (
-                    f"{text}\n\nRetrieval concepts: "
-                    f"{generated_search_text}"
-                ),
-                "issue_tags": payload.get("issue_tags", []),
-                "required_topics": payload.get(
-                    "required_topics",
-                    [],
-                ),
-                "excluded_topics": payload.get(
-                    "excluded_topics",
-                    [],
-                ),
-                "strategy": self.name,
-            }
-        )
+
+def build_query_from_intent(
+    concern_text: str,
+    intent: RetrievalIntent,
+    *,
+    strategy: Literal["rule_intent", "nano_intent"],
+) -> BuiltRetrievalQuery:
+    text = require_text(concern_text)
+    return BuiltRetrievalQuery(
+        original_text=text,
+        search_text=map_intent_to_search_text(text, intent),
+        strategy=strategy,
+        intent=intent,
+    )
+
+def build_query_from_semantic_intent(
+    concern_text: str,
+    semantic_intent: SemanticRetrievalIntent,
+    *,
+    strategy: Literal["rule_intent", "nano_intent"],
+) -> BuiltRetrievalQuery:
+    text = require_text(concern_text)
+    intent = derive_retrieval_intent(semantic_intent)
+
+    return BuiltRetrievalQuery(
+        original_text=text,
+        search_text=map_intent_to_search_text(text, intent),
+        strategy=strategy,
+        semantic_intent=semantic_intent,
+        intent=intent,
+    )
 
 
 class RetrievalIntentCache:
@@ -430,18 +460,18 @@ class RetrievalIntentCache:
         question_id: str,
         concern_text: str,
         model: str,
-    ) -> RetrievalQueryIntent | None:
+        intent_schema_version: str = INTENT_SCHEMA_VERSION,
+    ) -> SemanticRetrievalIntent | None:
         key = cache_key(
             question_id,
             concern_text,
             model,
+            intent_schema_version,
         )
         entry = self._entries.get(key)
-
         if entry is None:
             return None
-
-        return entry.intent
+        return entry.semantic_intent
 
     def put(
         self,
@@ -449,27 +479,27 @@ class RetrievalIntentCache:
         question_id: str,
         concern_text: str,
         model: str,
-        intent: RetrievalQueryIntent,
+        semantic_intent: SemanticRetrievalIntent,
+        intent_schema_version: str = INTENT_SCHEMA_VERSION,
     ) -> None:
         entry = CachedRetrievalIntent(
             question_id=question_id,
             input_hash=input_hash(concern_text),
             model=model,
-            intent=intent,
+            intent_schema_version=intent_schema_version,
+            semantic_intent=semantic_intent,
         )
         self._entries[
             cache_key(
                 question_id,
                 concern_text,
                 model,
+                intent_schema_version,
             )
         ] = entry
 
     def flush(self) -> None:
-        self._path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
+        self._path.parent.mkdir(parents=True, exist_ok=True)
         temporary_path = self._path.with_suffix(
             self._path.suffix + ".tmp"
         )
@@ -484,47 +514,6 @@ class RetrievalIntentCache:
         temporary_path.replace(self._path)
 
 
-def build_nano_prompt(concern_text: str) -> str:
-    return f"""Convert the complaint into retrieval intent.
-
-Return one JSON object with exactly these keys:
-- search_text: concise search-oriented text
-- issue_tags: controlled snake_case tags
-- required_topics: policy topics that relevant SOPs should cover
-- excluded_topics: topics that would materially misroute the case
-
-Rules:
-- Preserve reported facts without deciding causality.
-- Hospitalization is a severe escalation topic.
-- Shortness of breath or collapse alone is clinical context, not automatic severe escalation.
-- Ingredient-list and supplier-source requests need disclosure-boundary language.
-- Do not invent record, lot, inventory, or reference-review findings.
-- Do not include customer, clinic, patient, or pet identifiers.
-- Keep search_text under 80 words.
-
-Complaint:
-{concern_text}
-"""
-
-
-def parse_json_object(value: str) -> dict[str, object]:
-    text = require_text(value)
-
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if len(lines) >= 3 and lines[-1].strip() == "```":
-            text = "\n".join(lines[1:-1]).strip()
-            if text.lower().startswith("json"):
-                text = text[4:].lstrip()
-
-    payload = json.loads(text)
-
-    if not isinstance(payload, dict):
-        raise ValueError("nano retrieval intent must be a JSON object")
-
-    return payload
-
-
 def load_cache_entries(
     path: Path,
 ) -> dict[str, CachedRetrievalIntent]:
@@ -532,32 +521,28 @@ def load_cache_entries(
         return {}
 
     entries: dict[str, CachedRetrievalIntent] = {}
-
     for line_number, line in enumerate(
         path.read_text(encoding="utf-8").splitlines(),
         start=1,
     ):
         if not line.strip():
             continue
-
         try:
-            entry = CachedRetrievalIntent.model_validate_json(
-                line
-            )
+            entry = CachedRetrievalIntent.model_validate_json(line)
         except ValueError as exc:
             raise ValueError(
-                f"{path} line {line_number} "
-                "is not a valid cache entry"
+                f"{path} line {line_number} is not a valid cache entry"
             ) from exc
 
         entries[
             cache_key(
                 entry.question_id,
-                entry.intent.original_text,
+                entry.input_hash,
                 entry.model,
+                entry.intent_schema_version,
+                input_is_hash=True,
             )
         ] = entry
-
     return entries
 
 
@@ -569,14 +554,23 @@ def input_hash(concern_text: str) -> str:
 
 def cache_key(
     question_id: str,
-    concern_text: str,
+    concern_text_or_hash: str,
     model: str,
+    intent_schema_version: str,
+    *,
+    input_is_hash: bool = False,
 ) -> str:
+    hashed = (
+        concern_text_or_hash
+        if input_is_hash
+        else input_hash(concern_text_or_hash)
+    )
     return "::".join(
         (
             require_text(question_id),
             require_text(model),
-            input_hash(concern_text),
+            require_text(intent_schema_version),
+            hashed,
         )
     )
 
@@ -596,23 +590,16 @@ def normalize_term(value: str) -> str:
 def unique_terms(values: list[str]) -> list[str]:
     output: list[str] = []
     seen: set[str] = set()
-
     for value in values:
-        normalized = " ".join(
-            value.split()
-        ).strip()
+        normalized = " ".join(value.split()).strip()
         if not normalized or normalized in seen:
             continue
         seen.add(normalized)
         output.append(normalized)
-
     return output
 
 
-def contains_any(
-    text: str,
-    terms: tuple[str, ...],
-) -> bool:
+def contains_any(text: str, terms: tuple[str, ...]) -> bool:
     return any(term in text for term in terms)
 
 

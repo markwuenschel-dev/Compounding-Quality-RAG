@@ -191,4 +191,4 @@ def test_main_runs_phase_two_with_llm_findings(
 
     cli.main()
 
-    captured = capsys.readouterr()
+    capsys.readouterr()

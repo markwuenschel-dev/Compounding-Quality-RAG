@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import TypedDict
 
 from app.retrieval import (
     DEFAULT_CHUNKS_PATH,

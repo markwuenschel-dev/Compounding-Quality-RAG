@@ -5,9 +5,12 @@ description="retrieval augmented generation prototype for compounding quality re
 readme="README.md"
 requires-python = ">=3.12"
 dependencies= [
+    "mypy>=2.1.0",
     "openai>=2.37.0",
     "pydantic>=2.13.3",
+    "pyright>=1.1.410",
     "python-dotenv>=1.2.2",
+    "ruff>=0.15.17",
 ]
 
 [dependency-groups]
