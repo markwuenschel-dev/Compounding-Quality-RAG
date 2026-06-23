@@ -1,0 +1,47 @@
+# Repo-root .dockerignore — this is the only one Docker honors, because every
+# service in infra/docker-compose.yml builds with `context: ..` (the repo root).
+# Per-service .dockerignore files below this directory are NOT read by the builder.
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node / Vite (keeps host node_modules out of the linux review-ui image)
+**/node_modules
+**/.vite
+**/dist
+**/npm-debug.log*
+**/yarn-error.log*
+
+# Python
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.pyright
+**/.ruff_cache
+**/.coverage
+**/htmlcov
+**/*.egg-info
+
+# Java / Gradle
+**/.gradle
+**/build
+**/out
+**/*.iml
+
+# IDE
+**/.idea
+**/.vscode
+
+# Env files, secrets & logs (never bake credentials into an image)
+**/.env
+**/.env.*
+**/secrets.env
+**/*.log
+
+# Docker (not needed inside the image)
+**/Dockerfile*
+**/.dockerignore

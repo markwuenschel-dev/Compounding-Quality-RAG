@@ -1,0 +1,71 @@
+services:
+  review-api:
+    build:
+      context: ..
+      dockerfile: services/review-api/Dockerfile.review-api
+    ports:
+      - "${SPRING_API_PORT:-8080}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      PYTHON_ENGINE_BASE_URL: "http://rag-engine:8000"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-http://localhost:5173}"
+    depends_on:
+      rag-engine:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - compounding-quality-net
+
+  rag-engine:
+    build:
+      context: ..
+      dockerfile: rag-engine-python/Dockerfile.rag-engine
+    ports:
+      - "${PYTHON_ENGINE_PORT:-8000}:8000"
+    # Supplies OPENAI_API_KEY (and OPENAI_MODEL if set) to the engine. This file is
+    # gitignored; the LLM-backed endpoints (e.g. /review-summary/extract) fail without it.
+    env_file:
+      - ../rag-engine-python/secrets.env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PYTHONIOENCODING: "utf-8"
+      RAG_ENGINE_HOST: "0.0.0.0"
+      RAG_ENGINE_PORT: "8000"
+      RAG_CHUNKS_PATH: "data/index/chunks.jsonl"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - compounding-quality-net
+
+  review-ui:
+    build:
+      context: ..
+      dockerfile: apps/review-ui/Dockerfile.review-ui
+    ports:
+      - "${REVIEW_UI_PORT:-5173}:5173"
+    environment:
+      VITE_REVIEW_API_BASE_URL: "${VITE_REVIEW_API_BASE_URL:-http://localhost:8080}"
+    depends_on:
+      review-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5173 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - compounding-quality-net
+
+networks:
+  compounding-quality-net:
+    driver: bridge

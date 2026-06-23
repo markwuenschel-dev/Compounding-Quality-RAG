@@ -8,10 +8,13 @@ import com.compoundingquality.reviewapi.rag.RagEngineClient;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 @Service
 public class ChecklistService {
+
+    private static final String UNKNOWN = "unknown";
 
     private final RagEngineClient ragEngineClient;
 
@@ -26,19 +29,25 @@ public class ChecklistService {
         Objects.requireNonNull(request, "request must not be null");
 
         RagChecklistResult result = ragEngineClient.createChecklist(
-                RagChecklistRequest.fromConcernText(request.concernText())
+                new RagChecklistRequest(
+                        request.concernText(),
+                        request.resolvedTopK()
+                )
         );
 
         return toResponse(result);
     }
 
     private static ChecklistResponse toResponse(RagChecklistResult result) {
+        String concernType = valueOrUnknown(result.likelyConcernType());
+        String riskLane = valueOrUnknown(result.likelyRiskLane());
+
         return new ChecklistResponse(
-                result.concernType(),
-                result.riskLane(),
-                result.reviewScope(),
-                result.initialTakeaway(),
-                toChecklistItem(result.requiredChecks()),
+                concernType,
+                riskLane,
+                deriveReviewScope(result),
+                buildInitialTakeaway(concernType, riskLane),
+                toChecklistItems(result.reviewChecks()),
                 result.missingInformation(),
                 result.escalationTriggersToRuleOut(),
                 toEvidenceCitations(result.evidence()),
@@ -46,15 +55,15 @@ public class ChecklistService {
         );
     }
 
-    private static List<ChecklistResponse.ChecklistItem> toChecklistItem(
-            List<RagChecklistResult.ChecklistItem> items
+    private static List<ChecklistResponse.ChecklistItem> toChecklistItems(
+        List<RagChecklistResult.ChecklistItem> items
     ) {
         return items.stream()
                 .map(item -> new ChecklistResponse.ChecklistItem(
-                        item.key(),
-                        item.label(),
+                        slugify(item.checkName()),
+                        item.checkName(),
                         item.required(),
-                        item.reason()
+                        item.rationale()
                 ))
                 .toList();
     }
@@ -69,5 +78,42 @@ public class ChecklistService {
                         citation.sectionHeading()
                 ))
                 .toList();
+    }
+
+    private static String deriveReviewScope(RagChecklistResult result) {
+        if ("life_threatening_or_legal".equals(result.likelyRiskLane())) {
+            return "escalation_review";
+        }
+
+        if ("bud_question".equals(result.likelyConcernType())) {
+            return "guidance_only";
+        }
+
+        return "full_quality_review";
+    }
+
+    private static String buildInitialTakeaway(String concernType, String riskLane) {
+        return "Initial screen suggests %s with %s risk lane. Final routing depends on review findings and confirmed escalation triggers."
+                .formatted(humanize(concernType), humanize(riskLane));
+    }
+
+    private static String valueOrUnknown(String value) {
+        if (value == null || value.isBlank()) {
+            return UNKNOWN;
+        }
+
+        return value;
+    }
+
+    private static String humanize(String value) {
+        return valueOrUnknown(value).replace("_", " ");
+    }
+
+    private static String slugify(String value) {
+        String slug = value.toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "_")
+                .replaceAll("^_+|_+$", "");
+
+        return slug.isBlank() ? "check" : slug;
     }
 }

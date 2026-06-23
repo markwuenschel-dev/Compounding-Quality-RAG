@@ -23,7 +23,7 @@ class ChecklistServiceTest {
         ChecklistService service = new ChecklistService(ragEngineClient);
 
         service.createChecklist(
-                new ChecklistRequest("My dog vomited after a flavored oral liquid.")
+                new ChecklistRequest("My dog vomited after a flavored oral liquid.", null)
         );
 
         ArgumentCaptor<RagChecklistRequest> captor = ArgumentCaptor.forClass(
@@ -47,13 +47,16 @@ class ChecklistServiceTest {
         ChecklistService service = new ChecklistService(ragEngineClient);
 
         ChecklistResponse response = service.createChecklist(
-                new ChecklistRequest("My dog vomited after a flavored oral liquid.")
+                new ChecklistRequest("My dog vomited after a flavored oral liquid.", null)
         );
 
         assertEquals("flavor_related_vomiting", response.concernType());
         assertEquals("unexpected_non_life_threatening", response.riskLane());
         assertEquals("full_quality_review", response.reviewScope());
-        assertEquals("Initial screen suggests review is needed.", response.initialTakeaway());
+        assertEquals(
+                "Initial screen suggests flavor related vomiting with unexpected non life threatening risk lane. Final routing depends on review findings and confirmed escalation triggers.",
+                response.initialTakeaway()
+        );
     }
 
     @Test
@@ -64,7 +67,7 @@ class ChecklistServiceTest {
         ChecklistService service = new ChecklistService(ragEngineClient);
 
         ChecklistResponse response = service.createChecklist(
-                new ChecklistRequest("My dog vomited after a flavored oral liquid.")
+                new ChecklistRequest("My dog vomited after a flavored oral liquid.", null)
         );
 
         assertEquals(1, response.requiredChecks().size());
@@ -85,7 +88,7 @@ class ChecklistServiceTest {
         ChecklistService service = new ChecklistService(ragEngineClient);
 
         ChecklistResponse response = service.createChecklist(
-                new ChecklistRequest("My dog vomited after a flavored oral liquid.")
+                new ChecklistRequest("My dog vomited after a flavored oral liquid.", null)
         );
 
         assertEquals(1, response.evidence().size());
@@ -105,7 +108,7 @@ class ChecklistServiceTest {
         ChecklistService service = new ChecklistService(ragEngineClient);
 
         ChecklistResponse response = service.createChecklist(
-                new ChecklistRequest("My dog vomited after a flavored oral liquid.")
+                new ChecklistRequest("My dog vomited after a flavored oral liquid.", null)
         );
 
         assertEquals(List.of("Dose administered"), response.missingInformation());
@@ -121,16 +124,15 @@ class ChecklistServiceTest {
 
     private static RagChecklistResult sampleRagResult() {
         return new RagChecklistResult(
+                "My dog vomited after a flavored oral liquid.",
                 "flavor_related_vomiting",
                 "unexpected_non_life_threatening",
-                "full_quality_review",
-                "Initial screen suggests review is needed.",
                 List.of(
                         new RagChecklistResult.ChecklistItem(
-                                "record_review",
                                 "Record review",
                                 true,
-                                "Verify relevant fields before final disposition."
+                                "Verify relevant fields before final disposition.",
+                                List.of()
                         )
                 ),
                 List.of("Dose administered"),
