@@ -73,7 +73,7 @@ The purpose is to revisit generated code after the demo and perform a slower man
 1. Runtime behavior and error classification
 2. State reset and retry correctness
 3. Accessibility and semantic queries
-4. Java/Python process-boundary behavior
+4. Java/Python HTTP boundary behavior
 5. Duplication and component boundaries
 6. Test brittleness and timing behavior
 7. Documentation accuracy

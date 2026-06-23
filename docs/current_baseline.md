@@ -3,10 +3,12 @@
 ## Runtime architecture
 
 - React/TypeScript provides the human-review workflow.
-- Spring Boot owns HTTP routes, DTO validation, orchestration, readiness, error translation, OpenAPI, and the Python process boundary.
-- Python owns intake structuring, refusal, retrieval, checklist generation, review-summary extraction, deterministic grounding, unresolved-question generation, final assessment, and evaluation.
-- `GET /ready` checks Spring availability, the configured Python command, the Python working directory, and corpus availability.
+- Spring Boot owns HTTP routes, DTO validation, orchestration, readiness, error translation, OpenAPI, and the HTTP boundary to the Python review engine.
+- Python is a standalone FastAPI service that owns intake structuring, refusal, retrieval, checklist generation, review-summary extraction, deterministic grounding, unresolved-question generation, final assessment, and evaluation.
+- Spring Boot reaches the engine through `HttpRagEngineClient` using `PYTHON_ENGINE_BASE_URL` (default `http://localhost:8000`; `http://rag-engine:8000` under Compose).
+- `GET /ready` checks Spring availability, the Python engine over its HTTP `/health` endpoint, and corpus availability.
 - The React workflow displays backend readiness, disables submission while unavailable, distinguishes timeout/network/validation/engine/refusal errors, and supports retry.
+- All three services build and run as containers via `infra/docker-compose.yml` with health-gated startup; the engine receives `OPENAI_API_KEY` from the gitignored `secrets.env` via `env_file`.
 
 ## Review-summary extraction
 
@@ -76,6 +78,16 @@ The development retrieval benchmark is not yet stable:
 - Forbidden-source hits: `3`
 
 The next retrieval work is label correction, adverse-event query expansion/reranking, ingredient/disclosure retrieval support, and only then targeted SOP wording changes if a genuine source-truth gap remains.
+
+### Retrieval comparison baselines
+
+Three retrievers share a common `Retriever` protocol and are compared in `rag-engine-python/reports/retrieval_comparison.md` (synthetic set, `top_k=5`):
+
+- Keyword — hit rate@5 `0.833`, MRR `0.750`. Transparent default path.
+- Embedding — hit rate@5 `0.917`, MRR `0.812`. Local deterministic hashing-vector plumbing, not production semantic search.
+- Hybrid — hit rate@5 `0.833`, MRR `0.750`. Normalized keyword (`0.65`) + vector (`0.35`).
+
+No external embedding model or vector database is used; these baselines exist to measure retrieval tradeoffs with evidence before any superiority claim.
 
 ## SOP status
 

@@ -12,7 +12,7 @@ Python already contained the tested RAG and domain-evaluation engine. Spring Boo
 
 ### Why not rewrite the Python logic in Java?
 
-A rewrite would duplicate tested behavior and create migration risk. The better engineering choice was to preserve the working Python domain engine behind a stable Java contract. The process bridge can later become an HTTP service without changing the public API.
+A rewrite would duplicate tested behavior and create migration risk. The better engineering choice was to preserve the working Python domain engine behind a stable Java contract. That boundary started as an in-process bridge and has since become an HTTP service called by Spring Boot, without changing the public API.
 
 ## Review-summary extraction answer
 
@@ -111,7 +111,7 @@ Then I create a minimal regression test for the failure mechanism.
 - no production audit store;
 - no deployed monitoring;
 - a small benchmark;
-- a process bridge rather than a separately deployed Python service;
+- local Docker Compose rather than a production deployment target or orchestration;
 - public generalized guidance rather than approved internal sources.
 
 ### How does your pharmacy background help?

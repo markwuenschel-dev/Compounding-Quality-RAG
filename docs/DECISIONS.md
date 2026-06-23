@@ -221,6 +221,86 @@ The LLM review-summary extraction layer is added and must map normal English rev
 
 ---
 
+## 2026-06-09 — Preserve keyword retrieval as baseline
+
+### Decision
+Keep keyword retrieval as the transparent baseline behind `KeywordRetriever`.
+
+### Reason
+Keyword retrieval is interpretable, auditable, and useful for exact SOP/process terms. It provides a stable comparison point before adding vector or hybrid retrieval.
+
+### Consequence
+New retrieval strategies must be compared against keyword rather than replacing it silently.
+
+---
+
+## 2026-06-09 — Add local deterministic vector baseline before production semantic search
+
+### Decision
+Add a local deterministic hashing-vector `EmbeddingRetriever` before introducing external embedding models or a vector database.
+
+### Reason
+The project needs testable vector retrieval plumbing and comparison infrastructure before adding model downloads, external APIs, persistence, or infrastructure.
+
+### Tradeoff
+The hashing-vector model is not true semantic search. It does not understand synonyms such as `emesis` and `vomiting` unless lexical overlap or hash collision creates similarity.
+
+### Consequence
+The current vector baseline must be described as local vector retrieval plumbing, not production semantic retrieval.
+
+---
+
+## 2026-06-09 — Add hybrid retrieval with normalized component scores
+
+### Decision
+Add `HybridRetriever` that combines normalized keyword and vector scores with configurable weights.
+
+### Reason
+Keyword and cosine-similarity scores are on different scales. Normalization is required before weighted combination.
+
+### Default weights
+- keyword: `0.65`
+- vector: `0.35`
+
+### Consequence
+Hybrid retrieval can be evaluated alongside keyword and vector retrieval without changing the public `SearchResult` contract.
+
+---
+
+## 2026-06-09 — Generate retrieval comparison report before quality claims
+
+### Decision
+Generate `reports/retrieval_comparison.md` comparing keyword, vector, and hybrid retrieval.
+
+### Report fields
+- hit_rate@k
+- mean reciprocal rank
+- failed question IDs
+- latency seconds
+- qualitative notes
+- interpretation guardrails
+
+### Reason
+Retrieval quality should be measured before claiming improvement.
+
+### Consequence
+The project can discuss retrieval tradeoffs using evidence from the synthetic evaluation set while avoiding unsupported claims that vector or hybrid retrieval is generally superior.
+
+---
+
+## 2026-06-09 — Defer vector database and persisted vector store
+
+### Decision
+Do not add a vector database or persisted vector store during the local retrieval baseline.
+
+### Reason
+The corpus is small and the current hashing-vector model is not the final semantic model. Persisting this index would add infrastructure before it proves value.
+
+### Revisit when
+A real embedding model is added, corpus size grows, retrieval latency becomes a measurable problem, or deployment requires persistent precomputed vectors.
+
+---
+
 ## 2026-06-15 — Hybrid review-summary extraction
 
 ### Decision
@@ -348,3 +428,26 @@ The benchmark is small, so even the holdout will be a directional estimate rathe
 
 ### Revisit when
 More adjudicated complaint/investigation pairs are available.
+
+---
+
+## 2026-06-23 — HTTP service boundary and containerized deployment
+
+### Decision
+Replace the in-process Python subprocess bridge with an HTTP boundary between Spring Boot and the Python review engine, and run all three services under Docker Compose.
+
+### Reason
+The stdin/stdout subprocess bridge coupled Spring Boot to a local Python interpreter, working directory, and command probe. An HTTP boundary lets each service start, scale, fail, and be health-checked independently, and matches how the stack would run in a real deployment.
+
+### Consequence
+- The Python engine is a standalone FastAPI service (`app/server.py`); `api_runner.py` remains only as the legacy CLI/stdin runner.
+- Spring Boot calls the engine through `HttpRagEngineClient`, configured by `PYTHON_ENGINE_BASE_URL` (default `http://localhost:8000`; `http://rag-engine:8000` under Compose).
+- `GET /ready` now checks the engine's HTTP `/health` endpoint instead of a Python command and working directory.
+- `infra/docker-compose.yml` builds and runs review-ui, review-api, and rag-engine with health-gated startup; the engine receives `OPENAI_API_KEY` from the gitignored `secrets.env` via `env_file`.
+- A repo-root `.dockerignore` is the only one Docker honors because every service builds with `context: ..`.
+
+### Tradeoff
+HTTP adds a network hop and a separate process to operate, but removes interpreter discovery and working-directory coupling and makes the boundary observable and independently testable.
+
+### Revisit when
+The deployment target requires orchestration beyond Compose, or the engine needs horizontal scaling, authentication, or a managed gateway.
