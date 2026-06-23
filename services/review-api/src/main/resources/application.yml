@@ -10,3 +10,5 @@ rag:
       - app.api_runner
     working-directory: ../../rag-engine-python
     timeout: 10s
+  http:
+    base-url: ${PYTHON_ENGINE_BASE_URL:http://localhost:8000}

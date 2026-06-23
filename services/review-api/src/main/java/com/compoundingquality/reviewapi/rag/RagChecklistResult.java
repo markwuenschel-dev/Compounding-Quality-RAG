@@ -1,25 +1,37 @@
 package com.compoundingquality.reviewapi.rag;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 public record RagChecklistResult(
-        String concernType,
-        String riskLane,
-        String reviewScope,
-        String initialTakeaway,
-        List<ChecklistItem> requiredChecks,
+        @JsonProperty("concern_text")
+        String concernText,
+
+        @JsonProperty("likely_concern_type")
+        String likelyConcernType,
+
+        @JsonProperty("likely_risk_lane")
+        String likelyRiskLane,
+
+        @JsonProperty("review_checks")
+        List<ChecklistItem> reviewChecks,
+
+        @JsonProperty("missing_information")
         List<String> missingInformation,
+
+        @JsonProperty("escalation_triggers_to_rule_out")
         List<String> escalationTriggersToRuleOut,
+
         List<EvidenceCitation> evidence,
+
         List<String> limitations
 ) {
     public RagChecklistResult {
-        concernType = requireText(concernType, "concernType");
-        riskLane = requireText(riskLane, "riskLane");
-        reviewScope = requireText(reviewScope, "reviewScope");
-        initialTakeaway = requireText(initialTakeaway, "initialTakeaway");
+        concernText = requireText(concernText, "concernText");
+        likelyConcernType = blankToNull(likelyConcernType);
+        likelyRiskLane = blankToNull(likelyRiskLane);
 
-        requiredChecks = requiredChecks == null ? List.of() : List.copyOf(requiredChecks);
+        reviewChecks = reviewChecks == null ? List.of() : List.copyOf(reviewChecks);
         missingInformation = missingInformation == null ? List.of() : List.copyOf(missingInformation);
         escalationTriggersToRuleOut = escalationTriggersToRuleOut == null
                 ? List.of()
@@ -29,26 +41,44 @@ public record RagChecklistResult(
     }
 
     public record ChecklistItem(
-            String key,
-            String label,
+            @JsonProperty("check_name")
+            String checkName,
+
             boolean required,
-            String reason
+
+            String rationale,
+
+            List<EvidenceCitation> evidence
     ) {
         public ChecklistItem {
-            key = requireText(key, "key");
-            label = requireText(label, "label");
-            reason = requireText(reason, "reason");
+            checkName = requireText(checkName, "checkName");
+            rationale = requireText(rationale, "rationale");
+            evidence = evidence == null ? List.of() : List.copyOf(evidence);
         }
     }
 
     public record EvidenceCitation(
+            @JsonProperty("chunk_id")
             String chunkId,
+
+            @JsonProperty("source_id")
             String sourceId,
+
+            @JsonProperty("source_title")
             String sourceTitle,
+
+            @JsonProperty("source_type")
             String sourceType,
+
+            @JsonProperty("section_heading")
             String sectionHeading,
+
             Double score,
+
+            @JsonProperty("matched_terms")
             List<String> matchedTerms,
+
+            @JsonProperty("supporting_text")
             String supportingText
     ) {
         public EvidenceCitation {
@@ -66,6 +96,14 @@ public record RagChecklistResult(
     private static String requireText(String value, String fieldName) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(fieldName + " must not be blank");
+        }
+
+        return value;
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
         }
 
         return value;

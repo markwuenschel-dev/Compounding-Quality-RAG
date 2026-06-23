@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1.7
+
+FROM python:3.12.12-slim
+
+WORKDIR /workspace
+
+ENV UV_NO_DEV=1 \
+    PYTHONIOENCODING=utf-8 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+RUN python -m pip install --no-cache-dir uv
+
+COPY rag-engine-python/README.md rag-engine-python/pyproject.toml rag-engine-python/uv.lock ./
+
+RUN uv sync --locked --no-install-project
+
+COPY rag-engine-python/app/ app/
+COPY rag-engine-python/data/ data/
+
+RUN uv sync --locked
+
+EXPOSE 8000
+
+ENTRYPOINT ["/workspace/.venv/bin/python", "-m", "uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8000"]
