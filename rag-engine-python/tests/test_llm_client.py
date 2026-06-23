@@ -3,7 +3,9 @@ from __future__ import annotations
 import pytest
 
 from app.llm_client import (
+    DEFAULT_MAX_OUTPUT_TOKENS,
     DEFAULT_OPENAI_MODEL,
+    DEFAULT_REASONING_EFFORT,
     LLMClientError,
     OpenAIJsonClient,
     openai_json_client_from_env,
@@ -50,7 +52,22 @@ def test_complete_json_sends_prompt_to_responses_api() -> None:
         {
             "model": "gpt-5-nano",
             "input": "Return JSON",
+            "max_output_tokens": DEFAULT_MAX_OUTPUT_TOKENS,
+            "reasoning": {"effort": DEFAULT_REASONING_EFFORT},
         }
+    ]
+
+
+def test_complete_json_omits_optional_params_when_unset() -> None:
+    fake_client = FakeOpenAIClient()
+    client = FakeOpenAIJsonClient(fake_client=fake_client)
+    client.reasoning_effort = None
+    client.max_output_tokens = None
+
+    client.complete_json("Return JSON")
+
+    assert fake_client.responses.calls == [
+        {"model": "gpt-5-nano", "input": "Return JSON"}
     ]
 
 
