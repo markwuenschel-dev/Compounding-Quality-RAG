@@ -187,7 +187,7 @@ The output is intended to support pharmacist review, not replace it.
 
 ## API Runner Bridge Smoke Test
 
-The same checklist behavior can now be exercised through the Python process bridge that the future Spring Boot client will call.
+The same checklist behavior can also be exercised through the legacy `api_runner` stdin/stdout runner. Spring Boot itself now calls the engine over HTTP (`server.py`); this runner is retained for local/CLI use.
 
 ### Input
 

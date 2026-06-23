@@ -14,7 +14,7 @@
 
 A synthetic, local-first, human-in-the-loop review-support system for compounding-quality inquiries.
 
-> **Current status:** The Python review engine, Spring Boot API, and React/TypeScript review workflow are implemented end to end. Semantic-intent retrieval evaluation is complete for the current milestone. The next milestone is operational hardening through CI, containerization, structured logging, readiness verification, environment configuration, and an operations runbook.
+> **Current status:** The Python review engine, Spring Boot API, and React/TypeScript review workflow are implemented end to end and now run as containerized services that communicate over HTTP via Docker Compose. Semantic-intent retrieval evaluation is complete for the current milestone. Remaining operational hardening covers CI, structured logging, readiness smoke tests, an `.env.example`, and an operations runbook.
 
 ## Problem Statement
 
@@ -51,24 +51,24 @@ The public system does not access live systems. Any internal deployment would re
 | Layer | Primary responsibility |
 |---|---|
 | **React/TypeScript Review UI** | Provides the pharmacist-facing workflow for concern intake, checklist review, investigation-note entry, extracted findings, supporting evidence, unresolved questions, structured confirmation, and final-assessment presentation. |
-| **Spring Boot Review API** | Provides the service boundary for REST endpoints, request and response DTOs, validation, orchestration, readiness checks, timeout management, Python process integration, error translation, OpenAPI documentation, and future authentication and audit controls. |
-| **Python Review Engine** | Owns ingestion, chunking, retrieval, semantic-intent detection, LLM-assisted extraction, deterministic grounding, refusal behavior, checklist generation, final-assessment logic, and evaluation. |
+| **Spring Boot Review API** | Provides the service boundary for REST endpoints, request and response DTOs, validation, orchestration, readiness checks, timeout management, HTTP integration with the Python review engine, error translation, OpenAPI documentation, and future authentication and audit controls. |
+| **Python Review Engine (FastAPI)** | Standalone HTTP service that owns ingestion, chunking, retrieval, semantic-intent detection, LLM-assisted extraction, deterministic grounding, refusal behavior, checklist generation, final-assessment logic, and evaluation. |
 
 ```mermaid
 flowchart LR
     UI[React / TypeScript Review UI]
     API[Spring Boot Review API]
-    PY[Python Review Engine]
+    PY[Python Review Engine - FastAPI]
     IDX[Synthetic SOP Corpus and Chunk Index]
     EVAL[Development, Challenge, and Holdout Evaluations]
 
     UI -->|HTTP| API
-    API -->|JSON stdin/stdout subprocess| PY
+    API -->|HTTP / JSON| PY
     IDX --> PY
     EVAL --> PY
 ```
 
-Python remains the owner of working RAG and domain behavior. Spring Boot provides a stable application boundary around that logic rather than duplicating it in Java.
+Python remains the owner of working RAG and domain behavior. Spring Boot provides a stable application boundary around that logic over HTTP rather than duplicating it in Java, so each service starts, fails, and is health-checked independently.
 
 ## End-to-End Review Workflow
 
@@ -162,6 +162,18 @@ Additional findings:
 
 The frozen holdout is the current generalization baseline. Once future changes are designed using its failures, it should be treated as a regression benchmark rather than an untouched holdout.
 
+### Retriever comparison baselines
+
+Separate from query interpretation, the engine keeps three interchangeable retrievers behind a common `Retriever` protocol, compared on the synthetic evaluation set in `rag-engine-python/reports/retrieval_comparison.md`:
+
+| Retriever | Hit rate@5 | MRR | Notes |
+|---|---:|---:|---|
+| Keyword | 0.833 | 0.750 | Transparent, auditable baseline; the default checklist/retrieval path. |
+| Embedding | 0.917 | 0.812 | Local deterministic hashing-vector plumbing — not production semantic search. |
+| Hybrid | 0.833 | 0.750 | Normalized keyword (`0.65`) + vector (`0.35`) combination. |
+
+These baselines exist to measure retrieval tradeoffs with evidence before any claim that vector or hybrid retrieval is generally superior. No external embedding model or vector database is used yet.
+
 ## Repository Structure
 
 ```text
@@ -175,8 +187,8 @@ services/review-api/
   Spring Boot service boundary around the Python review engine.
   Provides health and readiness checks, checklist generation, retrieval,
   review-summary extraction, final assessment, request validation,
-  orchestration, Python subprocess integration, timeout handling,
-  and API error translation.
+  orchestration, HTTP integration with the Python engine, timeout handling,
+  and API error translation. Dockerfile.review-api builds a Temurin image.
 
 rag-engine-python/
   app/
@@ -203,6 +215,15 @@ rag-engine-python/
 
     retrieval_ablation.py
       Controlled query-strategy comparison and diagnostics.
+
+    retrieval_embedding.py
+      Local deterministic hashing-vector embedding retriever baseline.
+
+    retrieval_hybrid.py
+      Hybrid retriever combining normalized keyword and vector scores.
+
+    retrieval_compare.py
+      Side-by-side keyword/embedding/hybrid retriever comparison.
 
     holdout_evaluate.py
       Development, challenge, and frozen-holdout orchestration.
@@ -231,8 +252,12 @@ rag-engine-python/
     cli.py
       Local command-line demonstration workflow.
 
+    server.py
+      FastAPI HTTP service exposing the review engine to Spring Boot.
+
     api_runner.py
-      JSON stdin/stdout process bridge used by Spring Boot.
+      Legacy JSON stdin/stdout runner (superseded by server.py as the
+      Spring Boot bridge; retained for local/CLI use).
 
   data/
     corpus/
@@ -248,6 +273,9 @@ rag-engine-python/
     expected_outputs/
       Adjudicated structured outputs used for behavioral evaluation.
 
+  reports/
+    Generated retrieval comparison report (keyword/embedding/hybrid).
+
   docs/
     Architecture decisions, evaluation design, failure analysis,
     retrieval experiments, domain policy, and implementation guidance.
@@ -256,10 +284,35 @@ rag-engine-python/
     Pytest coverage for schemas, ingestion, retrieval, semantic intent,
     query construction, caching, evaluation, checklist generation,
     extraction, deterministic grounding, final assessment, refusal behavior,
-    reporting, CLI behavior, and the Spring-to-Python process contract.
+    reporting, CLI behavior, and the Spring-to-Python HTTP contract.
+
+infra/
+  docker-compose.yml
+    Builds and runs review-ui, review-api, and rag-engine with
+    health-gated startup over a shared Docker network. Each service has a
+    Dockerfile.<service> at its package root.
 ```
 
 ## Running the Project
+
+### Full stack with Docker Compose (recommended)
+
+Provide the engine's OpenAI key in `rag-engine-python/secrets.env` (gitignored):
+
+```text
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-5-nano
+```
+
+Then build and start all three services:
+
+```powershell
+docker compose -f infra/docker-compose.yml up --build
+```
+
+This brings up the Python engine, Spring Boot API, and React UI with
+health-gated startup. Open the UI at http://localhost:5173; it proxies `/api`,
+`/health`, and `/ready` to the API, which calls the engine over HTTP.
 
 ### Python review engine
 
@@ -280,6 +333,9 @@ cd services/review-api
 .\gradlew.bat test
 .\gradlew.bat bootRun
 ```
+
+For a local (non-Compose) run, point the API at a locally running engine with
+`PYTHON_ENGINE_BASE_URL` (defaults to `http://localhost:8000`).
 
 ### React/TypeScript UI
 
@@ -328,6 +384,8 @@ uv run python -m app.holdout_evaluate retrieval-ablation `
 $env:OPENAI_API_KEY="..."
 $env:OPENAI_MODEL="gpt-5-nano"
 ```
+
+Under Docker Compose the engine reads these from the gitignored `rag-engine-python/secrets.env` via `env_file`, so no key is baked into any image.
 
 The model proposes structured interpretation. Pydantic validation, deterministic grounding, deterministic workflow policy, and pharmacist confirmation remain authoritative downstream controls.
 
@@ -378,17 +436,17 @@ git diff --check: clean
 
 ## Next Engineering Milestone
 
-Retrieval experimentation is closed for the current product milestone.
+Retrieval experimentation is closed for the current product milestone. The
+Spring-to-Python boundary is now HTTP, and the React UI, Spring Boot API, and
+Python engine run as containers under Docker Compose with health-gated startup.
 
 Next:
 
 1. add GitHub Actions for Python, Spring Boot, React, and repository checks;
-2. add Docker Compose for the React UI and Spring/Python backend boundary;
-3. add structured logs with request IDs, operation names, duration, model, cache, fallback, and bounded error fields;
-4. add health and readiness smoke tests;
-5. add `.env.example`;
-6. add an operations runbook;
-7. verify the complete demo and refusal paths in containers.
+2. add structured logs with request IDs, operation names, duration, model, cache, fallback, and bounded error fields;
+3. add health and readiness smoke tests against the running containers;
+4. add `.env.example`;
+5. add an operations runbook.
 
 Further Nano optimization belongs in a later performance milestone.
 
