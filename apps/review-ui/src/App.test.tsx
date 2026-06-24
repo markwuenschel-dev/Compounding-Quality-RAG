@@ -16,10 +16,12 @@ import {
   createChecklist,
   createFinalAssessment,
   extractReviewSummary,
+  retrieveEvidence,
 } from "./api/reviewApi";
 import type {
   ChecklistResponse,
   FinalAssessmentResponse,
+  RetrieveResponse,
   ReviewSummaryExtractResponse,
 } from "./api/types";
 import { FinalAssessmentPanel } from "./components/FinalAssessmentPanel";
@@ -33,6 +35,7 @@ vi.mock("./api/reviewApi", async (importOriginal) => {
   return {
     ...actual,
     createChecklist: vi.fn(),
+    retrieveEvidence: vi.fn(),
     extractReviewSummary: vi.fn(),
     createFinalAssessment: vi.fn(),
   };
@@ -54,6 +57,8 @@ vi.mock("./hooks/useBackendReadiness", () => ({
 
 const createChecklistMock =
   vi.mocked(createChecklist);
+const retrieveEvidenceMock =
+  vi.mocked(retrieveEvidence);
 const extractReviewSummaryMock =
   vi.mocked(extractReviewSummary);
 const createFinalAssessmentMock =
@@ -62,8 +67,12 @@ const createFinalAssessmentMock =
 describe("App", () => {
   beforeEach(() => {
     createChecklistMock.mockReset();
+    retrieveEvidenceMock.mockReset();
     extractReviewSummaryMock.mockReset();
     createFinalAssessmentMock.mockReset();
+    retrieveEvidenceMock.mockResolvedValue(
+      buildRetrieveResponse(),
+    );
   });
 
   it("renders the initial checklist workflow", () => {
@@ -268,6 +277,14 @@ function buildChecklistResponse(): ChecklistResponse {
     escalationTriggersToRuleOut: [],
     evidence: [],
     limitations: [],
+  };
+}
+
+function buildRetrieveResponse(): RetrieveResponse {
+  return {
+    queryText: "Dog vomited once.",
+    topK: 3,
+    evidence: [],
   };
 }
 

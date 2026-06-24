@@ -2,30 +2,32 @@ import type {
   ReviewSummaryExtractResponse,
   ReviewSummaryFieldEvidence,
 } from "../api/types";
+import { formatClassifier } from "../utils/classifierLabels";
+import { CollapsibleCard } from "./shared/CollapsibleCard";
 
 type ExtractedFindingsPanelProps = {
   extraction: ReviewSummaryExtractResponse;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 };
 
 export function ExtractedFindingsPanel({
   extraction,
+  collapsed,
+  onToggleCollapsed,
 }: ExtractedFindingsPanelProps) {
-  return (
-    <section
-      className="card workflow-card"
-      aria-label="Extracted reviewer findings"
-    >
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Extraction review</p>
-          <h2>Extracted findings</h2>
-          <p>
-            Review the supporting note text, then confirm or
-            correct the structured values below.
-          </p>
-        </div>
-      </div>
+  const summary = `${extraction.fieldEvidence.length} fields · ${extraction.unresolvedQuestions.length} questions`;
 
+  return (
+    <CollapsibleCard
+      ariaLabel="Extracted reviewer findings"
+      eyebrow="Extraction review"
+      title="Extracted findings"
+      description="Review the supporting note text, then confirm or correct the structured values below."
+      summary={summary}
+      collapsed={collapsed}
+      onToggleCollapsed={onToggleCollapsed}
+    >
       <div className="extraction-evidence-grid">
         {extraction.fieldEvidence.map((evidence) => (
           <EvidenceCard
@@ -53,7 +55,7 @@ export function ExtractedFindingsPanel({
                   <small>
                     Could affect:{" "}
                     {question.decisionImpact
-                      .map(humanize)
+                      .map((value) => formatClassifier(value) ?? value)
                       .join(", ")}
                   </small>
                 ) : null}
@@ -68,7 +70,7 @@ export function ExtractedFindingsPanel({
           the uncertainty in the editable findings.
         </p>
       </div>
-    </section>
+    </CollapsibleCard>
   );
 }
 
@@ -80,11 +82,11 @@ function EvidenceCard({
   return (
     <article className="extraction-evidence-card">
       <div className="evidence-card-heading">
-        <strong>{humanize(evidence.fieldName)}</strong>
+        <strong>{formatClassifier(evidence.fieldName)}</strong>
         <span
           className={`evidence-status evidence-status-${evidence.status}`}
         >
-          {humanize(evidence.status)}
+          {formatClassifier(evidence.status)}
         </span>
       </div>
 
@@ -101,10 +103,4 @@ function EvidenceCard({
       ) : null}
     </article>
   );
-}
-
-function humanize(value: string): string {
-  return value
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }

@@ -20,14 +20,20 @@
 }
 
 .demo-toolbar-controls {
-  display: grid;
-  grid-template-columns: minmax(190px, 1fr) auto auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.65rem;
   align-items: end;
 }
 
+.demo-toolbar-field {
+  display: grid;
+  gap: 0.35rem;
+  flex: 1 1 190px;
+  min-width: 0;
+}
+
 .demo-toolbar-controls label {
-  grid-column: 1 / -1;
   color: #344054;
   font-size: 0.82rem;
   font-weight: 800;
@@ -101,19 +107,11 @@
     grid-template-columns: 1fr;
     align-items: stretch;
   }
-
-  .demo-toolbar-controls {
-    grid-template-columns: minmax(0, 1fr) auto auto;
-  }
 }
 
 @media (max-width: 640px) {
-  .demo-toolbar-controls {
-    grid-template-columns: 1fr;
-  }
-
-  .demo-toolbar-controls label {
-    grid-column: auto;
+  .demo-toolbar-field {
+    flex-basis: 100%;
   }
 
   .demo-toolbar-controls button {
