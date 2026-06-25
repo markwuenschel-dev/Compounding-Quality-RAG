@@ -20,12 +20,13 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.compoundingquality.reviewapi.application.ChecklistService;
+import com.compoundingquality.reviewapi.config.RequestCorrelationFilter;
 import com.compoundingquality.reviewapi.dto.ChecklistRequest;
 import com.compoundingquality.reviewapi.dto.ChecklistResponse;
 import com.compoundingquality.reviewapi.error.GlobalExceptionHandler;
 
 @WebMvcTest(ChecklistController.class)
-@Import(GlobalExceptionHandler.class)
+@Import({GlobalExceptionHandler.class, RequestCorrelationFilter.class})
 public class ChecklistControllerTest {
         @Autowired
         private MockMvc mockMvc;

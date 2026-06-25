@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import Field
 
 from app.checklist import build_intake_checklist
@@ -23,6 +24,11 @@ from app.schemas import (
 )
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+    logger.addHandler(stderr_handler)
 
 DEFAULT_CHUNKS_PATH = Path(
     os.getenv("RAG_CHUNKS_PATH", str(CANONICAL_CHUNKS_PATH))
@@ -33,6 +39,33 @@ app = FastAPI(
     title="Compounding Quality RAG Engine",
     version="0.1.0",
 )
+
+
+@app.middleware("http")
+async def log_request_correlation(request: Request, call_next):
+    request_id = request.headers.get("X-Request-Id", "")
+
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception(
+            "request_id=%s method=%s path=%s status_code=error",
+            request_id,
+            request.method,
+            request.url.path,
+        )
+        raise
+
+    response.headers["X-Request-Id"] = request_id
+    logger.info(
+        "request_id=%s method=%s path=%s status_code=%s",
+        request_id,
+        request.method,
+        request.url.path,
+        response.status_code,
+    )
+
+    return response
 
 
 class HealthResponse(StrictBaseModel):

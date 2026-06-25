@@ -1,5 +1,6 @@
 package com.compoundingquality.reviewapi.error;
 
+import com.compoundingquality.reviewapi.config.RequestCorrelationFilter;
 import com.compoundingquality.reviewapi.rag.RagEngineException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -204,7 +205,14 @@ public class GlobalExceptionHandler {
     }
 
     private String requestId(HttpServletRequest request) {
-        String requestId = request.getHeader("X-Request-Id");
+        Object requestIdAttribute =
+                request.getAttribute(RequestCorrelationFilter.REQUEST_ID_ATTRIBUTE);
+        if (requestIdAttribute instanceof String requestId
+                && !requestId.isBlank()) {
+            return requestId;
+        }
+
+        String requestId = request.getHeader(RequestCorrelationFilter.REQUEST_ID_HEADER);
 
         return requestId == null || requestId.isBlank()
                 ? UUID.randomUUID().toString()

@@ -1,5 +1,6 @@
 package com.compoundingquality.reviewapi.rag;
 
+import com.compoundingquality.reviewapi.config.RequestCorrelationFilter;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
@@ -11,6 +12,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Objects;
+import org.slf4j.MDC;
 import org.springframework.web.client.RestClient;
 
 public final class HttpRagEngineClient implements RagEngineClient {
@@ -111,7 +113,7 @@ public final class HttpRagEngineClient implements RagEngineClient {
         String requestJson = encodeRequest(requestBody, errorCode);
         URI uri = baseUrl.resolve(path);
 
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(uri)
                 .version(HttpClient.Version.HTTP_1_1)
                 .timeout(REQUEST_TIMEOUT)
@@ -119,8 +121,14 @@ public final class HttpRagEngineClient implements RagEngineClient {
                 .header("Accept", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofByteArray(
                         requestJson.getBytes(java.nio.charset.StandardCharsets.UTF_8)
-                ))
-                .build();
+                ));
+
+        String requestId = MDC.get(RequestCorrelationFilter.REQUEST_ID_MDC_KEY);
+        if (requestId != null && !requestId.isBlank()) {
+            requestBuilder.header(RequestCorrelationFilter.REQUEST_ID_HEADER, requestId);
+        }
+
+        HttpRequest request = requestBuilder.build();
 
         HttpResponse<String> response;
 

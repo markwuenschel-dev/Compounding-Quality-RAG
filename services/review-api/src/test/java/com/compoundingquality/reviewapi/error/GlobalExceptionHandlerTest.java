@@ -1,5 +1,6 @@
 package com.compoundingquality.reviewapi.error;
 
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.compoundingquality.reviewapi.application.ChecklistService;
+import com.compoundingquality.reviewapi.config.RequestCorrelationFilter;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -29,6 +31,7 @@ import jakarta.validation.constraints.NotBlank;
 @WebMvcTest(controllers = GlobalExceptionHandlerTest.TestController.class)
 @Import({
         GlobalExceptionHandler.class,
+        RequestCorrelationFilter.class,
         GlobalExceptionHandlerTest.TestController.class
 })
 class GlobalExceptionHandlerTest {
@@ -53,7 +56,9 @@ class GlobalExceptionHandlerTest {
         .andExpect(jsonPath("$.error").value("Bad Request"))
         .andExpect(jsonPath("$.message").value("Validation failed"))
         .andExpect(jsonPath("$.path").value("/test/validate"))
-        .andExpect(jsonPath("$.requestId").isNotEmpty())
+        .andExpect(jsonPath("$.requestId").value(matchesPattern(
+                "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+        )))
         .andExpect(jsonPath("$.fieldErrors").isArray())
         .andExpect(jsonPath("$.fieldErrors[0].field").value("concernText"))
         .andExpect(jsonPath("$.fieldErrors[0].message").value("concernText is required"));
