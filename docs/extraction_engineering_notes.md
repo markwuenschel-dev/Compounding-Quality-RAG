@@ -1,88 +1,67 @@
 # Review-Summary Extraction Engineering Notes
 
-## What problem this layer solves
+Updated: 2026-06-25
 
-The user supplies two different kinds of text:
+## What this layer solves
 
-- the original concern, which may contain messy customer language, abbreviations, product strengths, package quantities, symptoms, and reported escalation facts;
-- the investigation note, which describes what the pharmacist or reviewer checked and what remains unresolved.
+The user supplies:
 
-The system must turn those narratives into a controlled `ReviewSummary` without inventing record access, missing negation, or confusing an omitted check with a completed check.
+- original concern text with messy customer language, product strengths, package quantities, symptoms, severe facts, and possible unsupported record-access requests;
+- reviewer/investigation notes describing what was checked and what remains unresolved.
 
-This is not a pure summarization task. It is constrained information extraction plus workflow policy.
+The system must turn those narratives into a controlled `ReviewSummary` without inventing record access, missing negation, treating strength as dose, or confusing omitted checks with completed checks.
 
-## Final extraction architecture
+This is constrained information extraction plus workflow policy, not pure summarization.
+
+## Current architecture
 
 ```text
-complaint + investigation
-          |
-          v
-LLM candidate extraction
-          |
-          v
-Pydantic schema validation
-          |
-          v
-deterministic grounding
-          |
-          v
-review-scope defaults
-          |
-          v
-unresolved-question generation
-          |
-          v
-field evidence + evaluation
+complaint + reviewer note
+-> LLM candidate extraction
+-> Pydantic schema validation
+-> deterministic grounding
+-> review-scope defaults
+-> unresolved-question generation
+-> field evidence + evaluation
 ```
 
-### 1. LLM candidate extraction
+## Why hybrid instead of LLM-only
 
-The LLM handles flexible language and produces a candidate object with controlled fields:
+The LLM handles language variation. Deterministic code handles high-impact workflow semantics:
 
-- record-review result
-- lot/batch pattern
-- inventory result
-- reference-review result
-- missing information
-- evidence limitations
-- severe triggers
+- negation;
+- same-lot patterns;
+- worksheet/record review aliases;
+- completed vs needed references;
+- non-disclosure boundaries;
+- missing investigation steps;
+- device-failure context;
+- administered-dose context;
+- severe triggers.
 
-The LLM is treated as an extraction dependency, not the final decision-maker.
+Interview phrase:
 
-### 2. Pydantic validation
+> I used the LLM for semantic normalization, then constrained it with typed validation and deterministic domain policy so high-impact workflow fields did not depend on prompt behavior alone.
+
+## Important mechanisms
+
+### Pydantic validation
 
 Pydantic rejects malformed enum values, missing fields, and structurally invalid output before downstream workflow logic can use it.
 
-This converts an unreliable text-generation interface into a typed application boundary.
-
-### 3. Deterministic grounding
-
-Rules correct facts that are too important to leave to probabilistic behavior.
+### Deterministic grounding
 
 Examples:
 
-- `No external reference needed` must not match `external reference needed`.
+- `No external reference needed` must not become `external_reference_needed`.
 - `One additional quality complaint was identified for the lot` maps to `similar_concern_same_batch_found`.
-- `No additional quality complaints were identified` maps to `no_similar_batch_concerns_found`.
 - `Worksheet review found no discrepancy` is an explicit record-review result.
 - `Confirm`, `Clarify`, and `Determine whether` introduce unresolved information.
-- A complaint-reported hospitalization is proposed as `pet_hospitalization` for reviewer confirmation.
-- Supplier/manufacturer non-disclosure maps to `not_supported_by_public_corpus`.
+- Supplier/manufacturer/proprietary non-disclosure maps to `not_supported_by_public_corpus`.
+- Product strength/package size is not administered dose without administration context.
+- Device terms require actual device-failure context.
 
-### 4. Review-scope defaults
-
-Silence has different meaning depending on the case.
-
-For a guidance-only question, record review may genuinely be irrelevant. For an adverse event or product-quality investigation, an absent result usually means the required check was not documented.
-
-The policy therefore infers either:
-
-```text
-guidance_only
-full_investigation
-```
-
-Then it applies conservative defaults.
+### Scope defaults
 
 | Field | Guidance only | Full investigation |
 |---|---|---|
@@ -91,142 +70,78 @@ Then it applies conservative defaults.
 | Inventory result absent | `not_applicable` | `not_checked` |
 | Reference result absent | `not_needed` | `not_needed` |
 
-This prevents the LLM from inventing completed work.
+## Lessons from repairs
 
-### 5. Unresolved-question generation
+### Negation precedence
 
-Unresolved questions are generated separately from the scalar summary. This keeps two concepts distinct:
+Positive phrase matching inside negated phrases created false labels.
 
-- what the investigation currently says;
-- what still needs to be confirmed before disposition.
+**Lesson:** specific negation rules must run before broad positive patterns.
 
-The generator uses bounded, context-specific matching. For example, the word `clicks` in a dosing instruction does not create a device-failure question unless failure language is also present.
+### Coordinated negation
 
-### 6. Field evidence
+`No hospitalization, death, legal threat, contamination, wrong medication concern, or veterinarian allegation was reported` requires list-level negation.
 
-The system attaches supporting text to extracted fields. Reviewer-note evidence is preferred. Complaint evidence may support reported severe triggers that require confirmation.
+**Lesson:** escalation extraction cannot rely on a short local window only.
 
-This makes the output more auditable than a summary with no traceable source.
+### Device and dose context
 
-## Why the system is hybrid instead of LLM-only
+`pen` can appear inside `suspension`, and `clicks` can be dose instruction rather than failure.
 
-An LLM is useful for messy natural language, but safety-relevant workflow facts need deterministic guarantees.
+**Lesson:** use word boundaries and require failure/administration context.
 
-The hybrid design gives:
+### Presence versus value
 
-- flexibility for real-world phrasing;
-- strict controlled outputs;
-- explicit negation handling;
-- conservative defaults;
-- repeatable evaluation;
-- human confirmation of high-impact fields.
+Detecting that lot information exists is not the same as normalizing it to a controlled lot-pattern value.
 
-A useful interview phrase is:
-
-> I used the LLM for semantic normalization, then constrained it with typed validation and deterministic domain policy so high-impact workflow fields did not depend on prompt behavior alone.
-
-## What the Python patch and repair scripts were doing
-
-The scripts were one-time repository codemods, similar to small source migrations.
-
-Each script generally:
-
-1. located an exact known code block;
-2. refused to continue if the expected block was absent or appeared multiple times;
-3. replaced the block with the new implementation;
-4. compiled the changed Python files;
-5. added or updated regression tests;
-6. printed success only after structural verification.
-
-This was useful because the assistant could not directly edit the local repository. The script expressed a reproducible transformation instead of asking for manual line edits.
-
-### What went wrong with the first scripts
-
-Some packages copied fixtures and tests but left runtime edits behind an application step. That created a state where new tests existed before the implementation had changed.
-
-The repair sequence exposed several engineering lessons:
-
-- application and verification must be atomic;
-- a patch should fail closed when the repository shape is unexpected;
-- complete file replacement is cleaner when only a few files change;
-- repeated small repair scripts create unnecessary migration complexity;
-- regression tests should accompany the exact failure mechanism.
-
-The later fixes used complete replacement files for small, isolated changes.
-
-## Important failures and what they taught
-
-### Positive phrase matched inside a negated phrase
-
-`No external reference needed` was classified as `external_reference_needed`.
-
-**Lesson:** rule precedence matters. Specific negation rules must run before broad positive patterns.
-
-### Device question generated from unrelated text
-
-`pen` could match inside `suspension`, and `clicks` in a dose instruction could look like a device failure.
-
-**Lesson:** use word boundaries and require failure context, not keyword presence alone.
-
-### Strength or package size mistaken for administered dose
-
-Values such as `15 mg/mL` and `30 mL` are not the administered dose.
-
-**Lesson:** entity type depends on context. Dose detection needs administration verbs or per-dose phrasing.
-
-### Explicit record review overwritten as incomplete
-
-`Worksheet review found no discrepancy` was not recognized by the policy matcher.
-
-**Lesson:** domain language has aliases. Add representative regression cases rather than making a generic regex broader without evidence.
-
-### Explicit lot pattern left as unavailable
-
-The policy knew a lot result was mentioned but did not normalize its meaning.
-
-**Lesson:** presence detection and value extraction are separate problems.
+**Lesson:** presence detection and value extraction need separate tests.
 
 ## Evaluation method
 
-The 40 selected paired cases were split into:
+The selected paired cases were split into:
 
-- 20 development cases used for error analysis and tuning;
-- 20 holdout cases reserved for later unbiased evaluation.
+- 20 development cases for error analysis and tuning;
+- 20 holdout cases reserved for unbiased evaluation.
 
-The development extraction benchmark progressed from low scalar consistency and weak missing-information recall to:
+Development extraction reached:
 
-- scalar accuracy: `1.0`
-- missing-information precision/recall: `1.0 / 1.0`
-- severe-trigger precision/recall: `1.0 / 1.0`
-- unresolved-question precision/recall: `1.0 / 1.0`
+- scalar accuracy: `1.0`;
+- missing-information precision/recall: `1.0 / 1.0`;
+- severe-trigger precision/recall: `1.0 / 1.0`;
+- unresolved-question precision/recall: `1.0 / 1.0`.
 
-This means the development cases now match the adjudicated expected outputs. It does not prove production accuracy or holdout generalization.
+This is a development result, not production accuracy.
 
-## How to explain this in an interview
+## Current relationship to retrieval
 
-### Thirty-second version
+Extraction and retrieval are measured separately.
 
-> I built a hybrid review-summary extraction layer for messy pharmacy-quality narratives. An LLM proposes a typed summary, Pydantic validates it, and deterministic policy handles negation, missing checks, reference-review states, lot patterns, device context, and severe triggers. I created paired development and holdout cases, used failure analysis to isolate mechanisms rather than prompt-tune blindly, and brought the 20-case development extraction benchmark to 100% across scalar fields, missing information, severe triggers, and unresolved questions.
+Retrieval-intent ablation later established Nano semantic intent as the strongest measured frozen-holdout query-interpretation path, with rule intent as deterministic fallback and keyword retrieval as the unchanged retriever after vocabulary mapping.
 
-### Ninety-second version
+Retrieval experimentation is closed for the current product milestone. Further Nano latency/cost/cache optimization belongs in a later performance milestone.
 
-> The hard part was not calling an LLM. It was making the output trustworthy enough for workflow support. Customer complaints and investigation notes contain messy abbreviations, negation, product strengths, package quantities, and incomplete review steps. I separated semantic extraction from policy. The LLM normalizes the narrative into a candidate `ReviewSummary`; Pydantic enforces the contract; then deterministic grounding handles high-impact cases like `no external reference needed`, same-lot complaints, complaint-reported hospitalization, and supplier non-disclosure. I added a scope policy so silence means `not_applicable` for guidance-only work but `documentation_incomplete`, `unavailable`, or `not_checked` for a full investigation. I evaluated against adjudicated paired cases, fixed mechanisms one at a time, and added regression tests for each failure. The development extraction set now passes 20 out of 20, while the holdout remains untouched. Retrieval is still weaker, which is useful because it shows I am measuring components separately instead of presenting one blended accuracy number.
+## Current product emphasis
+
+- GitHub Actions;
+- container health/readiness smoke tests;
+- `.env.example`;
+- runbook maintenance;
+- structured operation logs beyond request correlation.
 
 ## Honest limitations
 
-- The benchmark is small.
-- The perfect result is on the development set.
+- Benchmark is small.
+- Perfect extraction performance is development-set only.
 - Canonicalized investigations are cleaner than unrestricted production notes.
-- The holdout has not yet been used as the final estimate.
-- Retrieval remains below the extraction layer.
-- The project does not access real records or licensed references.
-- Regex-based policy requires regression coverage and careful change control.
+- Regex-based policy needs regression coverage.
+- Public project does not access real records, internal systems, proprietary SOPs, or licensed references.
+- Tool supports human review; it does not make final clinical/legal/quality/customer-resolution decisions.
 
-## Next technical work
+## When to reopen extraction work
 
-1. Correct retrieval expectations that conflict with confirmed workflow policy.
-2. Add adverse-event query expansion and reranking.
-3. Improve ingredient-list and supplier-disclosure retrieval.
-4. Change SOP text only when the policy is actually absent.
-5. Rerun development retrieval.
-6. Freeze and run the holdout after development behavior stabilizes.
+Reopen this layer when:
+
+- holdout/regression cases expose a concrete extraction failure;
+- schema changes;
+- reviewer UI requires new evidence or unresolved-question fields;
+- larger corpus introduces new language patterns.
