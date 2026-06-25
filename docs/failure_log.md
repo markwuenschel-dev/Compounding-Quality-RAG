@@ -1,13 +1,25 @@
 # Failure Log
 
-This log captures implementation failures found while building the synthetic Compounding Quality RAG proof of concept. Each entry records what failed, why it mattered, how it was fixed, and what should prevent the same issue from returning.
+Updated: 2026-06-25
+
+This log captures implementation failures found while building the synthetic Compounding Quality Review Workbench.
+
+Each entry uses:
+
+- **Symptom**
+- **Root cause**
+- **Fix**
+- **Prevention**
 
 ## Current status
 
-- The development review-summary extraction benchmark passes all 20 adjudicated cases.
-- Retrieval development performance remains the current quality bottleneck.
-- The project now has schemas, expected outputs, synthetic SOP corpus, ingestion, retrieval, retrieval evaluation, a stubbed pipeline, structured evaluation, checklist generation, final assessment generation, reporting, a two-phase CLI workflow, and OpenAI-backed review-summary extraction.
-- The current demo boundary remains synthetic only: no real customer data, patient data, pharmacy records, inventory, customer history, or external drug references.
+- Public boundary remains synthetic only.
+- React, Spring Boot, and Python now run as separate Docker Compose services.
+- Spring calls Python FastAPI over HTTP through `HttpRagEngineClient`.
+- Request correlation propagates through `X-Request-Id` across Spring and Python logs.
+- Development review-summary extraction passes all 20 adjudicated development cases.
+- Retrieval experimentation is closed for the current product milestone: Nano semantic intent is strongest measured frozen-holdout path; rule intent remains fallback.
+- Current product focus is operational hardening: CI, container smoke tests, `.env.example`, runbook maintenance, and structured operation logs beyond request correlation.
 
 ## Failures
 
@@ -15,195 +27,179 @@ This log captures implementation failures found while building the synthetic Com
 
 **Symptom:** Tests failed during import because `test_models.py` still referenced an old module name.
 
-**Root cause:** Model/schema files were renamed or reorganized, but the test import was not updated with the code structure.
+**Root cause:** Model/schema files were renamed or reorganized, but the test import was not updated.
 
-**Fix:** Updated the stale test import to reference the current schema/model modules.
+**Fix:** Updated the stale import.
 
-**Prevention:** Keep schema import tests focused on the current public model surface. When files are renamed, update imports and run the full test suite immediately.
+**Prevention:** Run the full test suite immediately after renames.
 
 ---
 
 ### 2. Pipeline hardcoded `top_k=5`
 
-**Symptom:** Retrieval behavior could not be controlled from tests or higher-level pipeline calls.
+**Symptom:** Retrieval count could not be controlled from tests or callers.
 
-**Root cause:** The pipeline used a fixed retrieval count instead of passing a configurable `top_k` argument through to retrieval.
+**Root cause:** Pipeline used a fixed retrieval count.
 
-**Fix:** Exposed `top_k` as a parameter and passed it into retrieval.
+**Fix:** Exposed `top_k` and passed it into retrieval.
 
-**Prevention:** Add or preserve tests proving that caller-supplied retrieval settings affect the number of evidence chunks returned.
+**Prevention:** Keep tests proving caller-supplied retrieval settings affect returned evidence count.
 
 ---
 
 ### 3. `FileNotFoundError` message mismatch
 
-**Symptom:** A test failed even though the expected exception type was raised.
+**Symptom:** Test failed even though the expected exception type was raised.
 
-**Root cause:** The test expected an exact error-message string, but the implementation returned different wording.
+**Root cause:** Test asserted exact wording instead of stable contract.
 
-**Fix:** Aligned the message expectation with the implementation, or adjusted the assertion to check the stable, meaningful part of the message instead of the entire sentence.
+**Fix:** Aligned the expectation or asserted a stable substring.
 
-**Prevention:** For error-message tests, prefer checking useful substrings unless exact wording is part of the user-facing contract.
+**Prevention:** Do not assert entire error sentences unless wording is part of the user-facing contract.
 
 ---
 
 ### 4. Retrieval tests expected stale SOP IDs
 
-**Symptom:** Retrieval evaluation failed because expected SOP IDs no longer matched the synthetic corpus.
+**Symptom:** Retrieval evaluation failed because expected source IDs no longer matched the corpus.
 
-**Root cause:** SOP fixtures or generated IDs changed, but retrieval test expectations still referenced older IDs.
+**Root cause:** SOP fixtures changed but expectations were stale.
 
-**Fix:** Updated expected retrieval outputs to match the current synthetic SOP corpus.
+**Fix:** Updated expected outputs to match current synthetic corpus.
 
-**Prevention:** Keep canonical retrieval expectations near the corpus fixtures, and update them whenever source IDs or source titles change.
-
----
-
-### 5. `no hospitalization` triggered escalation due to naive keyword matching
-
-**Symptom:** A review summary saying the pet had `no hospitalization` still triggered the life-threatening/legal risk lane.
-
-**Root cause:** The risk classifier matched severe keywords like `hospitalization` without understanding negation.
-
-**Fix:** Added/updated logic and tests so routine vomiting cases without actual severe triggers route to follow-up rather than automatic escalation.
-
-**Prevention:** Add explicit negated-trigger test cases for hospitalization, death, legal threat, contamination, veterinarian allegation, wrong medication, and wrong patient language. Longer term, prefer structured reviewer findings over free-text keyword matching for escalation-critical facts.
+**Prevention:** Treat retrieval expectations as contract fixtures and update intentionally with corpus changes.
 
 ---
 
-### 6. `TypedDict` fixtures needed explicit `list[RetrievalQuestionResult]`
+### 5. `no hospitalization` triggered escalation
 
-**Symptom:** Type checks or tests failed because fixture lists of dictionaries were inferred too loosely.
+**Symptom:** A note saying `no hospitalization` triggered severe escalation.
 
-**Root cause:** `TypedDict` list inference did not preserve the expected structured type without an explicit annotation.
+**Root cause:** Risk classifier matched severe keywords without negation.
 
-**Fix:** Added explicit `list[RetrievalQuestionResult]` annotations to the fixtures.
+**Fix:** Added logic/tests so negated severe terms do not escalate.
 
-**Prevention:** Type structured fixtures at declaration time, especially when they contain nested dictionaries or TypedDict values.
-
-### 7. Refusal matching failed because exact-match logic was used instead of substring detection
-
-**Symptom:** External-reference, internal-record, and clinical/legal refusal tests failed because unsupported questions were not refused.
-
-**Root cause:** The matching helper compared each term to the entire input string instead of checking whether the term appeared inside the input.
-
-**Fix:** Changed matching logic to detect terms contained within the normalized concern text and restored correct refusal reasons/messages.
-
-**Prevention:** Keep refusal tests for external references, internal record access, and clinical/legal conclusions. Avoid compact matching helpers unless their behavior is covered by tests.
-
-### 8. Severe escalation routing originally depended on free-text keyword scanning
-
-**Symptom:** Negated reviewer statements like “no hospitalization” or “no wrong medication concern” could be misread as positive severe triggers.
-
-**Root cause:** Final risk-lane logic scanned free-text reviewer summaries for severe terms instead of using structured reviewer findings.
-
-**Fix:** Added `severe_triggers_observed` to `ReviewSummary` and updated final assessment logic to escalate only when a structured severe trigger is supplied.
-
-**Prevention:** Keep tests proving that negated severe-trigger language does not escalate, while explicit structured triggers still do.
-
-## Follow-up lessons
-
-- Tests are most valuable when they protect workflow behavior, not incidental implementation wording.
-- Retrieval expectations should be treated as contract fixtures and updated intentionally with corpus changes.
-- Safety-critical routing should avoid bare substring matching when negation is likely.
-- Demo quality now depends more on the printed report than on additional architecture.
-- The project should keep repeating the synthetic-data boundary in CLI output, reports, and demo scripts.
+**Prevention:** Keep explicit negated-trigger tests for hospitalization, death, legal threat, contamination, veterinarian allegation, wrong medication, and wrong patient.
 
 ---
 
-### 9. Coordinated negation scope caused false severe-trigger extraction
+### 6. `TypedDict` fixtures needed explicit list annotations
 
-**Symptom:** Review-summary extraction could incorrectly preserve or infer `wrong_patient_or_wrong_medication` when a reviewer note used a negated list such as “No hospitalization, death, legal threat, contamination, wrong medication concern, or veterinarian allegation was reported.”
+**Symptom:** Type checks failed because fixture lists were inferred too loosely.
 
-**Root cause:** The severe-trigger grounding logic checked only a short local prefix near the trigger term. In a coordinated list, the negation word appeared earlier in the sentence and fell outside that local window. A wrong-medication special case then made the false positive easier to preserve.
+**Root cause:** `TypedDict` inference did not preserve nested structure.
 
-**Fix:** Expanded negation handling to recognize coordinated negation scope across severe-trigger lists, including patterns such as “No A, B, C, or D was reported” and “Reviewer has not confirmed A, B, C, or D.” Added an overcorrection test to confirm that a later affirmative sentence such as “Reviewer confirmed possible wrong medication” still creates the structured severe trigger.
+**Fix:** Added explicit `list[RetrievalQuestionResult]` annotations.
 
-**Prevention:** Keep explicit tests for negated severe-trigger lists and separate tests for confirmed severe triggers after unrelated negated triggers. Escalation-critical extraction should prefer structured, affirmative findings over bare keyword presence.
+**Prevention:** Type structured fixtures at declaration time.
 
 ---
 
-### 10. Retrieval misses for blank review and temperature-excursion boundary
+### 7. Refusal matching used exact-match logic
 
-**Symptom:** Retrieval evaluation returned `hit_rate@5 = 0.833` and `MRR = 0.750`, with misses on `RET-007` and `RET-009`.
+**Symptom:** Unsupported real-record/external-reference/clinical-legal questions were not refused.
 
-**RET-007 query:** `two star customer review with no review text should be documented`
+**Root cause:** Helper compared each term to the entire input string instead of checking containment.
 
-**RET-007 expected source:** `SOP-006`
+**Fix:** Changed matching to detect terms inside normalized concern text.
 
-**RET-007 root cause:** `SOP-006` contained the general concept that low-star reviews with no text do not automatically require outreach, but it did not contain enough explicit wording for one-star, two-star, three-star-with-no-text, document-only, or no-Technical-Services-outreach cases. Keyword retrieval therefore lacked direct lexical hooks.
+**Prevention:** Keep refusal tests for external references, internal record access, and clinical/legal conclusions.
 
-**RET-007 fix:** Added explicit `SOP-006` language for low-star reviews with no review text. The updated SOP states that one-star and two-star reviews, and three-star reviews with no review text, may be documented without Technical Services outreach when no quality concern, safety concern, suspected ADE, product defect, dispensing error, contamination, or escalation trigger is identified.
+---
 
-**RET-009 query:** `temperature excursion outside limited guidance window unsupported product specific stability`
+### 8. Severe routing depended on free-text scanning
 
-**RET-009 expected source:** `SOP-005` for unsupported product-specific stability. `SOP-006` may also be expected only when the query or test is explicitly checking frontline guidance, document-only handling, or no Technical Services outreach.
+**Symptom:** Negated severe phrases could be treated as positive severe triggers.
 
-**RET-009 root cause:** Temperature-excursion guidance was under-specified in the corpus. The intended rule was that the synthetic corpus supports only a limited 72-hour room-temperature excursion; product-specific stability outside that limited window is unsupported and should not be inferred.
+**Root cause:** Final risk-lane logic scanned free text instead of structured findings.
 
-**RET-009 fix:** Added explicit `SOP-005` language for the temperature-excursion boundary. The updated SOP states that the assistant must not infer product-specific stability outside the limited 72-hour room-temperature window or differentiate by dosage form, storage condition, refrigeration requirement, formulation, medication, API, or product-specific stability profile unless supported synthetic source text is present. Added `SOP-006` language for document-only and frontline guidance handling when Technical Services outreach is not supported.
+**Fix:** Added `severe_triggers_observed` and routed severe escalation from that structured field.
 
-**Prevention:** Retrieval eval questions should only expect sources that actually contain the supporting policy concept. When a query combines unsupported-evidence boundaries with routing behavior, either split the query or include all expected source concepts in the query text. Fix corpus/source-truth gaps before using embeddings to compensate for poor source coverage.
+**Prevention:** Keep tests for negated severe language and explicit structured triggers.
+
+---
+
+### 9. Coordinated negation scope caused false severe extraction
+
+**Symptom:** A negated list like `No hospitalization, death, legal threat, contamination, wrong medication concern, or veterinarian allegation was reported` could still create a severe trigger.
+
+**Root cause:** Negation handling checked only a short local prefix near the term.
+
+**Fix:** Expanded coordinated-list negation handling and added overcorrection tests.
+
+**Prevention:** Test negated lists and later affirmative triggers separately.
+
+---
+
+### 10. Retrieval misses exposed source-truth gaps
+
+**Symptom:** Keyword retrieval missed blank low-star review guidance and unsupported temperature-excursion stability boundaries.
+
+**Root cause:** SOP text lacked explicit lexical support for intended policies.
+
+**Fix:** Added narrow SOP language for those policies.
+
+**Prevention:** Fix missing source-truth before using embeddings or semantic interpretation to compensate.
 
 ---
 
 ### 11. Completed external-reference review had no controlled value
 
-**Symptom:** Completed USP, manufacturer, veterinary-reference, internal-clinical-guidance, and package-insert reviews were inconsistently labeled as `synthetic_reference_consulted`, `external_reference_needed`, or `not_supported_by_public_corpus`.
+**Symptom:** Completed outside reference reviews were inconsistently labeled.
 
-**Root cause:** The enum represented a synthetic reference and a still-needed external review, but not an outside reference that had already been consulted.
+**Root cause:** Enum represented synthetic consulted and external needed, but not external already consulted.
 
-**Fix:** Added `external_reference_consulted`, defined explicit precedence, and made non-disclosure override completed-review status.
+**Fix:** Added `external_reference_consulted` and precedence rules.
 
-**Prevention:** Keep reference-state tests for not needed, synthetic consulted, external consulted, external still needed, and unsupported/non-disclosable.
+**Prevention:** Keep tests for all reference states and non-disclosure override.
 
 ---
 
 ### 12. Explicit unresolved commands were not extracted
 
-**Symptom:** Investigation notes containing `Confirm`, `Clarify`, or `Determine whether` produced empty or incomplete `missing_information`.
+**Symptom:** Notes containing `Confirm`, `Clarify`, or `Determine whether` missed `missing_information`.
 
-**Root cause:** The explicit-missing detector recognized phrases such as `unknown` and `need to confirm`, but not the canonical command wording used by the generated investigation summaries.
+**Root cause:** Detector did not recognize canonical command wording.
 
-**Fix:** Expanded explicit-missing detection and normalized common investigation questions into stable labels.
+**Fix:** Expanded explicit-missing detection and normalized labels.
 
-**Prevention:** Maintain table-driven tests for every canonical unresolved-question phrase.
+**Prevention:** Maintain table-driven tests for canonical unresolved-question phrases.
 
 ---
 
 ### 13. Device and dose matching used overly broad lexical signals
 
-**Symptom:** Unrelated oral suspensions and transdermal skin reactions produced `device_dispense_status`, while product strength or package quantity could be mistaken for the administered dose.
+**Symptom:** `suspension`/`clicks`/strength/package values produced wrong device or dose fields.
 
-**Root cause:** Device logic relied on broad substrings such as `pen` and `clicks`, and dose logic treated any numeric medication unit as an administered dose.
+**Root cause:** Device and dose rules used broad lexical cues without context.
 
-**Fix:** Added word boundaries, required device-failure context, and required administration context for dose detection.
+**Fix:** Added word boundaries, device-failure context, and administration-context requirements.
 
-**Prevention:** Keep negative tests for `suspension`, dose instructions using clicks, product strength, package quantity, and non-device transdermal concerns.
-
----
-
-### 14. Review-summary silence was interpreted inconsistently
-
-**Symptom:** Guidance-only cases were labeled as incomplete investigations, while ADE and product-quality cases with undocumented checks were labeled `not_applicable`.
-
-**Root cause:** The extractor had no deterministic policy for deciding whether an absent result was irrelevant or required-but-undocumented.
-
-**Fix:** Added review-scope inference and conservative defaults for record, lot, inventory, and reference fields.
-
-**Prevention:** Test guidance-only and full-investigation cases in parallel whenever scope rules change.
+**Prevention:** Keep negative tests for suspension, click dosing, product strength, package quantity, and non-device transdermal concerns.
 
 ---
 
-### 15. Explicit worksheet review was overwritten as incomplete
+### 14. Review-summary silence was inconsistent
+
+**Symptom:** Guidance-only cases were marked incomplete while ADE/product-quality cases were marked `not_applicable`.
+
+**Root cause:** No deterministic policy decided whether silence meant irrelevant or undocumented.
+
+**Fix:** Added review-scope inference and defaults.
+
+**Prevention:** Test guidance-only and full-investigation cases in parallel.
+
+---
+
+### 15. Worksheet review was overwritten as incomplete
 
 **Symptom:** `Worksheet review found no discrepancy` became `documentation_incomplete`.
 
-**Root cause:** The record-result matcher recognized `record review` and `compounding-record review`, but not the domain synonym `worksheet review`.
+**Root cause:** Matcher did not recognize worksheet review as record review.
 
-**Fix:** Added `worksheet review` as an explicit record-review phrase and added a bridge-level regression test.
+**Fix:** Added worksheet-review alias and regression test.
 
-**Prevention:** Add domain-language aliases only from observed cases and protect each with a regression test.
+**Prevention:** Add domain aliases only from observed cases and protect each with tests.
 
 ---
 
@@ -211,9 +207,9 @@ This log captures implementation failures found while building the synthetic Com
 
 **Symptom:** `One additional quality complaint was identified for the lot` remained `unavailable`.
 
-**Root cause:** The policy detected that lot information existed but did not normalize the statement into a controlled lot-pattern value.
+**Root cause:** Policy detected lot info but did not normalize value.
 
-**Fix:** Added deterministic positive and negative lot-pattern grounding.
+**Fix:** Added deterministic lot-pattern grounding.
 
 **Prevention:** Separate tests for field presence and value normalization.
 
@@ -221,10 +217,67 @@ This log captures implementation failures found while building the synthetic Com
 
 ### 17. Patch packages installed tests before runtime changes
 
-**Symptom:** New fixtures and tests failed because the implementation files still had the old enum, helper signature, and matching behavior.
+**Symptom:** New tests failed because implementation files still had old code.
 
-**Root cause:** The package required an additional application script, and the repository entered a partially migrated state.
+**Root cause:** Patch required a second application step, leaving repo partially migrated.
 
-**Fix:** Added fail-closed repair scripts, structural verification, Python compilation, and later switched isolated changes to complete replacement files.
+**Fix:** Added fail-closed repair scripts and later used complete replacement files for isolated changes.
 
-**Prevention:** Prefer one atomic verified migration for broad edits and complete replacement files for small edits. Do not declare success until implementation and tests are both present.
+**Prevention:** Prefer atomic verified migrations. Do not declare success until implementation and tests are present.
+
+---
+
+### 18. UI container copied host `node_modules`
+
+**Symptom:** React/Vite container could fail with platform-specific host dependencies.
+
+**Root cause:** Docker used repo-root context, but only service-local `.dockerignore` files existed.
+
+**Fix:** Added repo-root `.dockerignore`.
+
+**Prevention:** Root `.dockerignore` is authoritative when Compose services build with `context: ..`.
+
+---
+
+### 19. Extraction returned 502 in container due missing model config
+
+**Symptom:** Review-summary extraction failed through Spring with downstream engine error.
+
+**Root cause:** Python container did not receive `OPENAI_API_KEY`.
+
+**Fix:** Wired `rag-engine-python/secrets.env` through Compose `env_file`.
+
+**Prevention:** Keep `.env.example` synchronized with required variables and add endpoint smoke tests.
+
+---
+
+### 20. Logs lacked end-to-end request correlation proof
+
+**Symptom:** Same failing request could not be reliably connected across Spring/Python logs.
+
+**Root cause:** Request ID lifecycle, MDC, downstream propagation, and Python log echoing were not all proven.
+
+**Fix:** Added Spring request filter, MDC, response/header echo, HTTP client propagation, Python middleware logging, and smoke test.
+
+**Prevention:** Keep boundary tests and smoke test. Treat this as correlation, not full tracing.
+
+---
+
+### 21. Documentation became stale after HTTP migration
+
+**Symptom:** Docs still described manual startup, CLI runner, stale retrieval bottlenecks, or subprocess bridge details.
+
+**Root cause:** Implementation moved faster than docs.
+
+**Fix:** Updated active docs for HTTP boundary, Docker Compose, request correlation, retrieval-intent decision, and operational-hardening milestone.
+
+**Prevention:** After architecture-changing PRs, update README, RUNBOOK, DECISIONS, data dictionary, demo script, and interview framing before closing milestone.
+
+## Lessons
+
+- Tests should protect workflow behavior, not incidental wording.
+- Retrieval expectations are contract fixtures.
+- Safety-critical routing should avoid bare substring matching.
+- HTTP service boundaries require readiness, timeouts, error translation, and request correlation.
+- Docker Compose proves local orchestration, not production deployment.
+- Documentation staleness is a defect when it misrepresents architecture or limitations.
