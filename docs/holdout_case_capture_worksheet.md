@@ -1,6 +1,10 @@
 # Holdout Case Capture Worksheet
 
-Use one copy of this section per candidate. Keep candidate notes outside the active JSON fixtures until the expected answer is adjudicated.
+Updated: 2026-06-25
+
+Use one copy of this section per candidate. Keep candidate notes outside active JSON fixtures until the expected answer is adjudicated.
+
+Do not run the model against a candidate before expected outputs are written and reviewed.
 
 ---
 
@@ -12,29 +16,53 @@ Use one copy of this section per candidate. Keep candidate notes outside the act
 
 - [ ] Narrative extraction
 - [ ] Retrieval relevance
-- [ ] Both
+- [ ] Retrieval intent labeling
+- [ ] Both extraction and retrieval
+
+## Data boundary check
+
+- [ ] Synthetic or fully de-identified text only
+- [ ] No customer identifiers
+- [ ] No patient identifiers
+- [ ] No veterinarian identifiers
+- [ ] No prescription/order identifiers
+- [ ] No compounding-record or inventory details from real systems
+- [ ] No proprietary SOP text
+- [ ] No licensed drug-reference content
+- [ ] No internal screenshots or system names
 
 ## Synthetic customer concern
 
 > Paste the synthetic or fully de-identified customer concern here.
 
-## Synthetic pharmacist investigation note
+## Synthetic pharmacist/reviewer investigation note
 
-> Paste the messy synthetic or fully de-identified pharmacist note here.
+> Paste the messy synthetic or fully de-identified pharmacist/reviewer note here.
 
 ## Why this case is useful
 
-Describe the ambiguity, shorthand, contradiction, retrieval trap, or safety-sensitive detail being tested.
+Describe the ambiguity, shorthand, contradiction, retrieval trap, policy boundary, or safety-sensitive detail being tested.
+
+Examples:
+
+- negated hospitalization;
+- complaint-reported severe trigger;
+- dose vs concentration confusion;
+- device directions without device failure;
+- supplier/manufacturer non-disclosure;
+- external reference consulted vs still needed;
+- same-lot pattern wording;
+- guidance-only silence vs incomplete full investigation.
 
 ## Expected narrative extraction
 
-| Field | Expected value | Evidence from note |
-|---|---|---|
-| Record review result |  |  |
-| Lot/batch pattern summary |  |  |
-| Inventory inspection result |  |  |
-| API/reference review result |  |  |
-| Customer context summary |  |  |
+| Field | Expected value | Evidence from note or complaint | Policy rationale |
+|---|---|---|---|
+| `record_review_result` |  |  |  |
+| `lot_batch_pattern_summary` |  |  |  |
+| `inventory_inspection_result` |  |  |  |
+| `api_reference_review_result` |  |  |  |
+| `customer_context_summary` |  |  |  |
 
 ### Expected missing information
 
@@ -44,7 +72,7 @@ Describe the ambiguity, shorthand, contradiction, retrieval trap, or safety-sens
 
 - 
 
-### Expected severe triggers
+### Expected severe triggers observed
 
 - 
 
@@ -64,12 +92,65 @@ Describe the ambiguity, shorthand, contradiction, retrieval trap, or safety-sens
 
 ### Retrieval rationale
 
-Explain why the expected source is relevant and why each forbidden source would be misleading.
+Explain why each expected source is relevant and why each forbidden source would be materially misleading.
+
+Do not forbid a source merely because another source is better.
+
+## Optional expected semantic intent
+
+Use only if this case is intended to evaluate semantic intent labels.
+
+### Expected semantic intent tags
+
+- 
+
+### Expected derived intent tags
+
+- 
+
+### Intent rationale
+
+Explain which tags describe semantic facts from the complaint and which tags are deterministic workflow consequences.
+
+## Ambiguity review
+
+- [ ] Expected answer is clear under current policy
+- [ ] Ambiguity is intentional and documented
+- [ ] Case should be excluded or held for discussion
+
+Notes:
+
+> 
 
 ## Adjudication
 
 - [ ] Expected answer written before running the model
+- [ ] Expected answer reviewed for ambiguity
 - [ ] No real or protected data included
-- [ ] Reviewed for ambiguous wording
-- [ ] Approved for the frozen holdout
-- [ ] Added to the appropriate JSON fixture
+- [ ] Added to development fixture
+- [ ] Added to frozen holdout fixture
+- [ ] Added to regression/challenge fixture
+- [ ] Holdout manifest updated after fixture change
+
+## Failure classification after first run
+
+If the model/evaluator fails after the case is frozen, classify the failure before changing code:
+
+- [ ] extraction prompt failure
+- [ ] deterministic grounding failure
+- [ ] review-scope default failure
+- [ ] unresolved-question generation failure
+- [ ] schema or contract failure
+- [ ] retrieval scoring/ranking failure
+- [ ] semantic intent detection failure
+- [ ] deterministic workflow derivation failure
+- [ ] vocabulary mapping failure
+- [ ] cache/fallback provenance failure
+- [ ] missing corpus guidance
+- [ ] chunk-boundary failure
+- [ ] ambiguous or incorrect expected answer
+- [ ] public-boundary/refusal failure
+
+Notes:
+
+>
