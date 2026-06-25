@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import type { ReviewSummaryRequest } from "../api/types";
 import { CollapsibleCard } from "./shared/CollapsibleCard";
 
@@ -198,9 +198,32 @@ export function ReviewSummaryForm({
   const [
     severeTriggersObserved,
     setSevereTriggersObserved,
-  ] = useState<string[]>(
-    initialValues.severeTriggersObserved,
-  );
+  ] = useState<string[]>(initialValues.severeTriggersObserved);
+
+  const initialValuesKey = serializeReviewSummary(initialValues);
+
+  useEffect(() => {
+    const nextInitialValues = parseReviewSummaryKey(initialValuesKey);
+
+    setRecordReviewResult(nextInitialValues.recordReviewResult);
+    setLotBatchPatternSummary(nextInitialValues.lotBatchPatternSummary);
+    setInventoryInspectionResult(nextInitialValues.inventoryInspectionResult);
+    setCustomerContextSummary(
+      nextInitialValues.customerContextSummary ?? "",
+    );
+    setApiReferenceReviewResult(
+      nextInitialValues.apiReferenceReviewResult,
+    );
+    setMissingInformation(
+      nextInitialValues.missingInformation.join("\n"),
+    );
+    setEvidenceLimitations(
+      nextInitialValues.evidenceLimitations.join("\n"),
+    );
+    setSevereTriggersObserved(
+      nextInitialValues.severeTriggersObserved,
+    );
+  }, [initialValuesKey]);
 
   const requiredFieldsComplete =
     recordReviewResult.length > 0 &&
@@ -209,9 +232,7 @@ export function ReviewSummaryForm({
     apiReferenceReviewResult.length > 0;
 
   const canSubmit =
-    requiredFieldsComplete &&
-    !isSubmitting &&
-    !isSubmissionDisabled;
+    requiredFieldsComplete && !isSubmitting && !isSubmissionDisabled;
 
   function toggleSevereTrigger(
     trigger: string,
@@ -224,9 +245,7 @@ export function ReviewSummaryForm({
     );
   }
 
-  async function handleSubmit(
-    event: FormEvent<HTMLFormElement>,
-  ) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!canSubmit) {
@@ -241,9 +260,7 @@ export function ReviewSummaryForm({
         normalizeOptionalText(customerContextSummary),
       apiReferenceReviewResult,
       missingInformation: parseList(missingInformation),
-      evidenceLimitations: parseList(
-        evidenceLimitations,
-      ),
+      evidenceLimitations: parseList(evidenceLimitations),
       severeTriggersObserved,
     });
   }
@@ -262,6 +279,7 @@ export function ReviewSummaryForm({
         className="form-stack"
         aria-label="Final assessment form"
         onSubmit={handleSubmit}
+        noValidate
       >
         <div className="form-grid">
           <SelectField
@@ -329,11 +347,14 @@ export function ReviewSummaryForm({
 
         <fieldset className="checkbox-fieldset">
           <legend>Severe triggers observed</legend>
-          <p>
-            Leave all options unchecked when no severe trigger
-            was affirmatively confirmed.
+          <p id="severe-triggers-help">
+            Leave all options unchecked when no severe trigger was
+            affirmatively confirmed.
           </p>
-          <div className="checkbox-grid">
+          <div
+            className="checkbox-grid"
+            aria-describedby="severe-triggers-help"
+          >
             {SEVERE_TRIGGER_OPTIONS.map((option) => (
               <label key={option.value}>
                 <input
@@ -356,9 +377,10 @@ export function ReviewSummaryForm({
         </fieldset>
 
         <div className="form-actions form-actions-split">
-          <p className="required-note">
-            Structured selections are submitted as canonical
-            enum values.
+          <p className="required-note" aria-live="polite">
+            {requiredFieldsComplete
+              ? "Structured selections are submitted as canonical enum values."
+              : "Complete all required structured selections before generating the final assessment."}
           </p>
           <button
             className="primary-button"
@@ -392,6 +414,9 @@ function SelectField({
   onChange,
   required = false,
 }: SelectFieldProps) {
+  const helpId = `${id}-help`;
+  const showRequired = required && value.length === 0;
+
   return (
     <div className="field-group">
       <label htmlFor={id}>
@@ -401,21 +426,23 @@ function SelectField({
       <select
         id={id}
         value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
+        onChange={(event) => onChange(event.target.value)}
         required={required}
+        aria-describedby={helpId}
+        aria-invalid={showRequired}
       >
         <option value="">Select a value</option>
         {options.map((option) => (
-          <option
-            key={option.value}
-            value={option.value}
-          >
+          <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
       </select>
+      <p id={helpId} className="field-helper">
+        {showRequired
+          ? "Required before final assessment."
+          : "Submitted as a canonical enum value."}
+      </p>
     </div>
   );
 }
@@ -444,23 +471,17 @@ function TextAreaField({
         id={id}
         rows={4}
         value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
+        onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
       />
     </div>
   );
 }
 
-function normalizeOptionalText(
-  value: string,
-): string | null {
+function normalizeOptionalText(value: string): string | null {
   const trimmedValue = value.trim();
 
-  return trimmedValue.length > 0
-    ? trimmedValue
-    : null;
+  return trimmedValue.length > 0 ? trimmedValue : null;
 }
 
 function parseList(value: string): string[] {
@@ -468,4 +489,25 @@ function parseList(value: string): string[] {
     .split("\n")
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
+}
+
+function serializeReviewSummary(
+  reviewSummary: ReviewSummaryRequest,
+): string {
+  return JSON.stringify({
+    recordReviewResult: reviewSummary.recordReviewResult,
+    lotBatchPatternSummary: reviewSummary.lotBatchPatternSummary,
+    inventoryInspectionResult: reviewSummary.inventoryInspectionResult,
+    customerContextSummary: reviewSummary.customerContextSummary ?? null,
+    apiReferenceReviewResult: reviewSummary.apiReferenceReviewResult,
+    missingInformation: reviewSummary.missingInformation,
+    evidenceLimitations: reviewSummary.evidenceLimitations,
+    severeTriggersObserved: reviewSummary.severeTriggersObserved,
+  });
+}
+
+function parseReviewSummaryKey(
+  reviewSummaryKey: string,
+): ReviewSummaryRequest {
+  return JSON.parse(reviewSummaryKey) as ReviewSummaryRequest;
 }
