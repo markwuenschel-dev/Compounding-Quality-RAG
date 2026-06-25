@@ -14,7 +14,7 @@
 
 A synthetic, local-first, human-in-the-loop review-support system for compounding-quality inquiries.
 
-> **Current status:** The Python review engine, Spring Boot API, and React/TypeScript review workflow are implemented end to end and now run as containerized services that communicate over HTTP via Docker Compose. Semantic-intent retrieval evaluation is complete for the current milestone. Request correlation is implemented across the Spring-to-Python HTTP boundary: Spring creates or accepts `X-Request-Id`, stores it in MDC, includes it in API errors and response headers, forwards it to the Python engine, and the Python service echoes and logs the same ID. Remaining operational hardening covers CI, container smoke tests, an `.env.example`, an operations runbook, and broader structured operation logs beyond request correlation.
+> **Current status:** The Python review engine, Spring Boot API, and React/TypeScript review workflow are implemented end to end and run as containerized services over HTTP through Docker Compose. The UI workflow has been rebuilt around a denser human-review path with retrieved evidence, readable labels, accordion-style workflow state, and final-assessment detail disclosure. Semantic-intent retrieval evaluation is closed for the current product milestone. GPT-5 Nano extraction latency has been reduced from roughly 14 seconds to roughly 1.3–2.6 seconds for the measured path through minimal reasoning, output caps, and client reuse. Request correlation now propagates from Spring MDC to the Python engine through `X-Request-Id`, appears in API error responses, is returned in response headers, and is logged by the Python FastAPI service. Remaining operational hardening covers CI, container smoke tests, `.env.example`, an operations runbook, and broader structured operation fields beyond request correlation.
 
 ## Problem Statement
 
@@ -50,8 +50,8 @@ The public system does not access live systems. Any internal deployment would re
 
 | Layer | Primary responsibility |
 |---|---|
-| **React/TypeScript Review UI** | Provides the pharmacist-facing workflow for concern intake, checklist review, investigation-note entry, extracted findings, supporting evidence, unresolved questions, structured confirmation, and final-assessment presentation. |
-| **Spring Boot Review API** | Provides the service boundary for REST endpoints, request and response DTOs, validation, orchestration, readiness checks, timeout management, HTTP integration with the Python review engine, request correlation, error translation, OpenAPI documentation, and future authentication and audit controls. |
+| **React/TypeScript Review UI** | Provides the pharmacist-facing workflow for concern intake, checklist review, retrieved-evidence inspection, investigation-note entry, extracted findings, unresolved questions, structured confirmation, final-assessment presentation, and expanded pipeline detail review. |
+| **Spring Boot Review API** | Provides the service boundary for REST endpoints, request and response DTOs, validation, orchestration, readiness checks, timeout management, HTTP integration with the Python review engine, request correlation, API error responses, OpenAPI documentation, and future authentication and audit controls. |
 | **Python Review Engine (FastAPI)** | Standalone HTTP service that owns ingestion, chunking, retrieval, semantic-intent detection, LLM-assisted extraction, deterministic grounding, refusal behavior, checklist generation, final-assessment logic, evaluation, and Python-side request-correlation logging. |
 
 ```mermaid
@@ -70,11 +70,33 @@ flowchart LR
 
 Python remains the owner of working RAG and domain behavior. Spring Boot provides a stable application boundary around that logic over HTTP rather than duplicating it in Java, so each service starts, fails, and is health-checked independently.
 
-### Request Correlation and Operational Visibility
+## Recent Engineering History
 
-Request correlation is implemented for the Spring-to-Python HTTP path. The Spring Boot API accepts an incoming `X-Request-Id` or generates a UUID, stores it in MDC as `requestId`, includes it on HTTP responses, and uses the same ID in `ApiErrorResponse.requestId`. The Spring RAG engine client forwards that ID to the Python review engine as `X-Request-Id`. The FastAPI service echoes the header and logs the same ID to stderr for successful and erroring requests.
+The current architecture reflects a sequence of completed milestones:
 
-A local smoke script verifies the Python side of the contract by starting the RAG engine, sending a request with `X-Request-Id`, and asserting that the same ID appears in Python stderr. Broader structured operation logs are still planned for operation names, duration, model, cache, fallback, and bounded error fields.
+| Milestone | What changed | Current result |
+|---|---|---|
+| HTTP/containerized stack | Replaced the old per-request Python subprocess bridge with a standalone FastAPI engine called by Spring Boot over HTTP. Added Docker Compose with health-gated startup for the UI, API, and engine. | The full stack runs locally as separate services with explicit HTTP boundaries and independent health checks. |
+| Architecture documentation update | Reconciled README and design docs with the HTTP/containerized runtime and retained the keyword, embedding, and hybrid retriever baselines. | Documentation no longer frames the live Spring-to-Python bridge as stdin/stdout subprocess orchestration. |
+| LLM latency pass | Added minimal reasoning, max output tokens, and cached OpenAI client construction for the review-summary extraction path. | The measured extraction path dropped from about 14 seconds to about 1.3–2.6 seconds while preserving valid structured output. |
+| Review UI workflow overhaul | Added a retrieved-evidence panel, human-friendly enum labels, accordion-style workflow sections, full pipeline output disclosure, and restored component test execution. | The UI is closer to an interview-demo workflow: denser, more reviewable, and better aligned with human-in-the-loop decision boundaries. |
+| Request correlation | Added Spring request-ID lifecycle management, MDC propagation, API error response/request header exposure, downstream `X-Request-Id` forwarding, Python logging, and a stderr smoke check. | One request can be followed across Spring logs, Spring error responses, the downstream Python request, and Python stderr. |
+
+## Request Correlation and Operational Visibility
+
+Request correlation is implemented as a narrow cross-service concern, not as a custom observability framework:
+
+```text
+incoming request
+→ Spring RequestCorrelationFilter
+→ request attribute + MDC requestId + X-Request-Id response header
+→ Spring log pattern / ApiErrorResponse.requestId
+→ HttpRagEngineClient forwards X-Request-Id
+→ Python FastAPI middleware logs and echoes X-Request-Id
+→ smoke_request_correlation.sh verifies the ID appears in Python stderr
+```
+
+The current implementation proves request-level traceability across the Spring and Python boundary. Broader structured operation logging is still a separate follow-up: operation names, durations, model name, cache status, fallback path, bounded error codes, and container-level readiness smoke tests.
 
 ## End-to-End Review Workflow
 
@@ -406,19 +428,20 @@ The model proposes structured interpretation. Pydantic validation, deterministic
 | Review-summary extraction | JSON parsing, deterministic grounding, negation handling, evidence mapping, and unresolved questions. |
 | Checklist and final assessment | Review checks, missing information, severe-trigger handling, disposition logic, evidence, and limitations. |
 | Refusal behavior | External references, real/internal record access, clinical or legal conclusions, and blank inputs. |
-| Spring Boot API | Validation, orchestration, HTTP engine integration, timeouts, readiness, request correlation, MDC logging context, downstream `X-Request-Id` propagation, and API error translation. |
+| Spring Boot API | Validation, orchestration, process integration, timeouts, readiness, and API error translation. |
 | React workflow | Concern intake, loading/error states, checklist display, extraction, structured confirmation, and final assessment. |
-| Operational smoke checks | Request-correlation smoke script verifies that a supplied request ID reaches Python stderr through the running FastAPI service. |
 
-Most recently recorded Python validation status before the request-correlation additions:
+Current validation snapshots recorded in recent milestone work:
 
 ```text
-342 tests passed
-mypy: no issues
-Pyright: 0 errors
-Ruff: clean
-git diff --check: clean
+Python review engine: 342 tests passed; mypy clean; Pyright clean; Ruff clean; git diff --check clean
+Review UI workflow: 44 Vitest tests passed; TypeScript check clean; Vite build clean
+Targeted schema/assessment checks during UI overhaul: 21 passing
+LLM client latency tests: 11 passing
+Downstream extraction/intent suites during latency pass: 26 passing
 ```
+
+These counts are milestone snapshots, not a substitute for the upcoming repository-wide CI gates.
 
 ## Important Boundaries
 
@@ -436,34 +459,28 @@ git diff --check: clean
 | Limitation | Impact | Planned response |
 |---|---|---|
 | Small synthetic corpus and evaluation sets | Results do not establish production performance. | Expand only with governed, adjudicated synthetic or approved data. |
-| Nano latency and external dependency | Stronger holdout generalization comes with API cost, timeout, and availability tradeoffs. | Measure cached and uncached latency and cost during the later performance milestone. |
+| Nano latency and external dependency | The extraction path is materially faster after the latency pass, but Nano still adds API cost, timeout, availability, and model-behavior risk. | Keep further Nano optimization in a later performance milestone; measure cached/uncached latency and cost before changing prompts or model settings again. |
 | Citation precision | A retrieved source may still support multiple outputs too broadly. | Tighten item-level evidence mapping. |
-| Operations layer is still local-first | Docker Compose, health-gated startup, request correlation, and a Python stderr smoke check are present, but this is not production deployment or production observability. | Add CI, container smoke tests, `.env.example`, an operations runbook, and broader structured operation logs. |
+| Operations hardening is incomplete | Containers, health-gated startup, and request correlation exist, but repository-wide CI, container smoke tests, runbook coverage, and broader structured operation fields are not complete. | Add CI, container smoke tests, `.env.example`, a runbook, and operation-level structured log fields beyond request IDs. |
 | No persistent audit store | Evaluation artifacts are file-based and workflow state is not persisted. | Add persistence only when a concrete audit or evaluation use case requires it. |
 
 ## Next Engineering Milestone
 
-Retrieval experimentation is closed for the current product milestone. The
-Spring-to-Python boundary is now HTTP, and the React UI, Spring Boot API, and
-Python engine run as containers under Docker Compose with health-gated startup.
-Request correlation across that HTTP boundary is implemented: Spring creates or
-accepts `X-Request-Id`, stores it in MDC, exposes it in responses and API error
-payloads, forwards it to the Python engine, and the Python service logs the same
-ID to stderr.
+Retrieval experimentation is closed for the current product milestone. The Spring-to-Python boundary is now HTTP, the three-service stack runs under Docker Compose with health-gated startup, the review UI workflow has been rebuilt for human review, the LLM extraction path has had a focused latency pass, and request correlation now crosses the Spring/Python boundary.
 
-Next:
+Next work should be operational closeout, not more retrieval experimentation or UI expansion:
 
-1. add GitHub Actions for Python, Spring Boot, React, and repository checks;
-2. add health and readiness smoke tests against the running containers;
-3. add `.env.example`;
-4. add an operations runbook;
-5. expand structured operation logs beyond request correlation with operation names, duration, model, cache, fallback, and bounded error fields.
+1. add GitHub Actions for Python, Spring Boot, React, and repository hygiene checks;
+2. add container smoke tests that exercise `/health`, `/ready`, and one API-to-engine request against the running Docker Compose stack;
+3. add `.env.example` documenting required and optional runtime variables without exposing secrets;
+4. add an operations runbook covering startup, readiness failure, Python-engine outage, OpenAI-key/config failure, slow extraction, retrieval returning no evidence, and request-ID-based debugging;
+5. expand structured operation logs beyond request correlation with operation name, duration, model, cache status, fallback path, bounded error code, and downstream status.
 
-Further Nano optimization belongs in a later performance milestone.
+Do **not** reopen retrieval experiments unless a concrete product failure or regression requires it. Do **not** start persistence until there is a specific audit/evaluation use case. Further Nano optimization belongs in a later performance milestone after CI and operational smoke coverage are in place.
 
 ## Interview Framing
 
-> I built a production-shaped, human-in-the-loop AI review system for compounding-quality inquiries using synthetic data. React provides the pharmacist-facing workflow, Spring Boot provides the HTTP and orchestration boundary, and Python owns retrieval, extraction, deterministic grounding, and review policy. The Spring API propagates request correlation IDs through MDC, API errors, HTTP response headers, and downstream calls to the Python engine, where the same ID is logged for operational tracing. I evaluated raw, deterministic, rule-based semantic, and GPT-5 Nano semantic query strategies under controlled conditions. Nano generalized best on the frozen holdout, while the rule detector remained a fast deterministic fallback.
+> I built a production-shaped, human-in-the-loop AI review system for compounding-quality inquiries using synthetic data. React provides the pharmacist-facing review workflow, Spring Boot provides the HTTP service and orchestration boundary, and Python owns retrieval, extraction, deterministic grounding, and review policy. I migrated the Spring-to-Python integration from a subprocess bridge to an HTTP FastAPI service, containerized the UI/API/engine stack with Docker Compose health-gated startup, rebuilt the UI around evidence review and pharmacist confirmation, evaluated multiple retrieval-query strategies, and added request correlation across Spring logs, API error responses, downstream Python calls, and Python stderr. GPT-5 Nano generalized best on the frozen retrieval holdout, while the rule detector remains the fast deterministic fallback.
 
 ## What This Is Not
 
