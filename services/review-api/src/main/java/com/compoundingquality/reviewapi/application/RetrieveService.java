@@ -32,31 +32,43 @@ public class RetrieveService {
                 new RagRetrieveRequest(request.queryText(), topK)
         );
 
-        return toResponse(result);
+        return toResponse(request.queryText(), topK, result);
     }
 
-    private static RetrieveResponse toResponse(RagRetrieveResult result) {
+    private static RetrieveResponse toResponse(
+            String queryText,
+            int topK,
+            RagRetrieveResult result
+    ) {
         return new RetrieveResponse(
-                result.queryText(),
-                result.topK(),
-                toEvidenceCitations(result.evidence())
+                queryText,
+                topK,
+                toEvidenceCitations(result.results())
         );
     }
 
     private static List<RetrieveResponse.EvidenceCitation> toEvidenceCitations(
-            List<RagRetrieveResult.EvidenceCitation> citations
+            List<RagRetrieveResult.SearchResult> results
     ) {
-        return citations.stream()
-                .map(citation -> new RetrieveResponse.EvidenceCitation(
-                        citation.chunkId(),
-                        citation.sourceId(),
-                        citation.sourceTitle(),
-                        citation.sourceType(),
-                        citation.sectionHeading(),
-                        citation.score(),
-                        citation.matchedTerms(),
-                        citation.supportingText()
-                ))
+        return results.stream()
+                .map(RetrieveService::toEvidenceCitation)
                 .toList();
+    }
+
+    private static RetrieveResponse.EvidenceCitation toEvidenceCitation(
+            RagRetrieveResult.SearchResult result
+    ) {
+        RagRetrieveResult.Chunk chunk = result.chunk();
+
+        return new RetrieveResponse.EvidenceCitation(
+                chunk == null ? null : chunk.chunkId(),
+                chunk == null ? null : chunk.sourceId(),
+                chunk == null ? null : chunk.sourceTitle(),
+                chunk == null ? null : chunk.sourceType(),
+                chunk == null ? null : chunk.sectionHeading(),
+                result.score(),
+                result.matchedTerms(),
+                chunk == null ? null : chunk.text()
+        );
     }
 }

@@ -1,4 +1,5 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, ReactNode, useState } from "react";
+import { CollapsibleCard } from "./shared/CollapsibleCard";
 
 type ConcernInputFormProps = {
   isSubmitting: boolean;
@@ -6,6 +7,9 @@ type ConcernInputFormProps = {
   onSubmit: (concernText: string) => Promise<void>;
   initialConcernText?: string;
   onConcernTextChange?: (concernText: string) => void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+  summary?: ReactNode;
 };
 
 export function ConcernInputForm({
@@ -14,6 +18,9 @@ export function ConcernInputForm({
   onSubmit,
   initialConcernText = "",
   onConcernTextChange,
+  collapsed,
+  onToggleCollapsed,
+  summary,
 }: ConcernInputFormProps) {
   const [concernText, setConcernText] =
     useState(initialConcernText);
@@ -42,18 +49,15 @@ export function ConcernInputForm({
   }
 
   return (
-    <section className="card workflow-card">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Step 1</p>
-          <h2>Concern narrative</h2>
-          <p>
-            Enter a synthetic concern exactly as it might arrive
-            through an intake workflow.
-          </p>
-        </div>
-      </div>
-
+    <CollapsibleCard
+      ariaLabel="Concern narrative"
+      eyebrow="Step 1"
+      title="Concern narrative"
+      description="Enter a synthetic concern exactly as it might arrive through an intake workflow."
+      summary={summary}
+      collapsed={collapsed}
+      onToggleCollapsed={onToggleCollapsed}
+    >
       <form
         className="form-stack"
         aria-label="Concern checklist form"
@@ -97,6 +101,6 @@ export function ConcernInputForm({
           </button>
         </div>
       </form>
-    </section>
+    </CollapsibleCard>
   );
 }

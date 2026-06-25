@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { CollapsibleCard } from "./shared/CollapsibleCard";
 
 type InvestigationNotesFormProps = {
   initialNotes?: string;
@@ -6,6 +7,8 @@ type InvestigationNotesFormProps = {
   isSubmissionDisabled?: boolean;
   onNotesChange?: (notes: string) => void;
   onSubmit: (notes: string) => Promise<void>;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 };
 
 export function InvestigationNotesForm({
@@ -14,9 +17,15 @@ export function InvestigationNotesForm({
   isSubmissionDisabled = false,
   onNotesChange,
   onSubmit,
+  collapsed,
+  onToggleCollapsed,
 }: InvestigationNotesFormProps) {
   const [notes, setNotes] = useState(initialNotes);
   const cleanNotes = notes.trim();
+  const summary =
+    cleanNotes.length > 0
+      ? `${cleanNotes.length} characters captured`
+      : undefined;
   const canSubmit =
     cleanNotes.length > 0 &&
     !isSubmitting &&
@@ -40,22 +49,15 @@ export function InvestigationNotesForm({
   }
 
   return (
-    <section
-      className="card workflow-card"
-      aria-label="Pharmacist investigation"
+    <CollapsibleCard
+      ariaLabel="Pharmacist investigation"
+      eyebrow="Step 3"
+      title="Pharmacist investigation notes"
+      description="Paste the reviewer’s natural investigation notes. The extractor will propose structured findings for pharmacist confirmation."
+      summary={summary}
+      collapsed={collapsed}
+      onToggleCollapsed={onToggleCollapsed}
     >
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Step 3</p>
-          <h2>Pharmacist investigation notes</h2>
-          <p>
-            Paste the reviewer’s natural investigation notes.
-            The extractor will propose structured findings for
-            pharmacist confirmation.
-          </p>
-        </div>
-      </div>
-
       <form
         className="form-stack"
         aria-label="Investigation notes form"
@@ -99,6 +101,6 @@ export function InvestigationNotesForm({
           </button>
         </div>
       </form>
-    </section>
+    </CollapsibleCard>
   );
 }

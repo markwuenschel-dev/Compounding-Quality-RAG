@@ -1,14 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   createChecklist,
   createFinalAssessment,
   extractReviewSummary,
   getReviewApiErrorMessage,
+  retrieveEvidence,
   ReviewApiError,
 } from "./api/reviewApi";
 import type {
   ChecklistResponse,
   FinalAssessmentResponse,
+  RetrieveResponse,
   ReviewSummaryExtractResponse,
   ReviewSummaryRequest,
 } from "./api/types";
@@ -19,6 +21,7 @@ import { DemoToolbar } from "./components/DemoToolbar";
 import { ExtractedFindingsPanel } from "./components/ExtractedFindingsPanel";
 import { FinalAssessmentPanel } from "./components/FinalAssessmentPanel";
 import { InvestigationNotesForm } from "./components/InvestigationNotesForm";
+import { RetrievedEvidencePanel } from "./components/RetrievedEvidencePanel";
 import { ReviewSummaryForm } from "./components/ReviewSummaryForm";
 import { WorkflowProgress } from "./components/WorkflowProgress";
 import {
@@ -26,10 +29,12 @@ import {
   getDemoCase,
   type DemoCaseId,
 } from "./demo/demoCases";
+import { formatClassifier } from "./utils/classifierLabels";
 import { useBackendReadiness } from "./hooks/useBackendReadiness";
 import "./demoControls.css";
 import "./extraction.css";
 import "./readiness.css";
+import "./retrieval.css";
 
 type WorkflowError = {
   message: string;
@@ -44,6 +49,27 @@ type ChecklistState =
       checklist: ChecklistResponse;
     }
   | { status: "error"; error: WorkflowError };
+
+type RetrievalState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | {
+      status: "success";
+      retrieval: RetrieveResponse;
+    }
+  | { status: "error"; error: WorkflowError };
+
+const DEFAULT_TOP_K = 3;
+
+type WorkflowStage =
+  | "concern"
+  | "checklist"
+  | "retrieval"
+  | "notes"
+  | "extracted"
+  | "review"
+  | "final";
+
 
 type ExtractionState =
   | { status: "idle" }
@@ -98,8 +124,11 @@ export function App() {
     lastReviewSummary,
     setLastReviewSummary,
   ] = useState<ReviewSummaryRequest>();
+  const [topK, setTopK] = useState(DEFAULT_TOP_K);
   const [checklistState, setChecklistState] =
     useState<ChecklistState>({ status: "idle" });
+  const [retrievalState, setRetrievalState] =
+    useState<RetrievalState>({ status: "idle" });
   const [extractionState, setExtractionState] =
     useState<ExtractionState>({ status: "idle" });
   const [
@@ -108,6 +137,36 @@ export function App() {
   ] = useState<FinalAssessmentState>({
     status: "idle",
   });
+
+  const [openOverrides, setOpenOverrides] = useState<
+    Partial<Record<WorkflowStage, boolean>>
+  >({});
+
+  const hasChecklist = checklistState.status === "success";
+  const hasExtraction = extractionState.status === "success";
+  const hasFinal = finalAssessmentState.status === "success";
+
+  // Keep the page short: by default only the latest result and its next input
+  // stay open. Retrieval is supporting detail and stays collapsed by default.
+  // Users can expand anything via its header.
+  const stageDefaultOpen: Record<WorkflowStage, boolean> = {
+    concern: !hasChecklist,
+    checklist: hasChecklist && !hasExtraction && !hasFinal,
+    retrieval: false,
+    notes: hasChecklist && !hasExtraction && !hasFinal,
+    extracted: hasExtraction && !hasFinal,
+    review: hasExtraction && !hasFinal,
+    final: hasFinal,
+  };
+
+  const isStageOpen = (stage: WorkflowStage) =>
+    openOverrides[stage] ?? stageDefaultOpen[stage];
+
+  const toggleStage = (stage: WorkflowStage) =>
+    setOpenOverrides((current) => ({
+      ...current,
+      [stage]: !isStageOpen(stage),
+    }));
 
   const canStartOver = useMemo(
     () =>
@@ -137,8 +196,10 @@ export function App() {
     setSubmittedConcernText("");
     setLastReviewSummary(undefined);
     setChecklistState({ status: "idle" });
+    setRetrievalState({ status: "idle" });
     setExtractionState({ status: "idle" });
     setFinalAssessmentState({ status: "idle" });
+    setOpenOverrides({});
     setWorkflowVersion((version) => version + 1);
   }
 
@@ -151,9 +212,12 @@ export function App() {
     setLastExtractedNotes("");
     setSubmittedConcernText("");
     setLastReviewSummary(undefined);
+    setTopK(DEFAULT_TOP_K);
     setChecklistState({ status: "idle" });
+    setRetrievalState({ status: "idle" });
     setExtractionState({ status: "idle" });
     setFinalAssessmentState({ status: "idle" });
+    setOpenOverrides({});
     setWorkflowVersion((version) => version + 1);
   }
 
@@ -179,6 +243,7 @@ export function App() {
 
     setSubmittedConcernText(concernText);
     setChecklistState({ status: "loading" });
+    setRetrievalState({ status: "idle" });
     setExtractionState({ status: "idle" });
     setFinalAssessmentState({ status: "idle" });
 
@@ -190,6 +255,7 @@ export function App() {
         status: "success",
         checklist,
       });
+      void runRetrieval(concernText, topK);
     } catch (error) {
       setChecklistState({
         status: "error",
@@ -199,6 +265,55 @@ export function App() {
         ),
       });
     }
+  }
+
+  async function runRetrieval(
+    queryText: string,
+    requestedTopK: number,
+  ) {
+    setRetrievalState({ status: "loading" });
+
+    try {
+      const retrieval = await retrieveEvidence({
+        queryText,
+        topK: requestedTopK,
+      });
+      setRetrievalState({
+        status: "success",
+        retrieval,
+      });
+    } catch (error) {
+      setRetrievalState({
+        status: "error",
+        error: toWorkflowError(
+          error,
+          "Unable to retrieve evidence.",
+        ),
+      });
+    }
+  }
+
+  function handleTopKChange(nextTopK: number) {
+    setTopK(nextTopK);
+
+    if (
+      checklistState.status === "success" &&
+      submittedConcernText.length > 0 &&
+      backendReady
+    ) {
+      void runRetrieval(submittedConcernText, nextTopK);
+    }
+  }
+
+  function handleRetryRetrieval() {
+    if (
+      submittedConcernText.length === 0 ||
+      !backendReady
+    ) {
+      return;
+    }
+
+    void runRetrieval(submittedConcernText, topK);
   }
 
   async function handleExtractionSubmit(
@@ -250,7 +365,7 @@ export function App() {
       const assessment =
         await createFinalAssessment({
           concernText: submittedConcernText,
-          topK: 3,
+          topK,
           reviewSummary,
         });
 
@@ -361,6 +476,8 @@ export function App() {
               onLoadDemoCase={handleLoadDemoCase}
               onStartOver={handleStartOver}
               canStartOver={canStartOver}
+              topK={topK}
+              onTopKChange={handleTopKChange}
             />
 
             <ConcernInputForm
@@ -372,6 +489,16 @@ export function App() {
               onSubmit={handleChecklistSubmit}
               initialConcernText={concernSeed}
               onConcernTextChange={setDraftConcernText}
+              collapsed={!isStageOpen("concern")}
+              onToggleCollapsed={() => toggleStage("concern")}
+              summary={
+                checklistState.status === "success"
+                  ? formatClassifier(
+                      checklistState.checklist.concernType,
+                    ) ??
+                    truncateText(submittedConcernText, 60)
+                  : undefined
+              }
             />
 
             {checklistState.status === "idle" ? (
@@ -397,7 +524,34 @@ export function App() {
               <>
                 <ChecklistPanel
                   checklist={checklistState.checklist}
+                  collapsed={!isStageOpen("checklist")}
+                  onToggleCollapsed={() =>
+                    toggleStage("checklist")
+                  }
                 />
+
+                {retrievalState.status === "loading" ? (
+                  <LoadingBanner text="Retrieving evidence..." />
+                ) : null}
+
+                {retrievalState.status === "error" ? (
+                  <ErrorBanner
+                    error={retrievalState.error}
+                    retryLabel="Retry retrieval"
+                    onRetry={handleRetryRetrieval}
+                    retryDisabled={!backendReady}
+                  />
+                ) : null}
+
+                {retrievalState.status === "success" ? (
+                  <RetrievedEvidencePanel
+                    retrieval={retrievalState.retrieval}
+                    collapsed={!isStageOpen("retrieval")}
+                    onToggleCollapsed={() =>
+                      toggleStage("retrieval")
+                    }
+                  />
+                ) : null}
 
                 <InvestigationNotesForm
                   key={`notes-${workflowVersion}`}
@@ -410,10 +564,17 @@ export function App() {
                     handlePharmacistNotesChange
                   }
                   onSubmit={handleExtractionSubmit}
+                  collapsed={!isStageOpen("notes")}
+                  onToggleCollapsed={() =>
+                    toggleStage("notes")
+                  }
                 />
 
                 {extractionState.status === "loading" ? (
-                  <LoadingBanner text="Extracting reviewer findings..." />
+                  <LoadingBanner
+                    text="Extracting reviewer findings..."
+                    hint="This step calls the language model and can take up to ~75 seconds."
+                  />
                 ) : null}
 
                 {extractionState.status === "error" ? (
@@ -431,6 +592,10 @@ export function App() {
                       extraction={
                         extractionState.extraction
                       }
+                      collapsed={!isStageOpen("extracted")}
+                      onToggleCollapsed={() =>
+                        toggleStage("extracted")
+                      }
                     />
 
                     <ReviewSummaryForm
@@ -446,6 +611,10 @@ export function App() {
                       initialValues={
                         extractionState.extraction
                           .reviewSummary
+                      }
+                      collapsed={!isStageOpen("review")}
+                      onToggleCollapsed={() =>
+                        toggleStage("review")
                       }
                     />
 
@@ -473,6 +642,10 @@ export function App() {
                       <FinalAssessmentPanel
                         assessment={
                           finalAssessmentState.assessment
+                        }
+                        collapsed={!isStageOpen("final")}
+                        onToggleCollapsed={() =>
+                          toggleStage("final")
                         }
                       />
                     ) : null}
@@ -522,17 +695,10 @@ export function App() {
               </ul>
             </section>
 
-            <section className="card sidebar-card accent-card">
-              <p className="eyebrow">
-                Current retrieval path
-              </p>
-              <h2>Keyword retrieval</h2>
-              <p>
-                Keyword retrieval remains the default
-                application path. Embedding and hybrid
-                retrieval remain evaluation baselines.
-              </p>
-            </section>
+            <RetrievalPathCard
+              retrievalState={retrievalState}
+              topK={topK}
+            />
           </aside>
         </div>
       </main>
@@ -545,19 +711,135 @@ export function App() {
   );
 }
 
-function LoadingBanner({ text }: { text: string }) {
+function LoadingBanner({
+  text,
+  hint,
+}: {
+  text: string;
+  hint?: string;
+}) {
+  const seconds = useElapsedSeconds();
+
   return (
     <div
-      className="status-banner status-loading"
+      className="status-banner status-loading loading-banner"
       role="status"
     >
       <span
         className="spinner"
         aria-hidden="true"
       />
-      {text}
+      <div className="loading-content">
+        <div className="loading-headline">
+          <span>{text}</span>
+          <span
+            className="loading-elapsed"
+            aria-hidden="true"
+          >
+            {seconds}s
+          </span>
+        </div>
+        {hint ? (
+          <span className="loading-hint">{hint}</span>
+        ) : null}
+        <span
+          className="loading-bar"
+          aria-hidden="true"
+        />
+      </div>
     </div>
   );
+}
+
+function useElapsedSeconds() {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    const start = Date.now();
+    const intervalId = window.setInterval(() => {
+      setSeconds(
+        Math.floor((Date.now() - start) / 1000),
+      );
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  return seconds;
+}
+
+function RetrievalPathCard({
+  retrievalState,
+  topK,
+}: {
+  retrievalState: RetrievalState;
+  topK: number;
+}) {
+  const chunkCount =
+    retrievalState.status === "success"
+      ? retrievalState.retrieval.evidence.length
+      : null;
+  const lastQuery =
+    retrievalState.status === "success"
+      ? retrievalState.retrieval.queryText
+      : null;
+
+  return (
+    <section className="card sidebar-card accent-card retrieval-path-card">
+      <p className="eyebrow">Current retrieval path</p>
+      <h2>Keyword retrieval</h2>
+
+      <dl className="retrieval-path-stats">
+        <div>
+          <dt>Depth</dt>
+          <dd>Top {topK}</dd>
+        </div>
+        <div>
+          <dt>Status</dt>
+          <dd>{retrievalStatusLabel(retrievalState.status)}</dd>
+        </div>
+        {chunkCount !== null ? (
+          <div>
+            <dt>Chunks</dt>
+            <dd>{chunkCount}</dd>
+          </div>
+        ) : null}
+      </dl>
+
+      {lastQuery ? (
+        <p className="retrieval-path-query">
+          Last query: “{truncateText(lastQuery, 90)}”
+        </p>
+      ) : (
+        <p>
+          Keyword retrieval is the default application path.
+          Embedding and hybrid retrieval remain evaluation
+          baselines.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function retrievalStatusLabel(
+  status: RetrievalState["status"],
+): string {
+  switch (status) {
+    case "loading":
+      return "Retrieving…";
+    case "success":
+      return "Live";
+    case "error":
+      return "Unavailable";
+    default:
+      return "Idle";
+  }
+}
+
+function truncateText(value: string, max: number): string {
+  return value.length > max
+    ? `${value.slice(0, max).trimEnd()}…`
+    : value;
 }
 
 function ErrorBanner({

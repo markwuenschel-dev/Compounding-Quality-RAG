@@ -17,6 +17,8 @@ describe("DemoToolbar", () => {
         onLoadDemoCase={onLoadDemoCase}
         onStartOver={onStartOver}
         canStartOver
+        topK={3}
+        onTopKChange={vi.fn()}
       />,
     );
 
@@ -34,6 +36,30 @@ describe("DemoToolbar", () => {
     expect(onStartOver).toHaveBeenCalledTimes(1);
   });
 
+  it("reports the chosen retrieval depth", async () => {
+    const user = userEvent.setup();
+    const onTopKChange = vi.fn();
+
+    render(
+      <DemoToolbar
+        selectedDemoCaseId="vomiting-concern"
+        onSelectedDemoCaseChange={vi.fn()}
+        onLoadDemoCase={vi.fn()}
+        onStartOver={vi.fn()}
+        canStartOver
+        topK={3}
+        onTopKChange={onTopKChange}
+      />,
+    );
+
+    await user.selectOptions(
+      screen.getByLabelText("Chunks to retrieve"),
+      "5",
+    );
+
+    expect(onTopKChange).toHaveBeenCalledWith(5);
+  });
+
   it("disables Start over when there is no workflow state", () => {
     render(
       <DemoToolbar
@@ -42,6 +68,8 @@ describe("DemoToolbar", () => {
         onLoadDemoCase={vi.fn()}
         onStartOver={vi.fn()}
         canStartOver={false}
+        topK={3}
+        onTopKChange={vi.fn()}
       />,
     );
 

@@ -14,7 +14,7 @@ export function WorkflowProgress({
   const steps = [
     { number: 1, label: "Concern" },
     { number: 2, label: "Checklist" },
-    { number: 3, label: "Reviewer findings" },
+    { number: 3, label: "Investigation" },
     { number: 4, label: "Final assessment" },
   ];
 

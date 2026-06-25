@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import type { ReviewSummaryRequest } from "../api/types";
+import { CollapsibleCard } from "./shared/CollapsibleCard";
 
 type ReviewSummaryFormProps = {
   isSubmitting: boolean;
@@ -8,6 +9,8 @@ type ReviewSummaryFormProps = {
   ) => Promise<void>;
   initialValues?: ReviewSummaryRequest;
   isSubmissionDisabled?: boolean;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 };
 
 type Option = {
@@ -161,6 +164,8 @@ export function ReviewSummaryForm({
   onSubmit,
   initialValues = EMPTY_REVIEW_SUMMARY,
   isSubmissionDisabled = false,
+  collapsed,
+  onToggleCollapsed,
 }: ReviewSummaryFormProps) {
   const [
     recordReviewResult,
@@ -244,22 +249,15 @@ export function ReviewSummaryForm({
   }
 
   return (
-    <section
-      className="card workflow-card"
-      aria-label="Reviewer findings"
+    <CollapsibleCard
+      ariaLabel="Reviewer findings"
+      eyebrow="Step 3"
+      title="Confirm reviewer findings"
+      description="The extractor supplied valid structured values. Confirm or correct them before generating the final assessment."
+      summary="Reviewer findings confirmed"
+      collapsed={collapsed}
+      onToggleCollapsed={onToggleCollapsed}
     >
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Step 4</p>
-          <h2>Confirm reviewer findings</h2>
-          <p>
-            The extractor supplied valid structured values.
-            Confirm or correct them before generating the final
-            assessment.
-          </p>
-        </div>
-      </div>
-
       <form
         className="form-stack"
         aria-label="Final assessment form"
@@ -373,7 +371,7 @@ export function ReviewSummaryForm({
           </button>
         </div>
       </form>
-    </section>
+    </CollapsibleCard>
   );
 }
 

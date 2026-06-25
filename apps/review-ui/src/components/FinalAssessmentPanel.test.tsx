@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FinalAssessmentResponse } from "../api/types";
@@ -53,6 +53,44 @@ describe("FinalAssessmentPanel copy action", () => {
   });
 });
 
+describe("FinalAssessmentPanel pipeline detail", () => {
+  it("surfaces raw intake, product context, requirements, and review summary", async () => {
+    const user = userEvent.setup();
+    render(<FinalAssessmentPanel assessment={buildFullAssessment()} />);
+
+    await user.click(
+      screen.getByRole("button", { name: /Full pipeline output/ }),
+    );
+
+    const intake = screen.getByLabelText("Raw intake");
+    expect(within(intake).getByText("Customer review")).toBeInTheDocument();
+
+    const product = screen.getByLabelText("Product context");
+    expect(within(product).getByText("Dog")).toBeInTheDocument();
+
+    const requirements = screen.getByLabelText("Investigation requirements");
+    expect(
+      within(requirements).getByText("Record review"),
+    ).toBeInTheDocument();
+
+    const summary = screen.getByLabelText("Confirmed review summary");
+    expect(
+      within(summary).getByText("No discrepancy found"),
+    ).toBeInTheDocument();
+    expect(
+      within(summary).getByText("Possible contamination"),
+    ).toBeInTheDocument();
+  });
+
+  it("omits the pipeline detail group when no upstream fields are present", () => {
+    render(<FinalAssessmentPanel assessment={buildAssessment()} />);
+
+    expect(
+      screen.queryByText("Full pipeline output"),
+    ).not.toBeInTheDocument();
+  });
+});
+
 function buildAssessment(): FinalAssessmentResponse {
   return {
     rawIntake: null,
@@ -71,6 +109,48 @@ function buildAssessment(): FinalAssessmentResponse {
       resolutionReviewRequired: true,
       resolutionOptions: ["counseling_or_follow_up"],
       rationale: "Follow up with the customer.",
+    },
+  };
+}
+
+function buildFullAssessment(): FinalAssessmentResponse {
+  return {
+    ...buildAssessment(),
+    rawIntake: {
+      intakeSource: "customer_review",
+      submitterRole: "pet_owner",
+      submissionPurpose: "report_concern",
+      concernNarrative: "Dog vomited once after the dose.",
+      starRating: 2,
+      reviewTextPresent: true,
+      submitterSelectedClassification: "adverse_event",
+    },
+    productContext: {
+      species: "dog",
+      dosageForm: "oral_liquid",
+      productPlaceholder: "Compounded suspension",
+      flavorOrAttribute: "chicken",
+      budPresent: true,
+      batchLotPresent: false,
+    },
+    investigationRequirements: {
+      recordReviewRequired: true,
+      lotBatchReviewRequired: false,
+      inventoryInspectionRequired: false,
+      trendScanRequired: true,
+      customerOutreachRequired: true,
+      frontlineGuidanceLookupRequired: false,
+      technicalServicesResponseRequired: true,
+    },
+    reviewSummary: {
+      recordReviewResult: "no_discrepancy_found",
+      lotBatchPatternSummary: "no_similar_batch_concerns_found",
+      inventoryInspectionResult: "no_inventory_available",
+      customerContextSummary: "Owner reports the dog recovered.",
+      apiReferenceReviewResult: "not_needed",
+      missingInformation: ["Exact dose administered"],
+      evidenceLimitations: ["Inventory was not available to inspect."],
+      severeTriggersObserved: ["possible_contamination"],
     },
   };
 }

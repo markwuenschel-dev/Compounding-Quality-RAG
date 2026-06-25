@@ -30,7 +30,7 @@ class SubmitterRole(StrEnum):
     CUSTOMER_CARE = "customer_care"
     CUSTOMER_REVIEW_SYSTEM = "customer_review_system"
     TECHNICAL_SERVICES = "technical_services"
-    OPERATIONS_LEADERSHIP = "operations_leADErship"
+    OPERATIONS_LEADERSHIP = "operations_leadership"
     OTHER = "other"
     UNKNOWN = "unknown"
 
@@ -167,8 +167,8 @@ class HandlingPath(StrEnum):
     TECHNICAL_SERVICES_CUSTOMER_OUTREACH = "technical_services_customer_outreach"
     RECORD_REVIEW_THEN_DOCUMENT = "record_review_then_document"
     INVESTIGATE_TO_RESOLUTION = "investigate_to_resolution"
-    FLAG_LEADERSHIP_DURING_INVESTIGATION = "flag_leADErship_during_investigation"
-    LEADERSHIP_ESCALATION_BEFORE_RESOLUTION = "leADErship_escalation_before_resolution"
+    FLAG_LEADERSHIP_DURING_INVESTIGATION = "flag_leadership_during_investigation"
+    LEADERSHIP_ESCALATION_BEFORE_RESOLUTION = "leadership_escalation_before_resolution"
     INSUFFICIENT_INFORMATION = "insufficient_information"
 
 
@@ -177,7 +177,7 @@ class ResolutionOption(StrEnum):
     REFUND_OR_CONCESSION_REVIEW = "refund_or_concession_review"
     ALTERNATE_DOSAGE_FORM_DISCUSSION = "alternate_dosage_form_discussion"
     COUNSELING_OR_FOLLOW_UP = "counseling_or_follow_up"
-    LEADERSHIP_DIRECTED_RESOLUTION = "leADErship_directed_resolution"
+    LEADERSHIP_DIRECTED_RESOLUTION = "leadership_directed_resolution"
     NO_CUSTOMER_FACING_RESOLUTION = "no_customer_facing_resolution"
 
 
