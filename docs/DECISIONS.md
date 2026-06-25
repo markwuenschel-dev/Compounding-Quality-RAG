@@ -1,145 +1,86 @@
 # Decisions
 
+Updated: 2026-06-25
+
+This file records stable technical decisions. Use the failure log for defects and repairs.
+
 ## 2026-05-04 — Project boundary
 
 ### Decision
-This project will be a source-grounded RAG workbench for synthetic pharmacy/compounding SOP-style documents and synthetic inquiry records.
+
+This project is a source-grounded AI review workbench for synthetic pharmacy/compounding SOP-style documents and synthetic inquiry records.
 
 ### Reason
-Synthetic documents are safe to publish and let me control the document structure, expected answers, review states, and evaluation cases. The public project can model the workflow shape without exposing proprietary records, internal SOP text, customer information, PHI, PII, or licensed drug-information content.
 
-### Alternatives considered
-- Public pharmacy/regulatory documents
-- Internal documents
-- Generic legal/compliance documents
+Synthetic documents are safe to publish and let the project control document structure, expected answers, review states, and evaluation cases without exposing proprietary records, internal SOP text, customer information, PHI, PII, or licensed drug-information content.
 
 ### Tradeoff
-Synthetic documents are safer but less realistic than real regulatory, operational, or customer-review material.
+
+Synthetic data is safer but less realistic than real operational material.
 
 ### Revisit when
-The ingestion, chunking, retrieval, and evaluation loop works on the synthetic corpus.
+
+A private/internal prototype is approved with governed read-only data access.
 
 ---
 
-## 2026-05-04 — Initial document schema
+## 2026-05-04 — Schema-first model
 
 ### Decision
-The first core objects are `SourceDocument` and `DocumentChunk`, followed by more specific objects for SOP documents and synthetic inquiry records.
+
+Use validated schema objects for documents, chunks, inquiries, review summaries, derived assessments, and expected outputs.
 
 ### Reason
-The RAG system needs a clear boundary between a full source document, a synthetic inquiry record, and the smaller chunks used for retrieval.
 
-### Alternatives considered
-- Use raw dictionaries: simplest method, but there is no validation or enforced structure. Misspellings in keys or missing fields will not fail early and can cause runtime errors later.
-- Use dataclasses: dataclasses provide structured objects and type hints, but they do not enforce validation by default. Additional validation would need to be implemented manually, which recreates functionality already provided by Pydantic.
-- Delay schema design until ingestion is built.
+Malformed records should fail before entering retrieval, extraction, or evaluation.
 
 ### Tradeoff
-Pydantic introduces runtime validation overhead when creating objects, but early validation is worth it for an accuracy-sensitive RAG system because malformed SOPs or inquiry records should fail before they can enter retrieval.
 
-### Revisit when
-The first loader and chunker are working.
+Pydantic adds runtime validation overhead, but the safety and debugging benefits are worth it.
 
 ---
 
-## 2026-05-04 — Testing approach
+## 2026-05-09 — Separate classification from handling path
 
 ### Decision
-Start with small pytest tests for model validation.
+
+Separate formal QRE/general-question classification from operational handling path.
 
 ### Reason
-The immediate goal is to learn the pytest pattern and prove that invalid chunks, SOPs, and inquiry records fail early.
 
-### Alternatives considered
-- No tests until retrieval works
-- Only manual testing
-- Larger integration tests immediately
-
-### Tradeoff
-These tests are simple and do not prove the RAG system works yet.
-
-### Revisit when
-The loader and chunker exist.
-
----
-
-## 2026-05-09 — Formal classification versus handling path
-
-### Decision
-Separate formal QRE classification from operational handling path.
-
-### Reason
-The formal QRE/general-question label and QRE category/subcategory are documentation concepts. They do not always determine the Technical Services workflow. A submission can arrive through the same form but require different review depth depending on concern type, risk lane, missing information, and escalation triggers.
-
-### Consequence
-Synthetic inquiry records will store formal classification separately from concern type, risk lane, review scope, investigation requirements, handling path, and resolution options.
-
-### Tradeoff
-This makes the schema more verbose, but prevents a single overloaded `disposition` field from mixing documentation category, workflow action, escalation state, and customer-facing resolution.
-
-### Revisit when
-Evaluation questions show the model is confusing classification, handling path, and resolution.
+Formal classification is documentation. Handling path is workflow. One overloaded field would mix category, risk, escalation, and customer-resolution concepts.
 
 ---
 
 ## 2026-05-09 — Risk lane model
 
 ### Decision
-Use `risk_lane` as a severity and escalation guide separate from formal category and handling path.
 
-### Reason
-The real workflow behaves like a risk-tiered investigation. Expected/self-limiting concerns require less aggressive review than unexpected or life-threatening/legal concerns, even when they arrive through the same intake channel.
+Use `risk_lane` as a severity/escalation guide separate from formal category and handling path.
 
-### Allowed values
+### Values
+
 - `expected_self_limiting`
 - `unexpected_non_life_threatening`
 - `life_threatening_or_legal`
 
-### Consequence
-Synthetic inquiries can model different investigation paths without pretending every concern has a clean final disposition at intake.
-
-### Tradeoff
-Risk lane is a derived assessment, not a raw intake field. In intake-only records it should usually be null until enough information exists to support it.
-
-### Revisit when
-The first intake/checklist mode produces useful missing-information outputs.
-
----
-
-## 2026-05-09 — Carry-forward inquiry schema
-
-### Decision
-Use one carry-forward schema for synthetic inquiries rather than two unrelated sets of records.
-
 ### Reason
-A real inquiry changes state over time. At intake, only raw form or review information may be available. After Technical Services review, the record can carry review-summary findings. After assessment, it can carry derived classification, risk lane, handling path, and rationale.
 
-### Consequence
-Synthetic inquiry records include `workflow_stage`:
-- `intake_only`
-- `review_summary_complete`
-- `finalized`
-
-For `intake_only` records, `review_summary` and `derived_assessment` may be null. Later versions of the same record can fill those sections in.
-
-### Tradeoff
-The YAML files are not meant to be the real user interface. They are a portfolio-friendly stand-in for a database record, form, or review note interface.
-
-### Revisit when
-Loaders and validation make the carry-forward shape feel too complex or too permissive.
+Review depth is risk-tiered and cannot be inferred from intake channel alone.
 
 ---
 
-## 2026-05-09 — Frontline pharmacist questions
+## 2026-05-09 — Frontline pharmacist questions use shared intake source
 
 ### Decision
+
 Do not model frontline pharmacist questions as a separate intake source.
 
 ### Reason
-Frontline pharmacist questions arrive through the QRE/general-question submission form. They differ by submitter role, submission purpose, and review scope, not by ingestion channel.
 
-### Consequence
-Synthetic inquiry records use:
+They arrive through the QRE/general-question form and are distinguished by submitter role, submission purpose, and review scope.
+
+### Canonical shape
 
 ```yaml
 intake_source: qre_general_question_form
@@ -148,306 +89,229 @@ submission_purpose: frontline_pharmacist_question
 review_scope: guidance_only
 ```
 
-These records usually do not require compounding-record review, lot/batch review, inventory inspection, trend scan, or customer outreach unless the narrative alleges a product quality issue, ADE, dispensing error, or escalation trigger.
-
-### Tradeoff
-This adds fields, but preserves the real workflow and still allows tracking the volume of frontline pharmacist questions.
-
-### Revisit when
-Analytics or validation shows `submission_purpose` and `review_scope` are redundant.
-
 ---
 
 ## 2026-05-09 — Synthetic review summaries instead of fake system access
 
 ### Decision
-The public project will not pretend the RAG system has access to compounding records, lot-tracing systems, customer histories, inventory, Snowflake, or external drug-information resources.
 
-### Reason
-The public portfolio project must be synthetic and safe. Real-world integrations would require approved data access, governance, security review, and system-specific API design.
+The public project does not pretend to access compounding records, lot-tracing systems, customer histories, inventory, Snowflake, external drug-information resources, or licensed references.
 
 ### Consequence
-Synthetic inquiry records may include a `review_summary` object that represents human-entered or synthetic findings after review. The RAG system can use those summaries, but it should not claim it directly inspected real operational systems.
 
-### Tradeoff
-This is less impressive than direct integration, but more accurate and safer. It also keeps the first portfolio version focused on retrieval, validation, citation, and workflow reasoning.
-
-### Revisit when
-A private/internal prototype is approved and read-only integration requirements are known.
+The tool can use human-entered or synthetic `review_summary` findings, but it must not claim direct access to real operational systems.
 
 ---
-
-## 2026-05-09 — Resolution options separate from handling path
-
-### Decision
-Keep customer-facing resolution options separate from operational handling path.
-
-### Reason
-Handling path describes what Technical Services does next. Resolution options describe possible case-closure or customer-facing actions such as counseling, replacement/reship review, refund/concession review, or alternate dosage form discussion.
-
-### Consequence
-Synthetic inquiry records may include:
-
-```yaml
-handling_path: technical_services_customer_outreach
-resolution_review_required: true
-resolution_options:
-  - alternate_dosage_form_discussion
-  - refund_or_concession_review
-```
-
-### Tradeoff
-This avoids overloading `handling_path`, but it requires answer rules to clearly distinguish workflow action from customer resolution.
-
-### Revisit when
-Synthetic inquiries and evaluation questions reveal duplicate or confusing resolution values.
 
 ## 2026-05-18 — Structured severe escalation triggers
 
 ### Decision
+
 Use `review_summary.severe_triggers_observed` as the structured source of truth for severe escalation routing.
 
 ### Reason
-Free-text reviewer summaries can contain negated severe terms such as “no hospitalization,” “no death,” “no legal threat,” or “no wrong medication concern.” Keyword scanning can misread those phrases as positive escalation evidence.
 
-### Consequence
-Final risk-lane logic escalates to `life_threatening_or_legal` when `severe_triggers_observed` is non-empty. Negated free-text statements do not independently trigger escalation. The reviewer or future extraction layer must explicitly populate the structured trigger list.
-
-### Tradeoff
-This requires one additional structured reviewer field, but it is safer and easier to validate than brittle free-text parsing.
-
-### Revisit when
-The LLM review-summary extraction layer is added and must map normal English reviewer notes into `ReviewSummary`.
+Free text can contain negated severe terms such as “no hospitalization.” Keyword scanning is unsafe for escalation-critical facts.
 
 ---
 
 ## 2026-06-09 — Preserve keyword retrieval as baseline
 
 ### Decision
+
 Keep keyword retrieval as the transparent baseline behind `KeywordRetriever`.
 
 ### Reason
-Keyword retrieval is interpretable, auditable, and useful for exact SOP/process terms. It provides a stable comparison point before adding vector or hybrid retrieval.
 
-### Consequence
-New retrieval strategies must be compared against keyword rather than replacing it silently.
+Keyword retrieval is interpretable, auditable, and useful for exact SOP/process terms.
 
 ---
 
-## 2026-06-09 — Add local deterministic vector baseline before production semantic search
+## 2026-06-09 — Add local deterministic vector and hybrid baselines
 
 ### Decision
-Add a local deterministic hashing-vector `EmbeddingRetriever` before introducing external embedding models or a vector database.
+
+Add local hashing-vector `EmbeddingRetriever` and normalized-score `HybridRetriever` as evaluation baselines before adding external embedding models or vector databases.
 
 ### Reason
-The project needs testable vector retrieval plumbing and comparison infrastructure before adding model downloads, external APIs, persistence, or infrastructure.
+
+The project needs retrieval plumbing and comparison infrastructure before infrastructure complexity.
 
 ### Tradeoff
-The hashing-vector model is not true semantic search. It does not understand synonyms such as `emesis` and `vomiting` unless lexical overlap or hash collision creates similarity.
 
-### Consequence
-The current vector baseline must be described as local vector retrieval plumbing, not production semantic retrieval.
-
----
-
-## 2026-06-09 — Add hybrid retrieval with normalized component scores
-
-### Decision
-Add `HybridRetriever` that combines normalized keyword and vector scores with configurable weights.
-
-### Reason
-Keyword and cosine-similarity scores are on different scales. Normalization is required before weighted combination.
-
-### Default weights
-- keyword: `0.65`
-- vector: `0.35`
-
-### Consequence
-Hybrid retrieval can be evaluated alongside keyword and vector retrieval without changing the public `SearchResult` contract.
-
----
-
-## 2026-06-09 — Generate retrieval comparison report before quality claims
-
-### Decision
-Generate `reports/retrieval_comparison.md` comparing keyword, vector, and hybrid retrieval.
-
-### Report fields
-- hit_rate@k
-- mean reciprocal rank
-- failed question IDs
-- latency seconds
-- qualitative notes
-- interpretation guardrails
-
-### Reason
-Retrieval quality should be measured before claiming improvement.
-
-### Consequence
-The project can discuss retrieval tradeoffs using evidence from the synthetic evaluation set while avoiding unsupported claims that vector or hybrid retrieval is generally superior.
-
----
-
-## 2026-06-09 — Defer vector database and persisted vector store
-
-### Decision
-Do not add a vector database or persisted vector store during the local retrieval baseline.
-
-### Reason
-The corpus is small and the current hashing-vector model is not the final semantic model. Persisting this index would add infrastructure before it proves value.
-
-### Revisit when
-A real embedding model is added, corpus size grows, retrieval latency becomes a measurable problem, or deployment requires persistent precomputed vectors.
+The hashing-vector model is not production semantic search and must not be described as such.
 
 ---
 
 ## 2026-06-15 — Hybrid review-summary extraction
 
 ### Decision
-Use the LLM to propose a structured `ReviewSummary`, then apply Pydantic validation and deterministic grounding before downstream workflow logic uses it.
+
+Use the LLM to propose a structured `ReviewSummary`, then apply Pydantic validation and deterministic grounding.
 
 ### Reason
-Reviewer notes contain flexible language, but high-impact fields such as severe triggers, reference-review status, lot patterns, negation, and missing investigation steps require repeatable semantics.
 
-### Consequence
-The extraction path is:
+Flexible language belongs to the LLM; high-impact workflow semantics such as negation, same-lot patterns, reference states, missing checks, and severe triggers need repeatable policy.
+
+### Architecture
 
 ```text
-LLM candidate -> schema validation -> deterministic grounding -> scope defaults
+LLM candidate -> schema validation -> deterministic grounding -> review-scope defaults
 ```
-
-The LLM is not the final authority for workflow-critical fields.
-
-### Tradeoff
-The policy layer adds code and regression-test maintenance, but reduces prompt sensitivity and makes failures diagnosable.
-
-### Revisit when
-A larger holdout shows that deterministic rules are overfitting or suppressing valid language variation.
 
 ---
 
 ## 2026-06-15 — Reference-review states and precedence
 
 ### Decision
-Add `external_reference_consulted` and use the following precedence:
 
-1. explicit unsupported or non-disclosure boundary;
+Add `external_reference_consulted` and use this precedence:
+
+1. unsupported or non-disclosure boundary;
 2. completed external review;
 3. completed synthetic-corpus review;
 4. external review still needed;
 5. no reference review needed.
 
 ### Reason
-A completed manufacturer, USP, veterinary-reference, internal-clinical-guidance, or package-insert review is different from an external review that still needs to occur.
 
-### Consequence
-`ApiReferenceReviewResult` includes:
-
-- `not_needed`
-- `synthetic_reference_consulted`
-- `external_reference_consulted`
-- `external_reference_needed`
-- `not_supported_by_public_corpus`
-
-Explicit supplier, manufacturer, or proprietary-formula non-disclosure maps to `not_supported_by_public_corpus` and returns to the frontline pharmacist.
-
-### Tradeoff
-The public benchmark records that an outside review occurred without publishing or reproducing licensed source content.
-
-### Revisit when
-Reference provenance needs a separate object rather than one controlled status.
+Completed external review is different from external review still needed.
 
 ---
 
-## 2026-06-15 — Review-scope defaults for undocumented checks
+## 2026-06-15 — Scope-first defaults
 
 ### Decision
-Infer whether the case is guidance-only or a full investigation before defaulting undocumented review-summary fields.
 
-### Reason
-Silence does not have one meaning. A record review may be irrelevant for a narrow guidance question, but missing documentation in an ADE or product-quality investigation should not be treated as `not_applicable`.
+Infer guidance-only versus full investigation before defaulting undocumented review-summary fields.
 
-### Consequence
-
-For full investigations:
+### Full investigation defaults
 
 - absent record result -> `documentation_incomplete`
 - absent lot result -> `unavailable`
 - absent inventory result -> `not_checked`
 - absent reference result -> `not_needed`
 
-For guidance-only work:
+### Guidance-only defaults
 
-- absent record, lot, and inventory results -> `not_applicable`
-- absent reference result -> `not_needed`
-
-Explicit findings override defaults.
-
-### Tradeoff
-Scope inference uses controlled pattern logic and therefore requires representative regression tests.
-
-### Revisit when
-Review scope becomes a first-class extracted field supplied directly by the reviewer.
+- absent record/lot/inventory -> `not_applicable`
+- absent reference -> `not_needed`
 
 ---
 
 ## 2026-06-15 — Complaint-reported severe triggers
 
 ### Decision
-A listed severe trigger reported in the complaint, such as hospitalization, is proposed immediately for reviewer confirmation.
 
-### Reason
-Waiting for the investigation note to repeat hospitalization could silently drop a high-impact reported fact.
+A listed severe trigger reported in the complaint, such as hospitalization, may be proposed immediately for reviewer confirmation.
 
-### Consequence
-Complaint text may supply evidence for a proposed controlled trigger. The reviewer confirms or corrects it before final assessment.
+### Boundary
 
-Shortness of breath, collapse, and falling over remain context only unless another controlled escalation trigger is present.
-
-### Tradeoff
-The system distinguishes reported context from final reviewer confirmation, which requires clear UI wording.
-
-### Revisit when
-The schema separates `reported_severe_context` from `confirmed_severe_triggers`.
+Shortness of breath, collapse, falling over, and similar symptoms remain context unless tied to an existing structured trigger.
 
 ---
 
 ## 2026-06-15 — Development and holdout separation
 
 ### Decision
-Use 20 selected paired cases for development/error analysis and reserve 20 separate cases as holdout.
 
-### Reason
-Tuning and evaluating on the same cases would produce an inflated estimate.
+Use development fixtures for tuning and holdout fixtures for generalization estimates.
 
 ### Consequence
-The current 20/20 extraction result is described as a development result. The holdout remains untouched until extraction and retrieval development behavior stabilize.
 
-### Tradeoff
-The benchmark is small, so even the holdout will be a directional estimate rather than production evidence.
-
-### Revisit when
-More adjudicated complaint/investigation pairs are available.
+After a holdout result is used to design a fix, that dataset becomes a regression benchmark. New generalization claims require a new untouched holdout.
 
 ---
 
-## 2026-06-23 — HTTP service boundary and containerized deployment
+## 2026-06-23 — HTTP service boundary and Docker Compose stack
 
 ### Decision
-Replace the in-process Python subprocess bridge with an HTTP boundary between Spring Boot and the Python review engine, and run all three services under Docker Compose.
+
+Replace the in-process Python subprocess bridge with an HTTP FastAPI service called by Spring Boot, and run React, Spring, and Python under Docker Compose.
 
 ### Reason
-The stdin/stdout subprocess bridge coupled Spring Boot to a local Python interpreter, working directory, and command probe. An HTTP boundary lets each service start, scale, fail, and be health-checked independently, and matches how the stack would run in a real deployment.
+
+The subprocess bridge coupled Spring to Python interpreter discovery, working directory, and stdout/stderr parsing. HTTP gives each service an independent lifecycle and health surface.
 
 ### Consequence
-- The Python engine is a standalone FastAPI service (`app/server.py`); `api_runner.py` remains only as the legacy CLI/stdin runner.
-- Spring Boot calls the engine through `HttpRagEngineClient`, configured by `PYTHON_ENGINE_BASE_URL` (default `http://localhost:8000`; `http://rag-engine:8000` under Compose).
-- `GET /ready` now checks the engine's HTTP `/health` endpoint instead of a Python command and working directory.
-- `infra/docker-compose.yml` builds and runs review-ui, review-api, and rag-engine with health-gated startup; the engine receives `OPENAI_API_KEY` from the gitignored `secrets.env` via `env_file`.
-- A repo-root `.dockerignore` is the only one Docker honors because every service builds with `context: ..`.
+
+- Python engine runs as FastAPI `app/server.py`.
+- `api_runner.py` remains legacy/local CLI only.
+- Spring calls Python through `HttpRagEngineClient`.
+- `PYTHON_ENGINE_BASE_URL` controls the boundary.
+- Docker Compose provides health-gated local startup.
+
+---
+
+## 2026-06-23 — Retrieval intent ablation decision
+
+### Decision
+
+Use Nano semantic intent as the current accuracy-oriented retrieval interpretation path, rule intent as deterministic fallback, and keyword retrieval as the unchanged retriever after vocabulary mapping.
+
+### Frozen holdout result
+
+| Strategy | Hit rate@5 | MRR | Negative pass |
+|---|---:|---:|---:|
+| Raw | 0.700 | 0.567 | 0.850 |
+| Deterministic expansion | 0.850 | 0.733 | 0.850 |
+| Rule intent | 0.750 | 0.725 | 0.900 |
+| Nano intent | 0.950 | 0.950 | 1.000 |
+
+### Runtime path
+
+```text
+Nano semantic intent -> deterministic workflow derivation -> vocabulary mapper -> keyword retrieval
+```
+
+Fallback path:
+
+```text
+Rule semantic intent -> deterministic workflow derivation -> vocabulary mapper -> keyword retrieval
+```
 
 ### Tradeoff
-HTTP adds a network hop and a separate process to operate, but removes interpreter discovery and working-directory coupling and makes the boundary observable and independently testable.
 
-### Revisit when
-The deployment target requires orchestration beyond Compose, or the engine needs horizontal scaling, authentication, or a managed gateway.
+Nano improves measured generalization but adds latency, cost, external dependency, and cache/fallback complexity. Further Nano optimization belongs in a later performance milestone.
+
+---
+
+## 2026-06-24 — Request correlation across Spring and Python
+
+### Decision
+
+Propagate `X-Request-Id` across Spring and Python and include it in logs and response headers.
+
+### Reason
+
+A multi-service local stack needs a way to connect UI/API requests, Spring logs, downstream Python calls, and error responses.
+
+### Boundary
+
+This is request correlation, not full distributed tracing.
+
+---
+
+## 2026-06-25 — Documentation consolidation
+
+### Decision
+
+Keep a small active documentation set and archive stale repair/proposal/history docs.
+
+### Reason
+
+The risk has shifted from missing documentation to stale documentation. Docs that still describe the subprocess bridge, old retrieval bottlenecks, or proposed policies can mislead reviewers.
+
+### Active docs
+
+- `README.md`
+- `RUNBOOK.md`
+- `docs/data_dictionary.md`
+- `docs/Workflow_Taxonomy_Reference.md`
+- `docs/DECISIONS.md`
+- `docs/failure_log.md`
+- `docs/interview_framing.md`
+- `docs/retrieval_query_ablation_design.md`
+- `docs/evaluation_case_authoring.md`
+- `docs/holdout_case_capture_worksheet.md`
+- focused policy docs only while synchronized with the data dictionary
