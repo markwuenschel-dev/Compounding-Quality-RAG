@@ -190,3 +190,13 @@ export type ReadinessResponse = {
   checks: ReadinessCheck[];
   timestamp: string;
 };
+
+export type AsyncState<T> =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "success"; data: T }
+  | { status: "error"; message: string; error: unknown };
+
+export function assertNever(value: never): never {
+  throw new Error(`Unhandled value: ${JSON.stringify(value)}`);
+}

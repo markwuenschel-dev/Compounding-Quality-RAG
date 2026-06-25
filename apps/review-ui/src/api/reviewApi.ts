@@ -87,11 +87,28 @@ export async function retrieveEvidence(
   request: RetrieveRequest,
   options?: RequestOptions,
 ): Promise<RetrieveResponse> {
-  return postJson<RetrieveRequest, RetrieveResponse>(
+  const { response, body } = await requestJson(
     "/api/retrieve",
-    request,
-    options,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(request),
+    },
+    options?.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
   );
+
+  if (!response.ok) {
+    throw createHttpError(response.status, body);
+  }
+
+  if (!isRetrieveResponse(body)) {
+    throw invalidResponseError(response.status);
+  }
+
+  return body;
 }
 
 export async function extractReviewSummary(
@@ -374,5 +391,18 @@ function isReadinessResponse(
     ) &&
     Array.isArray(candidate.checks) &&
     typeof candidate.timestamp === "string"
+  );
+}
+
+function isRetrieveResponse(value: unknown): value is RetrieveResponse {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as Partial<RetrieveResponse>;
+
+  return (
+    typeof candidate.topK === "number" &&
+    Array.isArray(candidate.evidence)
   );
 }

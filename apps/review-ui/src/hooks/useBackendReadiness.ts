@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getReadiness,
   getReviewApiErrorMessage,
 } from "../api/reviewApi";
-import type { ReadinessResponse } from "../api/types";
+import type { AsyncState, ReadinessResponse } from "../api/types";
 
 export type BackendReadinessStatus =
   | "checking"
@@ -24,12 +24,10 @@ export function useBackendReadiness(
   pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
 ): BackendReadinessState {
   const mountedRef = useRef(true);
-  const [status, setStatus] =
-    useState<BackendReadinessStatus>("checking");
-  const [response, setResponse] =
-    useState<ReadinessResponse | null>(null);
-  const [message, setMessage] =
-    useState("Checking backend readiness...");
+
+  const [requestState, setRequestState] =
+    useState<AsyncState<ReadinessResponse>>({ status: "loading" });
+
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -42,28 +40,23 @@ export function useBackendReadiness(
         return;
       }
 
-      setResponse(nextResponse);
-
-      if (nextResponse.status === "READY") {
-        setStatus("ready");
-        setMessage("Backend ready");
-      } else {
-        setStatus("unavailable");
-        setMessage(buildUnavailableMessage(nextResponse));
-      }
+      setRequestState({
+        status: "success",
+        data: nextResponse,
+      });
     } catch (error) {
       if (!mountedRef.current) {
         return;
       }
 
-      setResponse(null);
-      setStatus("unavailable");
-      setMessage(
-        getReviewApiErrorMessage(
+      setRequestState({
+        status: "error",
+        message: getReviewApiErrorMessage(
           error,
           "Backend readiness could not be confirmed.",
         ),
-      );
+        error,
+      });
     } finally {
       if (mountedRef.current) {
         setIsRefreshing(false);
@@ -86,13 +79,50 @@ export function useBackendReadiness(
     };
   }, [pollIntervalMs, refresh]);
 
-  return {
-    status,
-    response,
-    message,
-    isRefreshing,
-    refresh,
-  };
+  return useMemo(
+    () => toBackendReadinessState(requestState, isRefreshing, refresh),
+    [requestState, isRefreshing, refresh],
+  );
+}
+
+function toBackendReadinessState(
+  requestState: AsyncState<ReadinessResponse>,
+  isRefreshing: boolean,
+  refresh: () => Promise<void>,
+): BackendReadinessState {
+  switch (requestState.status) {
+    case "idle":
+    case "loading":
+      return {
+        status: "checking",
+        response: null,
+        message: "Checking backend readiness...",
+        isRefreshing,
+        refresh,
+      };
+
+    case "success":
+      return {
+        status: requestState.data.status === "READY"
+          ? "ready"
+          : "unavailable",
+        response: requestState.data,
+        message: requestState.data.status === "READY"
+          ? "Backend ready"
+          : buildUnavailableMessage(requestState.data),
+        isRefreshing,
+        refresh,
+      };
+
+    case "error":
+      return {
+        status: "unavailable",
+        response: null,
+        message: requestState.message,
+        isRefreshing,
+        refresh,
+      };
+  }
 }
 
 function buildUnavailableMessage(
