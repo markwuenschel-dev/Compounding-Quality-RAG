@@ -1,25 +1,47 @@
-# Holdout Evaluation Case Authoring
+# Holdout and Evaluation Case Authoring
 
-This scaffold creates two independent, frozen datasets:
+Updated: 2026-06-25
 
-1. **Narrative extraction holdout** — tests whether messy pharmacist notes become the correct structured review summary.
-2. **Retrieval relevance holdout** — tests whether a customer concern retrieves the right SOP source and avoids known irrelevant sources.
+This document explains how to author new synthetic evaluation cases without contaminating baselines.
 
-Do not run the model against candidate cases while expected answers are still being written. Define the expected result first, review it for ambiguity, then freeze the files.
+## Evaluation lanes
+
+1. **Narrative extraction** — messy complaint/reviewer notes become correct structured `ReviewSummary`.
+2. **Retrieval relevance** — customer concerns retrieve relevant SOP-like sources and avoid known misleading sources.
+3. **Retrieval intent** — semantic facts and derived workflow tags are correct when adjudicated labels exist.
+
+## Core rule
+
+Do not run the model against candidate cases while expected answers are still being written.
+
+Correct order:
+
+```text
+write candidate -> write expected answer -> adjudicate ambiguity -> freeze fixture -> run evaluator -> classify failures -> change only the responsible layer
+```
+
+A model result must not influence the first expected answer.
 
 ## Data boundary
 
-Use synthetic or fully de-identified text only. Do not paste real customer, patient, prescription, order, compounding-record, inventory, or protected operational data into the repository or model workflow.
+Use only synthetic or fully de-identified text.
+
+Do not paste real customer, patient, veterinarian, prescription, order, compounding-record, inventory, employee, proprietary SOP, internal-system, or protected operational data into repository files, model prompts, evaluation fixtures, screenshots, or docs.
+
+## Dataset roles
+
+| Dataset | Purpose | May guide fixes? |
+|---|---|---:|
+| Development | Tuning and error analysis | Yes |
+| Frozen holdout | Generalization estimate | No, until after the reported run |
+| Regression benchmark | Prevent known failures returning | Yes |
+| Challenge set | Targeted mechanism proof | Yes, but not a generalization claim |
+
+Once holdout results guide a fix, that holdout becomes a regression benchmark. New generalization claims require a new untouched holdout.
 
 ## Narrative extraction fixture
 
-Edit:
-
-```text
-rag-engine-python/data/eval/review_summary_extraction_holdout.json
-```
-
-Each case uses the existing extraction-evaluation contract:
+Example shape:
 
 ```json
 {
@@ -42,39 +64,32 @@ Each case uses the existing extraction-evaluation contract:
 
 ### Authoring rules
 
-- Use the canonical enum values already defined in `app/schemas.py`.
+- Use canonical enum values from `app/schemas.py` and `docs/data_dictionary.md`.
+- Preserve messy wording, abbreviations, contradictions, and uncertainty.
+- Do not over-clean notes.
 - Put only explicitly unresolved facts in `missing_information`.
 - Put unavailable verification paths in `evidence_limitations`.
-- Add a severe trigger only when the pharmacist note affirmatively supports it.
-- Use field names, not full question text, in `expected_unresolved_field_names`.
-- Preserve contradictions and uncertainty in the messy note instead of cleaning them up.
-- Mark a case for discussion rather than forcing a single expected answer when two reasonable pharmacists would disagree.
+- Use field names, not full generated question text, in `expected_unresolved_field_names`.
+- Add severe triggers only under the reported-trigger policy.
+- Mark ambiguous cases for discussion instead of forcing a questionable label.
 
-### Useful case types
+### Useful extraction cases
 
-- misspellings and shorthand
-- vague pronouns
-- conflicting dose or timing statements
-- customer allegation later ruled out by the reviewer
-- hospitalization negation
-- veterinarian contact without an allegation of harm
-- possible contamination later ruled out
-- wrong-medication concern later confirmed correct
-- multiple symptoms or multiple products
-- incomplete investigation
-- device issue mixed with a possible adverse event
-- irrelevant narrative details
-- explicit external-reference limitation
+- misspellings and shorthand;
+- vague pronouns;
+- conflicting dose/timing statements;
+- strength or package quantity that is not administered dose;
+- hospitalization negation;
+- complaint-reported hospitalization requiring confirmation;
+- possible contamination later ruled out;
+- wrong-medication concern later confirmed correct;
+- device issue mixed with possible ADE;
+- incomplete investigation;
+- supplier/manufacturer/proprietary non-disclosure.
 
-## Retrieval holdout fixture
+## Retrieval fixture
 
-Edit:
-
-```text
-rag-engine-python/data/eval/retrieval_questions_holdout.json
-```
-
-Each question supports positive and negative relevance expectations:
+Example shape:
 
 ```json
 {
@@ -88,84 +103,96 @@ Each question supports positive and negative relevance expectations:
 
 ### Authoring rules
 
-- `expected_source_ids` means any listed source is a relevant hit.
-- `forbidden_source_ids` identifies a known misleading source that should not enter top K.
+- `expected_source_ids` means any listed source is relevant.
+- `forbidden_source_ids` identifies a materially misleading source that should not enter top K.
 - Do not forbid a source merely because another source is better.
-- Base source expectations on the corpus content, not on the current ranking.
-- Use the customer’s natural wording, including noise and shorthand.
-- Record a rationale before running retrieval.
+- Base expectations on corpus content, not current ranking.
+- Use natural customer wording, including noise.
+- Record rationale before running retrieval.
+- If the corpus lacks the intended policy, classify as missing corpus guidance rather than retriever failure.
 
-### Useful retrieval cases
+## Optional intent labels
 
-- vomiting after oral liquid where shortage guidance is irrelevant
-- flavor refusal without vomiting
-- BUD clarification
-- transdermal pen leakage or failure to dispense
-- possible wrong patient or wrong medication
-- contamination allegation
-- temperature excursion requiring an external reference boundary
-- multiple concerns in one submission
-- vague query with one decisive domain term
+Current development/holdout retrieval datasets mainly evaluate retrieval behavior. Semantic and derived metric fields may remain null when no adjudicated labels exist.
 
-## Candidate-case worksheet
+For future intent-labeled cases:
 
-Use `docs/holdout_case_capture_worksheet.md` while collecting and reviewing candidates. Transfer only adjudicated cases into the JSON files.
+```json
+{
+  "expected_semantic_intent_tags": ["adverse_event"],
+  "expected_intent_tags": ["quality_review", "trend_review"]
+}
+```
+
+Rules:
+
+- semantic tags describe facts in the concern;
+- derived tags describe deterministic workflow consequences;
+- the model should not directly emit workflow tags.
 
 ## Validation and freezing
 
-Before the first model run:
-
 ```powershell
 cd rag-engine-python
-python -m app.holdout_evaluate validate
-python -m app.holdout_evaluate freeze
+uv run python -m app.holdout_evaluate validate
+uv run python -m app.holdout_evaluate freeze
 ```
 
-The freeze command writes:
+The freeze command writes/updates:
 
 ```text
 rag-engine-python/data/eval/holdout_manifest.json
 ```
 
-Commit the fixtures and manifest before tuning. The SHA-256 hashes make later fixture changes visible.
+Commit fixtures and manifest before tuning.
 
 ## Baseline runs
 
-Retrieval does not require an OpenAI call:
-
 ```powershell
-python -m app.holdout_evaluate retrieval
+cd rag-engine-python
+uv run python -m app.holdout_evaluate retrieval
+uv run python -m app.holdout_evaluate extraction
+uv run python -m app.holdout_evaluate all
 ```
 
-Narrative extraction uses the configured OpenAI client:
+Retrieval intent ablation:
 
 ```powershell
-python -m app.holdout_evaluate extraction
-```
-
-Run both:
-
-```powershell
-python -m app.holdout_evaluate all
-```
-
-Generated reports:
-
-```text
-rag-engine-python/reports/retrieval_holdout.md
-rag-engine-python/reports/review_summary_extraction_holdout.md
+uv run python -m app.holdout_evaluate retrieval-ablation `
+  --questions data/eval/retrieval_questions_holdout.json `
+  --strategies raw,deterministic_expansion,rule_intent,nano_intent `
+  --run-id retrieval-intent-holdout-vNEXT `
+  --refresh-nano
 ```
 
 ## Failure classification
 
-Before changing code, classify each failure as one of:
+Before changing code, classify the failure:
 
-- extraction prompt failure
-- deterministic grounding failure
-- schema or contract failure
-- retrieval scoring failure
-- missing corpus guidance
-- chunk-boundary failure
-- ambiguous or incorrect expected answer
+- extraction prompt failure;
+- deterministic grounding failure;
+- review-scope default failure;
+- unresolved-question generation failure;
+- schema or contract failure;
+- retrieval scoring/ranking failure;
+- semantic intent detection failure;
+- deterministic workflow derivation failure;
+- vocabulary mapping failure;
+- cache/fallback provenance failure;
+- missing corpus guidance;
+- chunk-boundary failure;
+- ambiguous or incorrect expected answer;
+- public-boundary/refusal failure.
 
-Change only the layer responsible for the observed failure.
+Change only the responsible layer.
+
+## Reporting rule
+
+Always distinguish:
+
+- development performance;
+- frozen-holdout performance;
+- targeted challenge performance;
+- regression benchmark performance.
+
+Never summarize a development result as production accuracy.
