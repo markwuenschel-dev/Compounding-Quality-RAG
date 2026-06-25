@@ -14,7 +14,7 @@
 
 A synthetic, local-first, human-in-the-loop review-support system for compounding-quality inquiries.
 
-> **Current status:** The Python review engine, Spring Boot API, and React/TypeScript review workflow are implemented end to end and now run as containerized services that communicate over HTTP via Docker Compose. Semantic-intent retrieval evaluation is complete for the current milestone. Request correlation now spans the Spring API and Python review engine over `X-Request-Id`, with the same ID available in Spring MDC logs, API error responses, downstream Python requests, and Python stderr logs. Remaining operational hardening covers CI, container readiness smoke tests, an `.env.example`, an operations runbook, and broader structured operation metrics.
+> **Current status:** The Python review engine, Spring Boot API, and React/TypeScript review workflow are implemented end to end and now run as containerized services that communicate over HTTP via Docker Compose. Semantic-intent retrieval evaluation is complete for the current milestone. Request correlation is implemented across the Spring-to-Python HTTP boundary: Spring creates or accepts `X-Request-Id`, stores it in MDC, includes it in API errors and response headers, forwards it to the Python engine, and the Python service echoes and logs the same ID. Remaining operational hardening covers CI, container smoke tests, an `.env.example`, an operations runbook, and broader structured operation logs beyond request correlation.
 
 ## Problem Statement
 
@@ -51,8 +51,8 @@ The public system does not access live systems. Any internal deployment would re
 | Layer | Primary responsibility |
 |---|---|
 | **React/TypeScript Review UI** | Provides the pharmacist-facing workflow for concern intake, checklist review, investigation-note entry, extracted findings, supporting evidence, unresolved questions, structured confirmation, and final-assessment presentation. |
-| **Spring Boot Review API** | Provides the service boundary for REST endpoints, request and response DTOs, validation, orchestration, readiness checks, timeout management, HTTP integration with the Python review engine, error translation, OpenAPI documentation, and future authentication and audit controls. |
-| **Python Review Engine (FastAPI)** | Standalone HTTP service that owns ingestion, chunking, retrieval, semantic-intent detection, LLM-assisted extraction, deterministic grounding, refusal behavior, checklist generation, final-assessment logic, and evaluation. |
+| **Spring Boot Review API** | Provides the service boundary for REST endpoints, request and response DTOs, validation, orchestration, readiness checks, timeout management, HTTP integration with the Python review engine, request correlation, error translation, OpenAPI documentation, and future authentication and audit controls. |
+| **Python Review Engine (FastAPI)** | Standalone HTTP service that owns ingestion, chunking, retrieval, semantic-intent detection, LLM-assisted extraction, deterministic grounding, refusal behavior, checklist generation, final-assessment logic, evaluation, and Python-side request-correlation logging. |
 
 ```mermaid
 flowchart LR
@@ -70,24 +70,11 @@ flowchart LR
 
 Python remains the owner of working RAG and domain behavior. Spring Boot provides a stable application boundary around that logic over HTTP rather than duplicating it in Java, so each service starts, fails, and is health-checked independently.
 
-## Request Correlation and Observability
+### Request Correlation and Operational Visibility
 
-Every inbound Spring request receives a correlation ID from `X-Request-Id` or a generated UUID. The Spring request-correlation filter stores that value in MDC as `requestId`, adds it to the HTTP response header, and makes it available to error handling so `ApiErrorResponse.requestId` matches the request being diagnosed.
+Request correlation is implemented for the Spring-to-Python HTTP path. The Spring Boot API accepts an incoming `X-Request-Id` or generates a UUID, stores it in MDC as `requestId`, includes it on HTTP responses, and uses the same ID in `ApiErrorResponse.requestId`. The Spring RAG engine client forwards that ID to the Python review engine as `X-Request-Id`. The FastAPI service echoes the header and logs the same ID to stderr for successful and erroring requests.
 
-When Spring calls the Python review engine, the HTTP RAG client forwards the same value as `X-Request-Id`. The FastAPI engine echoes that header on its response and logs the request ID, method, path, and status code to stderr for both successful requests and unhandled exception paths.
-
-This gives a local debugging path across the service boundary:
-
-```text
-client request
-→ Spring X-Request-Id / generated UUID
-→ Spring MDC requestId
-→ Spring API logs and ApiErrorResponse.requestId
-→ X-Request-Id forwarded to Python
-→ Python stderr request log
-```
-
-This is request correlation, not distributed tracing. OpenTelemetry trace/span propagation can be added later if the system grows beyond this local multi-service workflow.
+A local smoke script verifies the Python side of the contract by starting the RAG engine, sending a request with `X-Request-Id`, and asserting that the same ID appears in Python stderr. Broader structured operation logs are still planned for operation names, duration, model, cache, fallback, and bounded error fields.
 
 ## End-to-End Review Workflow
 
@@ -272,8 +259,7 @@ rag-engine-python/
       Local command-line demonstration workflow.
 
     server.py
-      FastAPI HTTP service exposing the review engine to Spring Boot, including
-      request-correlation logging and X-Request-Id response echoing.
+      FastAPI HTTP service exposing the review engine to Spring Boot.
 
     api_runner.py
       Legacy JSON stdin/stdout runner (superseded by server.py as the
@@ -304,8 +290,7 @@ rag-engine-python/
     Pytest coverage for schemas, ingestion, retrieval, semantic intent,
     query construction, caching, evaluation, checklist generation,
     extraction, deterministic grounding, final assessment, refusal behavior,
-    reporting, CLI behavior, request-correlation logging, and the
-    Spring-to-Python HTTP contract.
+    reporting, CLI behavior, and the Spring-to-Python HTTP contract.
 
 infra/
   docker-compose.yml
@@ -357,20 +342,6 @@ cd services/review-api
 
 For a local (non-Compose) run, point the API at a locally running engine with
 `PYTHON_ENGINE_BASE_URL` (defaults to `http://localhost:8000`).
-
-### Request-correlation smoke test
-
-The request-correlation smoke script starts the Python review engine, sends a
-request with `X-Request-Id`, and verifies that the same value appears in Python
-stderr:
-
-```powershell
-bash scripts/smoke_request_correlation.sh test-request-id-smoke
-```
-
-The Spring-side tests verify the complementary path: generated or incoming
-request IDs are stored in MDC, returned in response headers, included in API
-error responses, and forwarded to the Python engine over HTTP.
 
 ### React/TypeScript UI
 
@@ -435,10 +406,11 @@ The model proposes structured interpretation. Pydantic validation, deterministic
 | Review-summary extraction | JSON parsing, deterministic grounding, negation handling, evidence mapping, and unresolved questions. |
 | Checklist and final assessment | Review checks, missing information, severe-trigger handling, disposition logic, evidence, and limitations. |
 | Refusal behavior | External references, real/internal record access, clinical or legal conclusions, and blank inputs. |
-| Spring Boot API | Validation, orchestration, HTTP engine integration, timeouts, readiness, API error translation, request-correlation MDC lifecycle, response headers, and downstream `X-Request-Id` propagation. |
+| Spring Boot API | Validation, orchestration, HTTP engine integration, timeouts, readiness, request correlation, MDC logging context, downstream `X-Request-Id` propagation, and API error translation. |
 | React workflow | Concern intake, loading/error states, checklist display, extraction, structured confirmation, and final assessment. |
+| Operational smoke checks | Request-correlation smoke script verifies that a supplied request ID reaches Python stderr through the running FastAPI service. |
 
-Current Python validation status:
+Most recently recorded Python validation status before the request-correlation additions:
 
 ```text
 342 tests passed
@@ -466,7 +438,7 @@ git diff --check: clean
 | Small synthetic corpus and evaluation sets | Results do not establish production performance. | Expand only with governed, adjudicated synthetic or approved data. |
 | Nano latency and external dependency | Stronger holdout generalization comes with API cost, timeout, and availability tradeoffs. | Measure cached and uncached latency and cost during the later performance milestone. |
 | Citation precision | A retrieved source may still support multiple outputs too broadly. | Tighten item-level evidence mapping. |
-| Partial operations layer | Local Docker Compose, health-gated startup, and request correlation are implemented, but CI gates, container smoke tests, runbook coverage, and production-grade telemetry are still incomplete. | Add CI, readiness smoke tests, `.env.example`, runbook guidance, and broader structured operation metrics. |
+| Operations layer is still local-first | Docker Compose, health-gated startup, request correlation, and a Python stderr smoke check are present, but this is not production deployment or production observability. | Add CI, container smoke tests, `.env.example`, an operations runbook, and broader structured operation logs. |
 | No persistent audit store | Evaluation artifacts are file-based and workflow state is not persisted. | Add persistence only when a concrete audit or evaluation use case requires it. |
 
 ## Next Engineering Milestone
@@ -474,6 +446,10 @@ git diff --check: clean
 Retrieval experimentation is closed for the current product milestone. The
 Spring-to-Python boundary is now HTTP, and the React UI, Spring Boot API, and
 Python engine run as containers under Docker Compose with health-gated startup.
+Request correlation across that HTTP boundary is implemented: Spring creates or
+accepts `X-Request-Id`, stores it in MDC, exposes it in responses and API error
+payloads, forwards it to the Python engine, and the Python service logs the same
+ID to stderr.
 
 Next:
 
@@ -487,7 +463,7 @@ Further Nano optimization belongs in a later performance milestone.
 
 ## Interview Framing
 
-> I built a production-shaped, human-in-the-loop AI review system for compounding-quality inquiries using synthetic data. React provides the pharmacist-facing workflow, Spring Boot provides the HTTP and orchestration boundary, and Python owns retrieval, extraction, deterministic grounding, and review policy. I evaluated raw, deterministic, rule-based semantic, and GPT-5 Nano semantic query strategies under controlled conditions. Nano generalized best on the frozen holdout, while the rule detector remained a fast deterministic fallback. I also added cross-service request correlation so one request ID can be followed through Spring logs, API error responses, the Spring-to-Python HTTP call, and Python stderr logs.
+> I built a production-shaped, human-in-the-loop AI review system for compounding-quality inquiries using synthetic data. React provides the pharmacist-facing workflow, Spring Boot provides the HTTP and orchestration boundary, and Python owns retrieval, extraction, deterministic grounding, and review policy. The Spring API propagates request correlation IDs through MDC, API errors, HTTP response headers, and downstream calls to the Python engine, where the same ID is logged for operational tracing. I evaluated raw, deterministic, rule-based semantic, and GPT-5 Nano semantic query strategies under controlled conditions. Nano generalized best on the frozen holdout, while the rule detector remained a fast deterministic fallback.
 
 ## What This Is Not
 
