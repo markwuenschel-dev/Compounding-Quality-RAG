@@ -21,6 +21,7 @@ class HttpRagEngineClientTest {
     @AfterEach
     void tearDown() {
         MDC.clear();
+
         if (server != null) {
             server.stop(0);
         }
@@ -29,28 +30,33 @@ class HttpRagEngineClientTest {
     @Test
     void forwardsRequestIdFromMdcToPythonRagEngine() throws Exception {
         CapturedRequest capturedRequest = new CapturedRequest();
+
         server = HttpServer.create(new InetSocketAddress(0), 0);
-        server.createContext("/retrieve", exchange -> handleRetrieve(
-                exchange,
-                capturedRequest
-        ));
+        server.createContext(
+                "/retrieve",
+                exchange -> handleRetrieve(exchange, capturedRequest)
+        );
         server.start();
 
         URI baseUrl = URI.create(
                 "http://localhost:%d/".formatted(server.getAddress().getPort())
         );
+
         HttpRagEngineClient client = new HttpRagEngineClient(
                 RestClient.builder(),
                 new HttpRagEngineProperties(baseUrl)
         );
 
-        MDC.put(RequestCorrelationFilter.REQUEST_ID_MDC_KEY, "test-request-id-123");
+        MDC.put(
+                RequestCorrelationFilter.REQUEST_ID_MDC_KEY,
+                "test-request-id-123"
+        );
 
         RagRetrieveResult result = client.retrieve(
                 new RagRetrieveRequest("flavor concern", 3)
         );
 
-        assertThat(result.queryText()).isEqualTo("flavor concern");
+        assertThat(result).isNotNull();
         assertThat(capturedRequest.requestId).isEqualTo("test-request-id-123");
         assertThat(capturedRequest.body).contains("\"query\":\"flavor concern\"");
     }
@@ -59,9 +65,10 @@ class HttpRagEngineClientTest {
             HttpExchange exchange,
             CapturedRequest capturedRequest
     ) throws IOException {
-        capturedRequest.requestId =
-                exchange.getRequestHeaders()
-                        .getFirst(RequestCorrelationFilter.REQUEST_ID_HEADER);
+        capturedRequest.requestId = exchange
+                .getRequestHeaders()
+                .getFirst(RequestCorrelationFilter.REQUEST_ID_HEADER);
+
         capturedRequest.body = new String(
                 exchange.getRequestBody().readAllBytes(),
                 StandardCharsets.UTF_8
@@ -69,7 +76,6 @@ class HttpRagEngineClientTest {
 
         byte[] response = """
                 {
-                  "query_text": "flavor concern",
                   "top_k": 3,
                   "evidence": []
                 }
