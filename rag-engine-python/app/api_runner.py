@@ -6,13 +6,11 @@ import sys
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import Enum
 from typing import Any
 
 from pydantic import ValidationError
 
 from app.checklist import build_intake_checklist
-from app.checklist_models import EvidenceCitation, ChecklistItem, IntakeChecklist
 from app.final_assessment import build_final_assessment
 from app.llm_client import LLMClientError, openai_json_client_from_env
 from app.refusal import evaluate_refusal
@@ -20,12 +18,15 @@ from app.review_summary_extraction import (
     ReviewSummaryExtractionError,
     extract_review_summary_result,
 )
+from app.review_workflow import (
+    ChecklistWorkflowRequest,
+    ReviewWorkflow,
+    WorkflowRequestError,
+)
 from app.retrieval import SearchResult, retrieve
 from app.schemas import (
-    ConcernType,
     RefusalResult,
     ReviewSummary,
-    RiskLane,
     SourceType,
 )
 
@@ -37,16 +38,6 @@ COMMAND_CHECKLIST = "checklist"
 COMMAND_RETRIEVE = "retrieve"
 COMMAND_FINAL_ASSESSMENT = "final_assessment"
 COMMAND_EXTRACT_REVIEW_SUMMARY = "extract_review_summary"
-
-CHECK_KEYS_BY_NAME = {
-    "Record review": "record_review",
-    "Lot or batch context review": "lot_batch_review",
-    "Inventory inspection if available": "inventory_inspection",
-    "Trend scan": "trend_scan",
-    "Customer clinical context follow-up": "customer_context_follow_up",
-    "Device administration context": "device_administration_context",
-    "BUD field review": "bud_field_review",
-}
 
 _CAMEL_BOUNDARY_RE = re.compile(r"(?<!^)(?=[A-Z])")
 
@@ -146,15 +137,21 @@ def handle_checklist(payload: dict[str, Any]) -> dict[str, Any]:
     concern_text = require_string(payload, "concernText", "payload.concernText")
     top_k = optional_positive_int(payload, "topK", "payload.topK", default=5)
 
-    clean_text = require_non_blank_text(
-        concern_text,
-        "payload.concernText must not be blank",
-    )
+    workflow = ReviewWorkflow(build_intake_checklist=build_intake_checklist)
 
-    enforce_refusal_boundary(clean_text)
-
-    checklist = build_intake_checklist(clean_text, top_k=top_k)
-    return checklist_to_api_result(checklist)
+    try:
+        return workflow.run_checklist(
+            ChecklistWorkflowRequest(
+                concern_text=concern_text,
+                top_k=top_k,
+            )
+        )
+    except WorkflowRequestError as exc:
+        raise BridgeRequestError(
+            exc.code,
+            bridge_error_message(exc),
+            details=exc.details,
+        ) from exc
 
 
 def handle_retrieve(payload: dict[str, Any]) -> dict[str, Any]:
@@ -214,7 +211,6 @@ def handle_final_assessment(payload: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-
 def handle_extract_review_summary(payload: dict[str, Any]) -> dict[str, Any]:
     concern_text = require_string(
         payload,
@@ -255,50 +251,6 @@ def handle_extract_review_summary(payload: dict[str, Any]) -> dict[str, Any]:
         to_camel_case,
     )
 
-def checklist_to_api_result(checklist: IntakeChecklist) -> dict[str, Any]:
-    return {
-        "concernType": enum_value_or_none(checklist.likely_concern_type),
-        "riskLane": enum_value_or_none(checklist.likely_risk_lane),
-        "reviewScope": derive_review_scope(checklist),
-        "initialTakeaway": build_initial_takeaway(checklist),
-        "requiredChecks": [
-            checklist_item_to_api_item(item)
-            for item in checklist.review_checks
-        ],
-        "missingInformation": list(checklist.missing_information),
-        "escalationTriggersToRuleOut": [
-            trigger.value
-            for trigger in checklist.escalation_triggers_to_rule_out
-        ],
-        "evidence": [
-            evidence_to_api_item(citation)
-            for citation in checklist.evidence
-        ],
-        "limitations": list(checklist.limitations),
-    }
-
-
-def checklist_item_to_api_item(item: ChecklistItem) -> dict[str, Any]:
-    return {
-        "key": CHECK_KEYS_BY_NAME.get(item.check_name, slugify(item.check_name)),
-        "label": item.check_name,
-        "required": item.required,
-        "reason": item.rationale,
-    }
-
-
-def evidence_to_api_item(citation: EvidenceCitation) -> dict[str, Any]:
-    return {
-        "chunkId": citation.chunk_id,
-        "sourceId": citation.source_id,
-        "sourceTitle": citation.source_title,
-        "sourceType": citation.source_type,
-        "sectionHeading": citation.section_heading,
-        "score": citation.score,
-        "matchedTerms": list(citation.matched_terms),
-        "supportingText": citation.supporting_text,
-    }
-
 
 def search_result_to_api_item(result: SearchResult) -> dict[str, Any]:
     chunk = result["chunk"]
@@ -315,6 +267,16 @@ def search_result_to_api_item(result: SearchResult) -> dict[str, Any]:
     }
 
 
+def bridge_error_message(exc: WorkflowRequestError) -> str:
+    if exc.message == "concern_text must not be blank":
+        return "payload.concernText must not be blank"
+
+    if exc.message == "top_k must be at least 1":
+        return "payload.topK must be at least 1"
+
+    return exc.message
+
+
 def review_summary_from_api_payload(payload: dict[str, Any]) -> ReviewSummary:
     snake_case_payload = convert_keys(payload, to_snake_case)
 
@@ -329,25 +291,6 @@ def review_summary_from_api_payload(payload: dict[str, Any]) -> ReviewSummary:
             },
         ) from exc
 
-
-def derive_review_scope(checklist: IntakeChecklist) -> str:
-    if checklist.likely_risk_lane == RiskLane.LIFE_THREATENING_OR_LEGAL:
-        return "escalation_review"
-
-    if checklist.likely_concern_type == ConcernType.BUD_QUESTION:
-        return "guidance_only"
-
-    return "full_quality_review"
-
-
-def build_initial_takeaway(checklist: IntakeChecklist) -> str:
-    concern_type = humanize_enum(checklist.likely_concern_type)
-    risk_lane = humanize_enum(checklist.likely_risk_lane)
-
-    return (
-        f"Initial screen suggests {concern_type} with {risk_lane} risk lane. "
-        "Final routing depends on review findings and confirmed escalation triggers."
-    )
 
 
 def enforce_refusal_boundary(text: str) -> None:
@@ -527,28 +470,6 @@ def to_camel_case(value: str) -> str:
 
     return parts[0] + "".join(part.capitalize() for part in parts[1:])
 
-
-def enum_value_or_none(value: Enum | None) -> str | None:
-    if value is None:
-        return None
-
-    return str(value.value)
-
-
-def humanize_enum(value: Enum | None) -> str:
-    if value is None:
-        return "unknown"
-
-    return str(value.value).replace("_", " ")
-
-
-def slugify(value: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
-
-    if not slug:
-        return "check"
-
-    return slug
 
 
 if __name__ == "__main__":
