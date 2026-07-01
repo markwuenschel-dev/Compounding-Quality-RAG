@@ -10,9 +10,13 @@ from pydantic import Field
 
 from app.checklist import build_intake_checklist
 from app.checklist_models import IntakeChecklist
-from app.final_assessment import build_final_assessment
 from app.llm_client import LLMClientError, openai_json_client_from_env
-from app.review_pipeline import ReviewRefused, run_checklist as run_checklist_pipeline
+from app.review_pipeline import (
+    ReviewRefused,
+    run_checklist as run_checklist_pipeline,
+    run_final_assessment as run_final_assessment_pipeline,
+    run_retrieve as run_retrieve_pipeline,
+)
 from app.retrieval import DEFAULT_CHUNKS_PATH as CANONICAL_CHUNKS_PATH
 from app.retrieval import SearchResult, retrieve
 from app.review_summary_extraction import extract_review_summary_result
@@ -149,14 +153,21 @@ def checklist(request: ChecklistRequest) -> IntakeChecklist:
 @app.post("/api/retrieve", response_model=RetrieveResponse)
 def retrieve_evidence(request: RetrieveRequest) -> RetrieveResponse:
     try:
-        results = retrieve(
-            query=request.query,
-            chunks_path=DEFAULT_CHUNKS_PATH,
+        results = run_retrieve_pipeline(
+            request.query,
             top_k=request.top_k,
             source_type=request.source_type,
+            retrieve=lambda *, query, top_k, source_type: retrieve(
+                query=query,
+                chunks_path=DEFAULT_CHUNKS_PATH,
+                top_k=top_k,
+                source_type=source_type,
+            ),
         )
 
         return RetrieveResponse(query=request.query, results=results)
+    except ReviewRefused as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -168,16 +179,18 @@ def retrieve_evidence(request: RetrieveRequest) -> RetrieveResponse:
 @app.post("/api/final-assessment", response_model=ExpectedStructuredOutput)
 def final_assessment(request: FinalAssessmentRequest) -> ExpectedStructuredOutput:
     try:
-        checklist_result = build_intake_checklist(
+        return run_final_assessment_pipeline(
             request.concern_text,
-            chunks_path=DEFAULT_CHUNKS_PATH,
+            request.review_summary,
             top_k=request.top_k,
+            build_intake_checklist=lambda concern_text, *, top_k: build_intake_checklist(
+                concern_text,
+                chunks_path=DEFAULT_CHUNKS_PATH,
+                top_k=top_k,
+            ),
         )
-
-        return build_final_assessment(
-            checklist=checklist_result,
-            review_summary=request.review_summary,
-        )
+    except ReviewRefused as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

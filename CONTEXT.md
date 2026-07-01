@@ -6,11 +6,13 @@ tests, and review. This file is consulted by architecture reviews to name good s
 ## Terms
 
 **Review pipeline** — the single module (`rag-engine-python/app/review_pipeline.py`) that
-owns review orchestration: it sequences input validation, the refusal boundary, and the
-deterministic stages (checklist today; final assessment and retrieval to follow) in one
-place. Adapters — the stdin bridge (`api_runner`), the FastAPI app (`server`), and the demo
-`cli` — call into the pipeline rather than assembling the stages themselves, so the sequence
-cannot drift apart between them.
+owns review orchestration through one input-screening seam (`_screened_text`: validate +
+refusal boundary) shared by every entry point: `run_checklist`, `run_retrieve`, and
+`run_final_assessment`. Adapters — the stdin bridge (`api_runner`), the FastAPI app
+(`server`), and the demo `cli` — call into the pipeline rather than assembling the stages
+themselves, so the refusal boundary cannot drift apart between them. The FastAPI app now
+routes all three review endpoints through the pipeline; migrating `api_runner` off its inline
+orchestration is the remaining follow-up.
 
 **Refusal boundary** — the policy seam that blocks a concern the system must not answer
 (external drug-reference lookups, internal-record access, clinical/legal conclusions). It is
