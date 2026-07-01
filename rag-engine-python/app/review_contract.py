@@ -1,13 +1,16 @@
+"""Presenter for the review bridge: maps a domain IntakeChecklist to the contract.
+
+Presentation only. It shapes the pipeline's domain result (`IntakeChecklist`) into the
+camelCase dict the stdin bridge returns to callers. Orchestration and the refusal
+boundary live in :mod:`app.review_pipeline`, not here.
+"""
+
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any
 
-from app.checklist import build_intake_checklist as default_build_intake_checklist
 from app.checklist_models import EvidenceCitation, ChecklistItem, IntakeChecklist
-from app.review_pipeline import ReviewRefused, run_checklist as run_checklist_pipeline
 from app.schemas import ConcernType, RiskLane
 
 
@@ -20,67 +23,6 @@ CHECK_KEYS_BY_NAME = {
     "Device administration context": "device_administration_context",
     "BUD field review": "bud_field_review",
 }
-
-
-class WorkflowRequestError(Exception):
-    def __init__(
-        self,
-        code: str,
-        message: str,
-        *,
-        details: dict[str, Any] | None = None,
-    ) -> None:
-        self.code = code
-        self.message = message
-        self.details = details or {}
-        super().__init__(message)
-
-
-@dataclass(frozen=True)
-class ChecklistWorkflowRequest:
-    concern_text: str
-    top_k: int = 5
-
-
-class ReviewWorkflow:
-    def __init__(
-        self,
-        *,
-        build_intake_checklist: Callable[..., IntakeChecklist] = default_build_intake_checklist,
-    ) -> None:
-        self._build_intake_checklist = build_intake_checklist
-
-    def run_checklist(
-        self,
-        request: ChecklistWorkflowRequest,
-    ) -> dict[str, Any]:
-        try:
-            checklist = run_checklist_pipeline(
-                request.concern_text,
-                top_k=request.top_k,
-                build_intake_checklist=self._build_intake_checklist,
-            )
-        except ReviewRefused as exc:
-            refusal = exc.refusal
-            raise WorkflowRequestError(
-                "REFUSED",
-                refusal.message or "Request was refused by review boundary rules.",
-                details={
-                    "reason": (
-                        refusal.reason.value
-                        if refusal.reason is not None
-                        else None
-                    ),
-                    "matchedTerms": list(refusal.matched_terms),
-                },
-            ) from exc
-        except ValueError as exc:
-            raise WorkflowRequestError(
-                "INVALID_REQUEST",
-                str(exc),
-            ) from exc
-
-        return checklist_to_review_contract(checklist)
 
 
 def checklist_to_review_contract(checklist: IntakeChecklist) -> dict[str, Any]:
