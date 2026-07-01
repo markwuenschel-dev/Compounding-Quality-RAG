@@ -18,11 +18,8 @@ from app.review_summary_extraction import (
     ReviewSummaryExtractionError,
     extract_review_summary_result,
 )
-from app.review_workflow import (
-    ChecklistWorkflowRequest,
-    ReviewWorkflow,
-    WorkflowRequestError,
-)
+from app.review_contract import checklist_to_review_contract
+from app.review_pipeline import ReviewRefused, run_checklist as run_checklist_pipeline
 from app.retrieval import SearchResult, retrieve
 from app.schemas import (
     RefusalResult,
@@ -137,21 +134,21 @@ def handle_checklist(payload: dict[str, Any]) -> dict[str, Any]:
     concern_text = require_string(payload, "concernText", "payload.concernText")
     top_k = optional_positive_int(payload, "topK", "payload.topK", default=5)
 
-    workflow = ReviewWorkflow(build_intake_checklist=build_intake_checklist)
-
     try:
-        return workflow.run_checklist(
-            ChecklistWorkflowRequest(
-                concern_text=concern_text,
-                top_k=top_k,
-            )
+        checklist = run_checklist_pipeline(
+            concern_text,
+            top_k=top_k,
+            build_intake_checklist=build_intake_checklist,
         )
-    except WorkflowRequestError as exc:
+    except ReviewRefused as exc:
+        raise refusal_error(exc.refusal) from exc
+    except ValueError as exc:
         raise BridgeRequestError(
-            exc.code,
-            bridge_error_message(exc),
-            details=exc.details,
+            "INVALID_REQUEST",
+            bridge_error_message(str(exc)),
         ) from exc
+
+    return checklist_to_review_contract(checklist)
 
 
 def handle_retrieve(payload: dict[str, Any]) -> dict[str, Any]:
@@ -267,14 +264,14 @@ def search_result_to_api_item(result: SearchResult) -> dict[str, Any]:
     }
 
 
-def bridge_error_message(exc: WorkflowRequestError) -> str:
-    if exc.message == "concern_text must not be blank":
+def bridge_error_message(message: str) -> str:
+    if message == "concern_text must not be blank":
         return "payload.concernText must not be blank"
 
-    if exc.message == "top_k must be at least 1":
+    if message == "top_k must be at least 1":
         return "payload.topK must be at least 1"
 
-    return exc.message
+    return message
 
 
 def review_summary_from_api_payload(payload: dict[str, Any]) -> ReviewSummary:

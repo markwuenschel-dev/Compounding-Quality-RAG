@@ -10,9 +10,10 @@ owns review orchestration through one input-screening seam (`_screened_text`: va
 refusal boundary) shared by every entry point: `run_checklist`, `run_retrieve`, and
 `run_final_assessment`. Adapters — the stdin bridge (`api_runner`), the FastAPI app
 (`server`), and the demo `cli` — call into the pipeline rather than assembling the stages
-themselves, so the refusal boundary cannot drift apart between them. The FastAPI app now
-routes all three review endpoints through the pipeline; migrating `api_runner` off its inline
-orchestration is the remaining follow-up.
+themselves, so the refusal boundary cannot drift apart between them. The FastAPI app routes
+all three review endpoints through the pipeline, and `api_runner`'s checklist path does too;
+`api_runner`'s `retrieve` and `final_assessment` handlers still orchestrate inline (they
+screen refusal, so there is no gap) and are the remaining follow-up.
 
 **Refusal boundary** — the policy seam that blocks a concern the system must not answer
 (external drug-reference lookups, internal-record access, clinical/legal conclusions). It is
