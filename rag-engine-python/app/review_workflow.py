@@ -7,7 +7,7 @@ from typing import Any
 
 from app.checklist import build_intake_checklist as default_build_intake_checklist
 from app.checklist_models import EvidenceCitation, ChecklistItem, IntakeChecklist
-from app.refusal import evaluate_refusal
+from app.review_pipeline import ReviewRefused, run_checklist as run_checklist_pipeline
 from app.schemas import ConcernType, RiskLane
 
 
@@ -54,21 +54,14 @@ class ReviewWorkflow:
         self,
         request: ChecklistWorkflowRequest,
     ) -> dict[str, Any]:
-        concern_text = request.concern_text.strip()
-        if not concern_text:
-            raise WorkflowRequestError(
-                "INVALID_REQUEST",
-                "concern_text must not be blank",
+        try:
+            checklist = run_checklist_pipeline(
+                request.concern_text,
+                top_k=request.top_k,
+                build_intake_checklist=self._build_intake_checklist,
             )
-
-        if request.top_k < 1:
-            raise WorkflowRequestError(
-                "INVALID_REQUEST",
-                "top_k must be at least 1",
-            )
-
-        refusal = evaluate_refusal(concern_text)
-        if refusal.refused:
+        except ReviewRefused as exc:
+            refusal = exc.refusal
             raise WorkflowRequestError(
                 "REFUSED",
                 refusal.message or "Request was refused by review boundary rules.",
@@ -80,12 +73,12 @@ class ReviewWorkflow:
                     ),
                     "matchedTerms": list(refusal.matched_terms),
                 },
-            )
-
-        checklist = self._build_intake_checklist(
-            concern_text,
-            top_k=request.top_k,
-        )
+            ) from exc
+        except ValueError as exc:
+            raise WorkflowRequestError(
+                "INVALID_REQUEST",
+                str(exc),
+            ) from exc
 
         return checklist_to_review_contract(checklist)
 
