@@ -12,6 +12,7 @@ from app.checklist import build_intake_checklist
 from app.checklist_models import IntakeChecklist
 from app.final_assessment import build_final_assessment
 from app.llm_client import LLMClientError, openai_json_client_from_env
+from app.review_pipeline import ReviewRefused, run_checklist as run_checklist_pipeline
 from app.retrieval import DEFAULT_CHUNKS_PATH as CANONICAL_CHUNKS_PATH
 from app.retrieval import SearchResult, retrieve
 from app.review_summary_extraction import extract_review_summary_result
@@ -126,11 +127,17 @@ def readiness() -> ReadinessResponse:
 @app.post("/api/checklist", response_model=IntakeChecklist)
 def checklist(request: ChecklistRequest) -> IntakeChecklist:
     try:
-        return build_intake_checklist(
+        return run_checklist_pipeline(
             request.concern_text,
-            chunks_path=DEFAULT_CHUNKS_PATH,
             top_k=request.top_k,
+            build_intake_checklist=lambda concern_text, *, top_k: build_intake_checklist(
+                concern_text,
+                chunks_path=DEFAULT_CHUNKS_PATH,
+                top_k=top_k,
+            ),
         )
+    except ReviewRefused as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
